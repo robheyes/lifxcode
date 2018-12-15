@@ -2,9 +2,13 @@ import spock.lang.Specification
 
 
 class BufferTest extends Specification {
+    private Buffer buffer
+
+    def setup() {
+        buffer = new Buffer()
+    }
+
     def "New buffer is empty"() {
-        given:
-        def buffer = new Buffer()
         when:
         def size = buffer.size()
         then:
@@ -12,8 +16,6 @@ class BufferTest extends Specification {
     }
 
     def "New buffer has empty contents"() {
-        given:
-        def buffer = new Buffer();
         when:
         def content = buffer.contents()
         then:
@@ -21,8 +23,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer has size 1 after adding a byte"() {
-        given:
-        def buffer = new Buffer()
         when:
         byte value = 0x3a
         buffer.addByte(value)
@@ -31,8 +31,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer contents returns a string with data"() {
-        given:
-        def buffer = new Buffer()
         when:
         byte value = 0x39
         buffer.addByte(value)
@@ -41,8 +39,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer has size 2 after adding an int"() {
-        given:
-        def buffer = new Buffer()
         when:
         buffer.addInt(0x393a)
         then:
@@ -50,8 +46,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer has size 4 after adding a long"() {
-        given:
-        def buffer = new Buffer()
         when:
         buffer.addLong(0x393a3b3c)
         then:
@@ -59,8 +53,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer contents are in little endian format after adding an int"() {
-        given:
-        def buffer = new Buffer()
         when:
         buffer.addInt(0x393a)
         then:
@@ -68,8 +60,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer contents are in little endian format after adding a long"() {
-        given:
-        def buffer = new Buffer()
         when:
         buffer.addLong(0x393a3b3c)
         then:
@@ -77,8 +67,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer has size 3 after adding a 3 byte array"() {
-        given:
-        def buffer = new Buffer()
         when:
         buffer.addBytes([0x01, 0x02, 0x03] as byte[])
         then:
@@ -86,8 +74,6 @@ class BufferTest extends Specification {
     }
 
     def "Buffer contents are in correct order after adding a 3 byte array"() {
-        given:
-        def buffer = new Buffer()
         when:
         buffer.addBytes([0x01, 0x02, 0x03] as byte[])
         then:
