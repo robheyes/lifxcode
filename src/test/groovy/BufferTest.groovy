@@ -37,7 +37,7 @@ class BufferTest extends Specification {
         byte value = 0x39
         buffer.addByte(value)
         then:
-        buffer.contents() == [0x39]
+        buffer.contents() == [0x39] as byte[]
     }
 
     def "Buffer has size 2 after adding an int"() {
@@ -63,9 +63,8 @@ class BufferTest extends Specification {
         def buffer = new Buffer()
         when:
         buffer.addInt(0x393a)
-        byte[] expected = [0x3a, 0x39]
         then:
-        buffer.contents() == expected
+        buffer.contents() == ([0x3a, 0x39] as byte[])
     }
 
     def "Buffer contents are in little endian format after adding a long"() {
@@ -73,9 +72,8 @@ class BufferTest extends Specification {
         def buffer = new Buffer()
         when:
         buffer.addLong(0x393a3b3c)
-        byte[] expected = [0x3c, 0x3b, 0x3a, 0x39]
         then:
-        buffer.contents() == expected
+        buffer.contents() == ([0x3c, 0x3b, 0x3a, 0x39] as byte[])
     }
 
     def "Buffer has size 3 after adding a 3 byte array"() {
