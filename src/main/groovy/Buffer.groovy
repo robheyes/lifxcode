@@ -28,4 +28,14 @@ class Buffer {
             addByte(value)
         }
     }
+
+    def addBuffer(Buffer buffer) {
+        addBytes(buffer.contents().toArray() as byte[])
+    }
+
+    def addMultiple(byte value, int count) {
+        for (int i = 0; i < count ; i++) {
+            addByte(value)
+        }
+    }
 }
