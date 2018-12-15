@@ -22,4 +22,10 @@ class Buffer {
         addInt((value % 65536) as int)
         addInt((value / 65536) as int)
     }
+
+    def addBytes(byte[] values) {
+        for (value in values) {
+            addByte(value)
+        }
+    }
 }

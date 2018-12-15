@@ -29,3 +29,9 @@ gradle-app.setting
 
 # Cache of project
 .gradletasknamecache
+
+# attach files
+.attach_pid*
+
+# output files
+out

@@ -77,4 +77,22 @@ class BufferTest extends Specification {
         then:
         buffer.contents() == expected
     }
+
+    def "Buffer has size 3 after adding a 3 byte array"() {
+        given:
+        def buffer = new Buffer()
+        when:
+        buffer.addBytes([0x01, 0x02, 0x03] as byte[])
+        then:
+        buffer.size() == 3
+    }
+
+    def "Buffer contents are in correct order after adding a 3 byte array"() {
+        given:
+        def buffer = new Buffer()
+        when:
+        buffer.addBytes([0x01, 0x02, 0x03] as byte[])
+        then:
+        buffer.contents() == [0x01, 0x02, 0x03] as byte[]
+    }
 }
