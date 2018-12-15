@@ -1,5 +1,5 @@
 class Buffer {
-    def theBuffer = [] as LinkedList
+    private LinkedList<Byte> theBuffer = []
 
     def size() {
         theBuffer.size()
