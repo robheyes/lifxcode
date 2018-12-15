@@ -79,4 +79,24 @@ class BufferTest extends Specification {
         then:
         buffer.contents() == [0x01, 0x02, 0x03] as byte[]
     }
+
+    def "Buffer can add another buffer"() {
+        given:
+        def other = new Buffer()
+        and:
+        other.addBytes([0x39, 0x3a] as byte[])
+        and:
+        buffer.addByte(0x38 as byte)
+        when:
+        buffer.addBuffer(other)
+        then:
+        buffer.contents() == [0x38, 0x39, 0x3a]
+    }
+
+    def "It fills with multiple copies of a byte"() {
+        when:
+        buffer.addMultiple(0xaa as byte, 4)
+        then:
+        buffer.contents() == [0xaa,0xaa,0xaa,0xaa] as byte[]
+    }
 }
