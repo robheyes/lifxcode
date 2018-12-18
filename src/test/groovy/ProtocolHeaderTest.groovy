@@ -7,17 +7,17 @@ class ProtocolHeaderTest extends Specification {
 
     def setup() {
         buffer = new Buffer()
-        header = new ProtocolHeader(buffer)
+        header = new ProtocolHeader(12 as short)
     }
 
     def "Sets the type"() {
         when:
-        header.setType(0x0025)
+        header.fillBuffer(buffer)
         then:
         buffer.contents() == [
                 0, 0, 0, 0,
                 0, 0, 0, 0,
-                0x25, 0,
+                12, 0,
                 0, 0,
         ]
     }

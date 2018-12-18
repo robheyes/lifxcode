@@ -38,32 +38,46 @@ class BufferTest extends Specification {
         buffer.contents() == [0x39] as byte[]
     }
 
-    def "Buffer has size 2 after adding an int"() {
+    def "Buffer has size 2 after adding a short"() {
         when:
-        buffer.addInt(0x393a)
+        buffer.addShort(0x393a as short)
         then:
         buffer.size() == 2
     }
 
-    def "Buffer has size 4 after adding a long"() {
+    def "Buffer has size 4 after adding an int"() {
         when:
-        buffer.addLong(0x393a3b3c)
+        buffer.addInt(0x393a3b3c)
         then:
         buffer.size() == 4
     }
 
-    def "Buffer contents are in little endian format after adding an int"() {
+    def "Buffer has size 8 after adding a long"() {
         when:
-        buffer.addInt(0x393a)
+        buffer.addLong(0x393a3b3c)
+        then:
+        buffer.size() == 8
+    }
+
+    def "Buffer contents are in little endian format after adding a short"() {
+        when:
+        buffer.addShort(0x393a as short)
         then:
         buffer.contents() == ([0x3a, 0x39] as byte[])
     }
 
-    def "Buffer contents are in little endian format after adding a long"() {
+    def "Buffer contents are in little endian format after adding an int"() {
         when:
-        buffer.addLong(0x393a3b3c)
+        buffer.addInt(0x393a3b3c)
         then:
         buffer.contents() == ([0x3c, 0x3b, 0x3a, 0x39] as byte[])
+    }
+
+    def "Buffer contents are in little endian format after adding a long"() {
+        when:
+        buffer.addLong(0x393a3b3c3d3e3f40)
+        then:
+        buffer.contents() == ([0x40, 0x3f, 0x3e, 0x3d, 0x3c, 0x3b, 0x3a, 0x39] as byte[])
     }
 
     def "Buffer has size 3 after adding a 3 byte array"() {
@@ -95,7 +109,7 @@ class BufferTest extends Specification {
 
     def "It fills with multiple copies of a byte"() {
         when:
-        buffer.addMultiple(0xaa as byte, 4)
+        buffer.addByteCopies(0xaa as byte, 4)
         then:
         buffer.contents() == [0xaa,0xaa,0xaa,0xaa] as byte[]
     }
