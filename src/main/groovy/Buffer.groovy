@@ -1,31 +1,34 @@
 class Buffer {
-    private LinkedList<Byte> theBuffer = []
+    private theBuffer = []
 
     def size() {
         theBuffer.size()
     }
 
     def contents() {
-        theBuffer
+        theBuffer.each { it as byte }
     }
 
-    def addByte(byte value) {
-        theBuffer << value
+    def addByte(value) {
+        theBuffer.add(Byte.toUnsignedInt(value))
     }
 
-    def addShort(short value) {
-        addByte((value % 256) as byte)
-        addByte((value / 256) as byte)
+    def addShort(Short value) {
+        def lower = value & 0xff
+        addByte(lower as byte)
+        addByte(((value - lower) >>> 8) as byte)
     }
 
-    def addInt(long value) {
-        addShort((value % 65536) as short)
-        addShort((value / 65536) as short)
+    def addInt(Integer value) {
+        def lower = value & 0xffff
+        addShort(lower as short)
+        addShort(Integer.divideUnsigned(value - lower, 0x10000) as short)
     }
 
-    def addLong(long value) {
-        addInt((value % 4294967296) as int)
-        addInt((value / 4294967296) as int)
+    def addLong(Long value) {
+        def lower = value & 0xffffffff
+        addInt(lower as int)
+        addInt(Long.divideUnsigned(value - lower, 0x100000000) as int)
     }
 
     def addBytes(byte[] values) {
@@ -39,7 +42,7 @@ class Buffer {
     }
 
     def addByteCopies(byte value, int count) {
-        for (int i = 0; i < count ; i++) {
+        for (int i = 0; i < count; i++) {
             addByte(value)
         }
     }
