@@ -30,12 +30,20 @@ class BufferTest extends Specification {
         buffer.size() == 1
     }
 
-    def "Buffer contents returns a string with data"() {
+    def "Buffer contents returns the data"() {
         when:
         byte value = 0x39
         buffer.addByte(value)
         then:
-        buffer.contents() == [0x39] as byte[]
+        buffer.contents() == [0x0039]
+    }
+
+    def "Buffer adds a byte of 0xff"() {
+        when:
+        byte value = 0xff as byte
+        buffer.addByte(value)
+        then:
+        buffer.contents() == [0x00ff]
     }
 
     def "Buffer has size 2 after adding a short"() {
@@ -63,21 +71,21 @@ class BufferTest extends Specification {
         when:
         buffer.addShort(0x393a as short)
         then:
-        buffer.contents() == ([0x3a, 0x39] as byte[])
+        buffer.contents() == ([0x003a, 0x0039] )
     }
 
     def "Buffer contents are in little endian format after adding an int"() {
         when:
         buffer.addInt(0x393a3b3c)
         then:
-        buffer.contents() == ([0x3c, 0x3b, 0x3a, 0x39] as byte[])
+        buffer.contents() == [0x003c, 0x003b, 0x003a, 0x0039]
     }
 
     def "Buffer contents are in little endian format after adding a long"() {
         when:
         buffer.addLong(0x393a3b3c3d3e3f40)
         then:
-        buffer.contents() == ([0x40, 0x3f, 0x3e, 0x3d, 0x3c, 0x3b, 0x3a, 0x39] as byte[])
+        buffer.contents() == [0x0040, 0x003f, 0x003e, 0x003d, 0x003c, 0x003b, 0x003a, 0x0039]
     }
 
     def "Buffer has size 3 after adding a 3 byte array"() {
@@ -91,7 +99,7 @@ class BufferTest extends Specification {
         when:
         buffer.addBytes([0x01, 0x02, 0x03] as byte[])
         then:
-        buffer.contents() == [0x01, 0x02, 0x03] as byte[]
+        buffer.contents() == [0x0001, 0x0002, 0x0003]
     }
 
     def "Buffer can add another buffer"() {
@@ -104,13 +112,13 @@ class BufferTest extends Specification {
         when:
         buffer.addBuffer(other)
         then:
-        buffer.contents() == [0x38, 0x39, 0x3a]
+        buffer.contents() == [0x0038, 0x0039, 0x003a]
     }
 
     def "It fills with multiple copies of a byte"() {
         when:
         buffer.addByteCopies(0xaa as byte, 4)
         then:
-        buffer.contents() == [0xaa,0xaa,0xaa,0xaa] as byte[]
+        buffer.contents() == [0x00aa,0x00aa,0x00aa,0x00aa]
     }
 }
