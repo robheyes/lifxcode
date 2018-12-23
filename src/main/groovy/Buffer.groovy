@@ -43,6 +43,12 @@ class Buffer {
         return buffer
     }
 
+    private void byteFill(List buffer, byte value, int count) {
+        for (int i = 0; i < count; i++) {
+            byteAdd(buffer, value)
+        }
+    }
+
     def addByte(value) {
         byteAdd(theBuffer, value)
     }
@@ -69,8 +75,7 @@ class Buffer {
     }
 
     def addByteCopies(byte value, int count) {
-        for (int i = 0; i < count; i++) {
-            byteAdd(theBuffer, value)
-        }
+        def buffer = theBuffer
+        byteFill(buffer, value, count)
     }
 }
