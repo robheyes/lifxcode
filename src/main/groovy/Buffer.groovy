@@ -6,44 +6,71 @@ class Buffer {
     }
 
     def contents() {
-        theBuffer.each { it as byte }
+        asByteList(theBuffer)
+    }
+
+    private List<Byte> asByteList(List buffer) {
+        buffer.each { it as byte }
+    }
+
+    private List byteAdd(List buffer, value) {
+        buffer.add(Byte.toUnsignedInt(value))
+        return buffer
+    }
+
+    private List shortAdd(List buffer, short value) {
+        def lower = value & 0xff
+        byteAdd(buffer, lower as byte)
+        byteAdd(buffer, ((value - lower) >>> 8) as byte)
+    }
+
+    private List intAdd(List buffer, int value) {
+        def lower = value & 0xffff
+        shortAdd(buffer, lower as short)
+        shortAdd(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
+    }
+
+    private List longAdd(List buffer, long value) {
+        def lower = value & 0xffffffff
+        intAdd(buffer, lower as int)
+        intAdd(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
+    }
+
+    private List bytesAdd(List buffer, byte[] values) {
+        for (value in values) {
+            byteAdd(buffer, value)
+        }
+        return buffer
     }
 
     def addByte(value) {
-        theBuffer.add(Byte.toUnsignedInt(value))
+        byteAdd(theBuffer, value)
     }
 
     def addShort(Short value) {
-        def lower = value & 0xff
-        addByte(lower as byte)
-        addByte(((value - lower) >>> 8) as byte)
+        shortAdd(theBuffer, value)
     }
 
     def addInt(Integer value) {
-        def lower = value & 0xffff
-        addShort(lower as short)
-        addShort(Integer.divideUnsigned(value - lower, 0x10000) as short)
+        intAdd(theBuffer, value)
     }
 
     def addLong(Long value) {
-        def lower = value & 0xffffffff
-        addInt(lower as int)
-        addInt(Long.divideUnsigned(value - lower, 0x100000000) as int)
+        def buffer = theBuffer
+        longAdd(buffer, value)
     }
 
     def addBytes(byte[] values) {
-        for (value in values) {
-            addByte(value)
-        }
+        bytesAdd(theBuffer, values)
     }
 
     def addBuffer(Buffer buffer) {
-        addBytes(buffer.contents().toArray() as byte[])
+        bytesAdd(theBuffer, buffer.contents().toArray() as byte[])
     }
 
     def addByteCopies(byte value, int count) {
         for (int i = 0; i < count; i++) {
-            addByte(value)
+            byteAdd(theBuffer, value)
         }
     }
 }

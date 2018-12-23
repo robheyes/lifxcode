@@ -115,6 +115,17 @@ class BufferTest extends Specification {
         buffer.contents() == [0x0038, 0x0039, 0x003a]
     }
 
+    def "Adding an empty buffer has no impact"() {
+        given:
+        def other = new Buffer()
+        and:
+        buffer.addByte(0x38 as byte)
+        when:
+        buffer.addBuffer(other)
+        then:
+        buffer.contents() == [0x0038]
+    }
+
     def "It fills with multiple copies of a byte"() {
         when:
         buffer.addByteCopies(0xaa as byte, 4)
