@@ -13,69 +13,69 @@ class Buffer {
         buffer.each { it as byte }
     }
 
-    private List byteAdd(List buffer, value) {
+    List add(List buffer, Byte value) {
         buffer.add(Byte.toUnsignedInt(value))
         return buffer
     }
 
-    private List shortAdd(List buffer, short value) {
+    List add(List buffer, short value) {
         def lower = value & 0xff
-        byteAdd(buffer, lower as byte)
-        byteAdd(buffer, ((value - lower) >>> 8) as byte)
+        add(buffer, lower as byte)
+        add(buffer, ((value - lower) >>> 8) as byte)
     }
 
-    private List intAdd(List buffer, int value) {
+    List add(List buffer, int value) {
         def lower = value & 0xffff
-        shortAdd(buffer, lower as short)
-        shortAdd(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
+        add(buffer, lower as short)
+        add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
     }
 
-    private List longAdd(List buffer, long value) {
+    List add(List buffer, long value) {
         def lower = value & 0xffffffff
-        intAdd(buffer, lower as int)
-        intAdd(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
+        add(buffer, lower as int)
+        add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
     }
 
-    private List bytesAdd(List buffer, byte[] values) {
+    List add(List buffer, byte[] values) {
         for (value in values) {
-            byteAdd(buffer, value)
+            add(buffer, value)
         }
         return buffer
     }
 
-    private void byteFill(List buffer, byte value, int count) {
+    void fill(List buffer, byte value, int count) {
         for (int i = 0; i < count; i++) {
-            byteAdd(buffer, value)
+            add(buffer, value)
         }
     }
 
     def add(Byte value) {
-        byteAdd(theBuffer, value)
+        add(theBuffer, value)
     }
 
     def add(Short value) {
-        shortAdd(theBuffer, value)
+        add(theBuffer, value)
     }
 
     def add(Integer value) {
-        intAdd(theBuffer, value)
+        add(theBuffer, value)
     }
 
     def add(Long value) {
         def buffer = theBuffer
-        longAdd(buffer, value)
+        add(buffer, value)
     }
 
     def add(byte[] values) {
-        bytesAdd(theBuffer, values)
+        add(theBuffer, values)
     }
 
     def add(Buffer buffer) {
-        bytesAdd(theBuffer, buffer.contents().toArray() as byte[])
+        add(theBuffer, buffer.contents().toArray() as byte[])
     }
 
     def addByteCopies(byte value, int count) {
         def buffer = theBuffer
-        byteFill(buffer, value, count)
+        fill(buffer, value, count)
     }
 }
