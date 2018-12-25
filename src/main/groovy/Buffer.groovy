@@ -49,28 +49,28 @@ class Buffer {
         }
     }
 
-    def addByte(value) {
+    def add(Byte value) {
         byteAdd(theBuffer, value)
     }
 
-    def addShort(Short value) {
+    def add(Short value) {
         shortAdd(theBuffer, value)
     }
 
-    def addInt(Integer value) {
+    def add(Integer value) {
         intAdd(theBuffer, value)
     }
 
-    def addLong(Long value) {
+    def add(Long value) {
         def buffer = theBuffer
         longAdd(buffer, value)
     }
 
-    def addBytes(byte[] values) {
+    def add(byte[] values) {
         bytesAdd(theBuffer, values)
     }
 
-    def addBuffer(Buffer buffer) {
+    def add(Buffer buffer) {
         bytesAdd(theBuffer, buffer.contents().toArray() as byte[])
     }
 
