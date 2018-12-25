@@ -8,8 +8,8 @@ class ShortFrame {
     }
 
     def fillBuffer(Buffer buffer) {
-        buffer.addByte(0x00 as byte)
-        buffer.addByte((tagged ? 0x34 : 0x14) as byte)
-        buffer.addInt(source)
+        buffer.add(0x00 as byte)
+        buffer.add((tagged ? 0x34 : 0x14) as byte)
+        buffer.add(source)
     }
 }

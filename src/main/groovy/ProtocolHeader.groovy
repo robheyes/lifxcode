@@ -8,7 +8,7 @@ class ProtocolHeader {
 
     def fillBuffer(Buffer theBuffer) {
         theBuffer.addByteCopies(0 as byte, 8)
-        theBuffer.addShort(messageType)
-        theBuffer.addShort(0 as short)
+        theBuffer.add(messageType)
+        theBuffer.add(0 as short)
     }
 }

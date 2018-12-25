@@ -16,7 +16,8 @@ definition(
         category: "Automation",
         iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
         iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-        iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png"
+        iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+
 )
 
 preferences {
@@ -27,8 +28,38 @@ def main() {
     dynamicPage(name: "main", title: "LIFX discovery", uninstall: true, install: true) {
         section("Settings...") {
             input "logEnable", "bool", title: "Enable debug logging", required: false
+            input "refreshBtn", "button", title: "Refresh"
         }
     }
+}
+
+def appButtonHandler(btn){
+    log.debug "appButtonHandler called with ${btn}"
+    state.btnCall = btn
+    if(state.btnCall == "refreshBtn"){
+        refresh()
+    }
+
+}
+
+def refresh() {
+    def buffer = []
+    def getServiceSequence = makePacket(buffer, 0, messageTypes().DEVICE.GET_SERVICE, false, false, [])
+    def rawBytes = asByteArray(buffer)
+    log.debug "raw bytes: ${rawBytes}"
+    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
+    log.debug "sending bytes: ${stringBytes}"
+    def myHubAction = new hubitat.device.HubAction(
+            stringBytes,
+            hubitat.device.Protocol.LAN,
+            [
+                    type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
+                    destinationAddress: "255.255.255.255:56700",
+                    encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+            ]
+    )
+    def response = sendHubCommand(myHubAction)
+    log.debug "response from sendHubCommand ${response}"
 }
 
 def static messageTypes() {
@@ -91,46 +122,22 @@ def updated() {
 
 def initialize() {
     state.sequence = 1
-    def buffer = []
-    def getServiceSequence = makePacket(buffer, 0, messageTypes().DEVICE.GET_SERVICE, false, false, [])
-    def rawBytes = asByteArray(buffer)
-    log.debug "raw bytes: ${rawBytes}"
-    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-    log.debug "sending bytes: ${stringBytes}"
-    def myHubAction = new hubitat.device.HubAction(
-            stringBytes,
-            hubitat.device.Protocol.LAN,
-            [
-                    type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-                    destinationAddress: "255.255.255.255:56700",
-                    encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
-            ]
-    )
-    def response = sendHubCommand(myHubAction)
-    log.debug "response from sendHubCommand ${response}"
+    refresh()
 }
 
 def parse(String description) {
     log.debug "parse description: ${description}"
 }
 
-// fills the buffer with the LIFX packet (pad the length bytes with zeroes for now) and returns the sequence number
+// fills the buffer with the LIFX packet
 private byte makePacket(List buffer, long targetAddress, int messageType, Boolean ackRequired, Boolean responseRequired, List payload) {
     def lastSequence = sequenceNumber()
     createFrame(buffer, targetAddress == 0)
-    def frameBytes = asByteArray(buffer)
-    log.debug "frame: ${frameBytes}"
-
     createFrameAddress(buffer, targetAddress, ackRequired, responseRequired, lastSequence)
-    def withFrameAddress = asByteArray(buffer)
-    log.debug "with Frame address ${withFrameAddress}"
-
     createProtocolHeader(buffer, messageType as short)
-
-    def withProtocolHeader = asByteArray(buffer)
-    log.debug "with protocolHeader ${withProtocolHeader}"
     createPayload(buffer, payload as byte[])
-    shortPut(buffer, 0, buffer.size() as short)
+
+    put(buffer, 0, buffer.size() as short)
     return lastSequence
 }
 
@@ -140,73 +147,73 @@ private byte sequenceNumber() {
 
 def createFrame(List buffer, boolean tagged) {
     int LIFX_HABITAT_SOURCE = 0xFFFEFDFC
-    shortAdd(buffer, 0 as short)
-    byteAdd(buffer, 0x00 as byte)
-    byteAdd(buffer, (tagged ? 0x34 : 0x14) as byte)
-    intAdd(buffer, LIFX_HABITAT_SOURCE)
+    add(buffer, 0 as short)
+    add(buffer, 0x00 as byte)
+    add(buffer, (tagged ? 0x34 : 0x14) as byte)
+    add(buffer, LIFX_HABITAT_SOURCE)
 }
 
 def createFrameAddress(List buffer, long target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
-    longAdd(buffer, target)
-    byteFill(buffer, 0 as byte, 6)
-    byteAdd(buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
-    byteAdd(buffer, sequenceNumber)
+    add(buffer, target)
+    fill(buffer, 0 as byte, 6)
+    add(buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
+    add(buffer, sequenceNumber)
 }
 
 def createProtocolHeader(List buffer, short messageType) {
-    byteFill(buffer, 0 as byte, 8)
-    shortAdd(buffer, messageType)
-    shortAdd(buffer, 0 as short)
+    fill(buffer, 0 as byte, 8)
+    add(buffer, messageType)
+    add(buffer, 0 as short)
 }
 
 def createPayload(List buffer, byte[] payload) {
-    bytesAdd(buffer, payload)
+    add(buffer, payload)
 }
 
 private static byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }
 
-private static void byteAdd(List buffer, byte value) {
+private static void add(List buffer, byte value) {
     buffer.add(Byte.toUnsignedInt(value))
 }
 
-private static void bytePut(List buffer, int index, byte value) {
+private static void put(List buffer, int index, byte value) {
     buffer.set(index, Byte.toUnsignedInt(value))
 }
 
-private static void shortAdd(List buffer, short value) {
+private static void add(List buffer, short value) {
     def lower = value & 0xff
-    byteAdd(buffer, lower as byte)
-    byteAdd(buffer, ((value - lower) >>> 8) as byte)
+    add(buffer, lower as byte)
+    add(buffer, ((value - lower) >>> 8) as byte)
 }
 
-private static void shortPut(List buffer, int index, short value) {
+private static void put(List buffer, int index, short value) {
     def lower = value & 0xff
-    bytePut(buffer, index, lower as byte)
-    bytePut(buffer, index + 1, ((value - lower) >>> 8) as byte)
+    put(buffer, index, lower as byte)
+    put(buffer, index + 1, ((value - lower) >>> 8) as byte)
 }
 
-private static void intAdd(List buffer, int value) {
+private static void add(List buffer, int value) {
     def lower = value & 0xffff
-    shortAdd(buffer, lower as short)
-    shortAdd(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
+    add(buffer, lower as short)
+    add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
 }
 
-private static void longAdd(List buffer, long value) {
+private static void add(List buffer, long value) {
     def lower = value & 0xffffffff
-    intAdd(buffer, lower as int)
-    intAdd(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
+    add(buffer, lower as int)
+    add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
 }
 
-private static void bytesAdd(List buffer, byte[] values) {
+private static void add(List buffer, byte[] values) {
     for (value in values) {
-        byteAdd(buffer, value)
+        add(buffer, value)
     }
 }
 
-private static void byteFill(List buffer, byte value, int count) {
+private static void fill(List buffer, byte value, int count) {
     for (int i = 0; i < count; i++) {
-        byteAdd(buffer, value)
+        add(buffer, value)
     }
 }
