@@ -8,58 +8,97 @@
  *
  */
 
-definition(
-        name: "LIFX discovery app",
-        namespace: "robheyes",
-        author: "Robert Alan Heyes",
-        description: "Discover LIFX devices",
-        category: "Automation",
-        iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-        iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-        iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+definition(name: "LIFX discovery", namespace: "robheyes", author: "Robert Alan Heyes") {
+//	capability: "Switch"
+    capability "Polling"
+    capability "Refresh"
+    command "refresh"
+}
 
-)
 
 preferences {
-    page(name: "main")
-}
-
-def main() {
-    dynamicPage(name: "main", title: "LIFX discovery", uninstall: true, install: true) {
-        section("Settings...") {
-            input "logEnable", "bool", title: "Enable debug logging", required: false
-            input "refreshBtn", "button", title: "Refresh"
-        }
-    }
-}
-
-def appButtonHandler(btn){
-    log.debug "appButtonHandler called with ${btn}"
-    state.btnCall = btn
-    if(state.btnCall == "refreshBtn"){
-        refresh()
-    }
-
+    input "logEnable", "bool", title: "Enable debug logging", required: false
+    //input "refreshBtn", "button", title: "Refresh"
 }
 
 def refresh() {
-    def buffer = []
-    def getServiceSequence = makePacket(buffer, 0, messageTypes().DEVICE.GET_SERVICE, false, false, [])
+    String subnet = getSubnet()
+    if (!subnet) {
+        return
+    }
+    state.deviceCount = 0
+    // use one packet, don't care about the sequence number
+    def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
+    1.upto(254) {
+        def ipAddress = subnet + it
+        //log.debug "Going to test ${ipAddress}"
+        sendPacket(packet.buffer, ipAddress)
+    }
+}
+
+private String getSubnet() {
+    def ip = getHubIP()
+    def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
+    def partialIp = null
+    if (!m) {
+        log.debug('ip does not match pattern')
+        return null
+    }
+    return m.group(1)
+}
+
+def poll() {
+//    def packet = makeEchoPacket([0,0,0,0,0,0] as byte[])
+
+    def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
+    sendPacket(packet.buffer, "192.168.1.45")
+//    sendPacket(packet.buffer, "255.255.255.255")
+
+    log.debug "Sent packet with sequence ${packet.sequence}"
+}
+
+private Long makeTarget(List macAddress) {
+    return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
+}
+
+private sendPacket(List buffer, String ipAddress) {
     def rawBytes = asByteArray(buffer)
-    log.debug "raw bytes: ${rawBytes}"
+//    log.debug "raw bytes: ${rawBytes}"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-    log.debug "sending bytes: ${stringBytes}"
-    def myHubAction = new hubitat.device.HubAction(
-            stringBytes,
-            hubitat.device.Protocol.LAN,
-            [
-                    type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-                    destinationAddress: "255.255.255.255:56700",
-                    encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
-            ]
+//    log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
+    sendHubCommand(
+            new hubitat.device.HubAction(
+                    stringBytes,
+                    hubitat.device.Protocol.LAN,
+                    [
+                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
+                            destinationAddress: ipAddress + ":56700",
+                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+                    ]
+            )
     )
-    def response = sendHubCommand(myHubAction)
-    log.debug "response from sendHubCommand ${response}"
+}
+
+private Map makeGetDevicePacket() {
+    def buffer = []
+    def getServiceSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().DEVICE.GET_SERVICE, false, true, [])
+    return [sequence: getServiceSequence, buffer: buffer]
+}
+
+private Map makeEchoPacket(byte[] target) {
+    def payload = []
+    fill(payload, 0xAA as byte, 64)
+    def buffer = []
+    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.ECHO_REQUEST, false, false, payload)
+    return [sequence: echoSequence, buffer: buffer]
+}
+
+
+private Map makeStatePacket(byte[] target) {
+    def payload = []
+    def buffer = []
+    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.GET_VERSION, false, false, payload)
+    return [sequence: echoSequence, buffer: buffer]
 }
 
 def static messageTypes() {
@@ -117,22 +156,35 @@ def installed() {
 }
 
 def updated() {
+    log.debug "LIFX updating"
     initialize()
 }
 
 def initialize() {
     state.sequence = 1
+    state.deviceCount = 0
+    def localIP = getHubIP()
+
+    log.debug "localIP: ${localIP}"
     refresh()
+}
+
+private String getHubIP() {
+    def hub = location.hubs[0]
+
+    hub.localIP
 }
 
 def parse(String description) {
     log.debug "parse description: ${description}"
+    state.deviceCount = state.deviceCount + 1
+    def mac =
 }
 
 // fills the buffer with the LIFX packet
-private byte makePacket(List buffer, long targetAddress, int messageType, Boolean ackRequired, Boolean responseRequired, List payload) {
+private byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired, Boolean responseRequired, List payload) {
     def lastSequence = sequenceNumber()
-    createFrame(buffer, targetAddress == 0)
+    createFrame(buffer, targetAddress.every { it == 0 })
     createFrameAddress(buffer, targetAddress, ackRequired, responseRequired, lastSequence)
     createProtocolHeader(buffer, messageType as short)
     createPayload(buffer, payload as byte[])
@@ -153,8 +205,9 @@ def createFrame(List buffer, boolean tagged) {
     add(buffer, LIFX_HABITAT_SOURCE)
 }
 
-def createFrameAddress(List buffer, long target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
+def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
     add(buffer, target)
+    add(buffer, 0 as short)
     fill(buffer, 0 as byte, 6)
     add(buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
     add(buffer, sequenceNumber)

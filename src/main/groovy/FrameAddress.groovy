@@ -14,7 +14,6 @@ class FrameAddress {
     def addToBuffer(Buffer buffer) {
         buffer.add(target)
         buffer.addByteCopies(0 as byte, 6)
-//        buffer.add(0x03 as byte)
         buffer.add(((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
         buffer.add(sequenceNumber)
     }
