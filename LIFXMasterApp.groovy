@@ -176,9 +176,14 @@ private String getHubIP() {
 }
 
 def parse(String description) {
-    log.debug "parse description: ${description}"
     state.deviceCount = state.deviceCount + 1
-    def mac =
+    def m = description =~ /(\w+):(\w+)/
+    Map descriptor = new HashMap()
+    while (m) {
+        descriptor.put(m.group(1), m.group(2))
+    }
+    log.debug(descriptor)
+
 }
 
 // fills the buffer with the LIFX packet
