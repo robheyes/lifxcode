@@ -33,6 +33,9 @@ class Parser {
             data.each { value = (value << 8) | it }
             result.put(item.name, value)
         }
+        if (offset < bytes.size()) {
+            result.put('remainder', bytes[offset..-1])
+        }
         return result
     }
 }
