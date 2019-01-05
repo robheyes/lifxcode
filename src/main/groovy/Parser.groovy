@@ -1,16 +1,8 @@
 class Parser {
     private final List<Map> descriptor
 
-    Parser(List<Map> descriptor) {
-        this.descriptor = descriptor
-    }
-
     Parser(String descriptor) {
-        this.descriptor = makeDescriptor(descriptor)
-    }
-
-    List<Map> makeDescriptor(CharSequence desc) {
-        desc.findAll(~/(\w+):(\d+)([aAbBlL])/) {
+        this.descriptor = descriptor.findAll(~/(\w+):(\d+)([aAbBlL]?)/) {
             full ->
                 [
                         endian: full[3].toUpperCase(),
@@ -19,6 +11,7 @@ class Parser {
                 ]
         }
     }
+
 
     Map parse(List<Byte> bytes) {
         Map result = new HashMap();
@@ -35,7 +28,7 @@ class Parser {
             if ('B' == item['endian']) {
                 data = data.reverse()
             }
-            
+
             long value = 0
             data.each { value = value * 256 + it }
             result.put(item['name'], value)
