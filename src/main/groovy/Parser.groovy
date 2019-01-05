@@ -17,21 +17,21 @@ class Parser {
         Map result = new HashMap();
         int offset = 0
         descriptor.each { item ->
-            int nextOffset = offset + (item['bytes'] as int)
+            int nextOffset = offset + (item.bytes as int)
             def data = bytes[offset..nextOffset - 1]
             offset = nextOffset
             // assume big endian for now
-            if ('A' == item['endian']) {
-                result.put(item['name'], data)
+            if ('A' == item.endian) {
+                result.put(item.name, data)
                 return
             }
-            if ('B' == item['endian']) {
+            if ('B' == item.endian) {
                 data = data.reverse()
             }
 
             long value = 0
-            data.each { value = value * 256 + it }
-            result.put(item['name'], value)
+            data.each { value = (value << 8) | it }
+            result.put(item.name, value)
         }
         return result
     }
