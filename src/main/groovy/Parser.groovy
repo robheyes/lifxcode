@@ -1,10 +1,27 @@
 class Parser {
     private final List<Map> descriptor
 
-    enum Endianness {BIG, LITTLE}
+    enum Endianness {
+        BIG, LITTLE
+    }
 
     Parser(List<Map> descriptor) {
         this.descriptor = descriptor
+    }
+
+    Parser(String descriptor) {
+        this.descriptor = makeDescriptor(descriptor)
+    }
+
+    List<Map> makeDescriptor(CharSequence desc) {
+        desc.findAll(~/(\w+):(\d+)([bBlL])/) {
+            full ->
+                [
+                        endian: (full[3].toLowerCase() == 'b') ? Endianness.BIG : Endianness.LITTLE,
+                        bytes : full[2],
+                        name  : full[1],
+                ]
+        }
     }
 
     Map parse(List<Byte> bytes) {
