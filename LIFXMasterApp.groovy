@@ -1,15 +1,3 @@
-definition(name: "LIFX discovery", namespace: "robheyes", author: "Robert Alan Heyes") {
-//	capability: "Switch"
-    capability "Polling"
-    capability "Refresh"
-    command "refresh"
-}
-
-
-preferences {
-    input "logEnable", "bool", title: "Enable debug logging", required: false
-    //input "refreshBtn", "button", title: "Refresh"
-}
 
 /**
  *
@@ -20,16 +8,31 @@ preferences {
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
+import groovy.transform.Field
 
+definition(name: "LIFX discovery", namespace: "robheyes", author: "Robert Alan Heyes") {
+//	capability: "Switch"
+    capability "Polling"
+    capability "Refresh"
+    command "refresh"
+}
 def updated() {
     log.debug "LIFX updating"
     initialize()
 }
 
+
 def installed() {
     log.debug "LIFX installed"
     initialize()
 }
+
+preferences {
+    input "logEnable", "bool", title: "Enable debug logging", required: false
+    //input "refreshBtn", "button", title: "Refresh"
+}
+
+@Field List<Map> headerDescriptor = makeDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2')
 
 def initialize() {
     state.sequence = 1
@@ -57,13 +60,14 @@ def refresh() {
 
 def parse(String description) {
     state.deviceCount = state.deviceCount + 1
-    def m = description =~ /(\w+):(\w+)/
-    Map descriptor = new HashMap()
-    while (m) {
-        descriptor.put(m.group(1), m.group(2))
+    Map deviceParams = new HashMap()
+    description.findAll(~/(\w+):(\w+)/) {
+        deviceParams.putAt(it[1], it[2])
     }
-    log.debug(descriptor)
+    log.debug("Payload: ${deviceParams.payload}")
 
+    def parsed = parseBytes(headerDescriptor, hubitat.helper.HexUtils.hexStringToByteArray(deviceParams.payload) as List<Byte>)
+    log.debug("Parsed: ${parsed}")
 }
 
 def poll() {
@@ -125,6 +129,42 @@ private def static messageTypes() {
     ]
 }
 
+Map parseBytes(List<Map> descriptor, List<Byte> bytes) {
+    Map result = new HashMap();
+    int offset = 0
+    descriptor.each { item ->
+        int nextOffset = offset + (item.bytes as int)
+        def data = bytes[offset..nextOffset - 1]
+        offset = nextOffset
+        // assume big endian for now
+        if ('A' == item.endian) {
+            result.put(item.name, data)
+            return
+        }
+        if ('B' != item.endian) {
+            data = data.reverse()
+        }
+
+        long value = 0
+        data.each { value = (value << 8) | it }
+        result.put(item.name, value)
+    }
+    if (offset < bytes.size()) {
+        result.put('remainder', bytes[offset..-1])
+    }
+    return result
+}
+
+private List<Map> makeDescriptor(String desc) {
+    desc.findAll(~/(\w+):(\d+)([aAbBlL]?)/) {
+        full ->
+            [
+                    endian: full[3].toUpperCase(),
+                    bytes : full[2],
+                    name  : full[1],
+            ]
+    }
+}
 
 private String getSubnet() {
     def ip = getHubIP()

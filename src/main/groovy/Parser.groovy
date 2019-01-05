@@ -25,7 +25,7 @@ class Parser {
                 result.put(item.name, data)
                 return
             }
-            if ('B' == item.endian) {
+            if ('B' != item.endian) {
                 data = data.reverse()
             }
 
