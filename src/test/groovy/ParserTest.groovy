@@ -8,7 +8,7 @@ class ParserTest extends Specification {
         def parser = new Parser([
                 [
                         endian: Parser.Endianness.BIG,
-                        bytes  : 1,
+                        bytes : 1,
                         name  : 'thing'
                 ]
         ])
@@ -25,12 +25,12 @@ class ParserTest extends Specification {
         def parser = new Parser([
                 [
                         endian: Parser.Endianness.BIG,
-                        bytes  : 1,
+                        bytes : 1,
                         name  : 'thing1'
                 ],
                 [
                         endian: Parser.Endianness.BIG,
-                        bytes: 1,
+                        bytes : 1,
                         name  : 'thing2'
                 ],
         ])
@@ -48,7 +48,7 @@ class ParserTest extends Specification {
         def parser = new Parser([
                 [
                         endian: Parser.Endianness.BIG,
-                        bytes  : 2,
+                        bytes : 2,
                         name  : 'thing'
                 ],
         ])
@@ -65,7 +65,7 @@ class ParserTest extends Specification {
         def parser = new Parser([
                 [
                         endian: Parser.Endianness.LITTLE,
-                        bytes  : 2,
+                        bytes : 2,
                         name  : 'thing'
                 ],
         ])
@@ -74,6 +74,17 @@ class ParserTest extends Specification {
         then:
         result == [
                 thing: 0x7273 as short,
+        ]
+    }
+
+    def "It creates a parser from a string and parses big-endian bytes"() {
+        given:
+        def parser = new Parser('thingy:2b')
+        when:
+        def result = parser.parse([0x72, 0x73] as List<Byte>)
+        then:
+        result == [
+                thingy: 0x7372,
         ]
     }
 }
