@@ -1,10 +1,6 @@
 class Parser {
     private final List<Map> descriptor
 
-    enum Endianness {
-        BIG, LITTLE
-    }
-
     Parser(List<Map> descriptor) {
         this.descriptor = descriptor
     }
@@ -14,10 +10,10 @@ class Parser {
     }
 
     List<Map> makeDescriptor(CharSequence desc) {
-        desc.findAll(~/(\w+):(\d+)([bBlL])/) {
+        desc.findAll(~/(\w+):(\d+)([aAbBlL])/) {
             full ->
                 [
-                        endian: (full[3].toLowerCase() == 'b') ? Endianness.BIG : Endianness.LITTLE,
+                        endian: full[3].toUpperCase(),
                         bytes : full[2],
                         name  : full[1],
                 ]
@@ -32,10 +28,15 @@ class Parser {
             def data = bytes[offset..nextOffset - 1]
             offset = nextOffset
             // assume big endian for now
-            long value = 0
-            if (Endianness.BIG == item['endian']) {
+            if ('A' == item['endian']) {
+                result.put(item['name'], data)
+                return
+            }
+            if ('B' == item['endian']) {
                 data = data.reverse()
             }
+            
+            long value = 0
             data.each { value = value * 256 + it }
             result.put(item['name'], value)
         }
