@@ -1,13 +1,3 @@
-/**
- *
- * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
- *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
- *  You may not grant a sublicense to modify and distribute this software to third parties.
- *  Software is provided without warranty and your use of it is at your own risk.
- *
- */
-
 definition(name: "LIFX discovery", namespace: "robheyes", author: "Robert Alan Heyes") {
 //	capability: "Switch"
     capability "Polling"
@@ -19,6 +9,35 @@ definition(name: "LIFX discovery", namespace: "robheyes", author: "Robert Alan H
 preferences {
     input "logEnable", "bool", title: "Enable debug logging", required: false
     //input "refreshBtn", "button", title: "Refresh"
+}
+
+/**
+ *
+ * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
+ *
+ *  This software if free for Private Use. You may use and modify the software without distributing it.
+ *  You may not grant a sublicense to modify and distribute this software to third parties.
+ *  Software is provided without warranty and your use of it is at your own risk.
+ *
+ */
+
+def updated() {
+    log.debug "LIFX updating"
+    initialize()
+}
+
+def installed() {
+    log.debug "LIFX installed"
+    initialize()
+}
+
+def initialize() {
+    state.sequence = 1
+    state.deviceCount = 0
+    def localIP = getHubIP()
+
+    log.debug "localIP: ${localIP}"
+    refresh()
 }
 
 def refresh() {
@@ -36,15 +55,15 @@ def refresh() {
     }
 }
 
-private String getSubnet() {
-    def ip = getHubIP()
-    def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
-    def partialIp = null
-    if (!m) {
-        log.debug('ip does not match pattern')
-        return null
+def parse(String description) {
+    state.deviceCount = state.deviceCount + 1
+    def m = description =~ /(\w+):(\w+)/
+    Map descriptor = new HashMap()
+    while (m) {
+        descriptor.put(m.group(1), m.group(2))
     }
-    return m.group(1)
+    log.debug(descriptor)
+
 }
 
 def poll() {
@@ -57,51 +76,7 @@ def poll() {
     log.debug "Sent packet with sequence ${packet.sequence}"
 }
 
-private Long makeTarget(List macAddress) {
-    return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
-}
-
-private sendPacket(List buffer, String ipAddress) {
-    def rawBytes = asByteArray(buffer)
-//    log.debug "raw bytes: ${rawBytes}"
-    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-//    log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
-    sendHubCommand(
-            new hubitat.device.HubAction(
-                    stringBytes,
-                    hubitat.device.Protocol.LAN,
-                    [
-                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-                            destinationAddress: ipAddress + ":56700",
-                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
-                    ]
-            )
-    )
-}
-
-private Map makeGetDevicePacket() {
-    def buffer = []
-    def getServiceSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().DEVICE.GET_SERVICE, false, true, [])
-    return [sequence: getServiceSequence, buffer: buffer]
-}
-
-private Map makeEchoPacket(byte[] target) {
-    def payload = []
-    fill(payload, 0xAA as byte, 64)
-    def buffer = []
-    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.ECHO_REQUEST, false, false, payload)
-    return [sequence: echoSequence, buffer: buffer]
-}
-
-
-private Map makeStatePacket(byte[] target) {
-    def payload = []
-    def buffer = []
-    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.GET_VERSION, false, false, payload)
-    return [sequence: echoSequence, buffer: buffer]
-}
-
-def static messageTypes() {
+private def static messageTypes() {
     return [
             DEVICE: [
                     GET_SERVICE        : 2,
@@ -150,40 +125,65 @@ def static messageTypes() {
     ]
 }
 
-def installed() {
-    log.debug "LIFX installed"
-    initialize()
+
+private String getSubnet() {
+    def ip = getHubIP()
+    def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
+    def partialIp = null
+    if (!m) {
+        log.debug('ip does not match pattern')
+        return null
+    }
+    return m.group(1)
 }
 
-def updated() {
-    log.debug "LIFX updating"
-    initialize()
+private Long makeTarget(List macAddress) {
+    return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
 }
 
-def initialize() {
-    state.sequence = 1
-    state.deviceCount = 0
-    def localIP = getHubIP()
+private sendPacket(List buffer, String ipAddress) {
+    def rawBytes = asByteArray(buffer)
+//    log.debug "raw bytes: ${rawBytes}"
+    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
+//    log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
+    sendHubCommand(
+            new hubitat.device.HubAction(
+                    stringBytes,
+                    hubitat.device.Protocol.LAN,
+                    [
+                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
+                            destinationAddress: ipAddress + ":56700",
+                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+                    ]
+            )
+    )
+}
 
-    log.debug "localIP: ${localIP}"
-    refresh()
+private Map makeGetDevicePacket() {
+    def buffer = []
+    def getServiceSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().DEVICE.GET_SERVICE, false, true, [])
+    return [sequence: getServiceSequence, buffer: buffer]
+}
+
+private Map makeEchoPacket(byte[] target) {
+    def payload = []
+    fill(payload, 0xAA as byte, 64)
+    def buffer = []
+    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.ECHO_REQUEST, false, false, payload)
+    return [sequence: echoSequence, buffer: buffer]
+}
+
+private Map makeStatePacket(byte[] target) {
+    def payload = []
+    def buffer = []
+    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.GET_VERSION, false, false, payload)
+    return [sequence: echoSequence, buffer: buffer]
 }
 
 private String getHubIP() {
     def hub = location.hubs[0]
 
     hub.localIP
-}
-
-def parse(String description) {
-    state.deviceCount = state.deviceCount + 1
-    def m = description =~ /(\w+):(\w+)/
-    Map descriptor = new HashMap()
-    while (m) {
-        descriptor.put(m.group(1), m.group(2))
-    }
-    log.debug(descriptor)
-
 }
 
 // fills the buffer with the LIFX packet
@@ -202,7 +202,7 @@ private byte sequenceNumber() {
     state.sequence = (state.sequence + 1) % 256
 }
 
-def createFrame(List buffer, boolean tagged) {
+private def createFrame(List buffer, boolean tagged) {
     int LIFX_HABITAT_SOURCE = 0xFFFEFDFC
     add(buffer, 0 as short)
     add(buffer, 0x00 as byte)
@@ -210,7 +210,7 @@ def createFrame(List buffer, boolean tagged) {
     add(buffer, LIFX_HABITAT_SOURCE)
 }
 
-def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
+private def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
     add(buffer, target)
     add(buffer, 0 as short)
     fill(buffer, 0 as byte, 6)
@@ -218,13 +218,13 @@ def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean 
     add(buffer, sequenceNumber)
 }
 
-def createProtocolHeader(List buffer, short messageType) {
+private def createProtocolHeader(List buffer, short messageType) {
     fill(buffer, 0 as byte, 8)
     add(buffer, messageType)
     add(buffer, 0 as short)
 }
 
-def createPayload(List buffer, byte[] payload) {
+private def createPayload(List buffer, byte[] payload) {
     add(buffer, payload)
 }
 
