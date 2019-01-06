@@ -13,6 +13,7 @@ class ParserTest extends Specification {
                 thingy: 48,
         ]
     }
+
     def "It creates a parser from a string and parses big-endian bytes"() {
         given:
         def parser = new Parser('thingy:2b')
@@ -21,6 +22,19 @@ class ParserTest extends Specification {
         then:
         result == [
                 thingy: 0x7273,
+        ]
+    }
+
+    def "It copes with unsigned longs"() {
+        given:
+        def parser = new Parser('test:1,thingy:4l')
+        when:
+        def result = parser.parse([0x10, 0xFC, 0xFD, 0xFE, 0xFF, 0xD0] as List<Byte>)
+        then:
+        result == [
+                test: 0x10,
+                thingy: 0xFFFEFDFC,
+                remainder: [0xD0]
         ]
     }
 
@@ -36,6 +50,7 @@ class ParserTest extends Specification {
         ]
     }
 
+
     def "It copes with an omitted type specifier"() {
         given:
         def parser = new Parser('thingy:2,thing2:2b')
@@ -47,6 +62,7 @@ class ParserTest extends Specification {
                 thing2: 0x7475
         ]
     }
+
     def "It copes with an underscore in the name"() {
         given:
         def parser = new Parser('thing_1:2,thing_2:2b')
@@ -63,11 +79,11 @@ class ParserTest extends Specification {
         given:
         def parser = new Parser('thingy:2b,thing2:12a')
         when:
-        def result = parser.parse([0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77,0x74, 0x75, 0x76, 0x77] as List<Byte>)
+        def result = parser.parse([0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77] as List<Byte>)
         then:
         result == [
                 thingy: 0x7273,
-                thing2: [0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77,0x74, 0x75, 0x76, 0x77]
+                thing2: [0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77]
         ]
     }
 
@@ -75,11 +91,11 @@ class ParserTest extends Specification {
         given:
         def parser = new Parser('thingy:2b')
         when:
-        def result = parser.parse([0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77,0x74, 0x75, 0x76, 0x77] as List<Byte>)
+        def result = parser.parse([0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77] as List<Byte>)
         then:
         result == [
-                thingy: 0x7273,
-                remainder: [0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77,0x74, 0x75, 0x76, 0x77]
+                thingy   : 0x7273,
+                remainder: [0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77, 0x74, 0x75, 0x76, 0x77]
         ]
     }
 

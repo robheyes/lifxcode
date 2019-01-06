@@ -18,7 +18,8 @@ class Parser {
         int offset = 0
         descriptor.each { item ->
             int nextOffset = offset + (item.bytes as int)
-            def data = bytes[offset..nextOffset - 1]
+
+            def data = bytes.subList(offset, nextOffset)
             offset = nextOffset
             // assume big endian for now
             if ('A' == item.endian) {
@@ -29,9 +30,21 @@ class Parser {
                 data = data.reverse()
             }
 
-            long value = 0
-            data.each { value = (value << 8) | it }
-            result.put(item.name, value)
+            BigInteger value = 0
+            data.each { value = (value * 256) + (it & 0xff) }
+            switch (item.bytes) {
+                case 1:
+                    result.put(item.name, (value & 0xFF) as byte)
+                    break
+                case 2:
+                    result.put(item.name, (value & 0xFFFF) as short)
+                    break
+                case 3: case 4:
+                    result.put(item.name, (value & 0xFFFFFFFF) as int)
+                    break
+                default:
+                    result.put(item.name, (value & 0xFFFFFFFFFFFFFFFF) as long)
+            }
         }
         if (offset < bytes.size()) {
             result.put('remainder', bytes[offset..-1])

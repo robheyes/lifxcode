@@ -50,8 +50,8 @@ def refresh() {
     }
     state.deviceCount = 0
     // use one packet, don't care about the sequence number
-    def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
     1.upto(254) {
+        def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
         def ipAddress = subnet + it
         //log.debug "Going to test ${ipAddress}"
         sendPacket(packet.buffer, ipAddress)
@@ -66,16 +66,18 @@ def parse(String description) {
     }
     log.debug("Payload: ${deviceParams.payload}")
 
-    def parsed = parseBytes(headerDescriptor, hubitat.helper.HexUtils.hexStringToByteArray(deviceParams.payload) as List<Byte>)
+    def parsed = parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToByteArray(deviceParams.payload) as List<Long>).each { it & 0xff})
     log.debug("Parsed: ${parsed}")
+    log.debug((lifxSource() == ((parsed.source as int) & 0xFFFFFFFF)) ? 'source matches' : "source DOES NOT match ${lifxSource()}")
+}
+
+def showFrame(Map $frame) {
+    sprintf()
 }
 
 def poll() {
-//    def packet = makeEchoPacket([0,0,0,0,0,0] as byte[])
-
     def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
     sendPacket(packet.buffer, "192.168.1.45")
-//    sendPacket(packet.buffer, "255.255.255.255")
 
     log.debug "Sent packet with sequence ${packet.sequence}"
 }
@@ -129,12 +131,17 @@ private def static messageTypes() {
     ]
 }
 
-Map parseBytes(List<Map> descriptor, List<Byte> bytes) {
+Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     Map result = new HashMap();
     int offset = 0
     descriptor.each { item ->
         int nextOffset = offset + (item.bytes as int)
-        def data = bytes[offset..nextOffset - 1]
+
+        List<Long> data = bytes.subList(offset, nextOffset)
+        assert(data.size() == item.bytes as int)
+        if (item.name == 'source') {
+            log.debug(data)
+        }
         offset = nextOffset
         // assume big endian for now
         if ('A' == item.endian) {
@@ -145,9 +152,21 @@ Map parseBytes(List<Map> descriptor, List<Byte> bytes) {
             data = data.reverse()
         }
 
-        long value = 0
-        data.each { value = (value << 8) | it }
-        result.put(item.name, value)
+        BigInteger value = 0
+        data.each { value = (value * 256) + it }
+        switch (item.bytes) {
+            case 1:
+                result.put(item.name, (value & 0xFF) as byte)
+                break
+            case 2:
+                result.put(item.name, (value & 0xFFFF) as short)
+                break
+            case 3: case 4:
+                result.put(item.name, (value & 0xFFFFFFFF) as int)
+                break
+            default:
+                result.put(item.name, (value & 0xFFFFFFFFFFFFFFFF) as long)
+        }
     }
     if (offset < bytes.size()) {
         result.put('remainder', bytes[offset..-1])
@@ -243,11 +262,14 @@ private byte sequenceNumber() {
 }
 
 private def createFrame(List buffer, boolean tagged) {
-    int LIFX_HABITAT_SOURCE = 0xFFFEFDFC
     add(buffer, 0 as short)
     add(buffer, 0x00 as byte)
     add(buffer, (tagged ? 0x34 : 0x14) as byte)
-    add(buffer, LIFX_HABITAT_SOURCE)
+    add(buffer, lifxSource())
+}
+
+private int lifxSource() {
+    0x48454C44 // = HELD: Hubitat Elevation LIFX Device
 }
 
 private def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
