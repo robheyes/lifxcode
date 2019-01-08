@@ -68,11 +68,14 @@ def parse(String description) {
     state.deviceCount = state.deviceCount + 1
     Map deviceParams = new HashMap()
     description.findAll(~/(\w+):(\w+)/) {
+//        log.debug("Storing ${it[2]} at ${it[1]}")
         deviceParams.putAt(it[1], it[2])
     }
 //    log.debug("Params ${deviceParams}")
-
-    def parsed = parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToByteArray(deviceParams.payload) as List<Long>).each {
+//    theClass = deviceParams.ip.getClass()
+//    log.debug("ip ${deviceParams.ip} of ${theClass}")
+    ip = convertIpLong(deviceParams.ip as String)
+    def parsed = parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
         it & 0xff
     })
 //    log.debug("Parsed: ${parsed}")
@@ -84,7 +87,8 @@ def parse(String description) {
             def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
 //            log.debug("Version = ${version}")
             def device = deviceVersion(version)
-//            log.debug("Device descriptor = ${device}")
+            device.putAt('ip', ip)
+            log.debug("Device descriptor = ${device}")
         } else {
 //            log.debug('Not state version message')
         }
@@ -93,9 +97,11 @@ def parse(String description) {
     }
 }
 
-def showFrame(Map $frame) {
-    sprintf()
+String convertIpLong(String ip)
+{
+    sprintf('%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip))
 }
+
 
 def poll() {
     def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
