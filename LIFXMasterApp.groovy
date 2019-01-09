@@ -26,6 +26,7 @@ preferences {
 @Field List<Map> headerDescriptor = makeDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
 @Field List<Map> stateVersionDescriptor = makeDescriptor('vendor:4l,product:4l,version:4l')
 @Field String currentState = 'DISCOVERING'
+@Field List<Map> devicesFound = []
 
 
 def updated() {
@@ -48,69 +49,106 @@ def initialize() {
 }
 
 def refresh() {
+    getChildDevices().each {
+        if (it != null) {
+            deleteChildDevice(it.getDeviceNetworkId())
+        }
+    }
     String subnet = getSubnet()
     if (!subnet) {
         return
     }
     currentState = 'DISCOVERING'
-    state.deviceCount = 0
-    // use one packet, don't care about the sequence number
     1.upto(254) {
         def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
         def ipAddress = subnet + it
         //log.debug "Going to test ${ipAddress}"
         sendPacket(packet.buffer, ipAddress)
     }
+
+
     // maybe change the state to OPERATING after a period?
 }
 
 def parse(String description) {
-    state.deviceCount = state.deviceCount + 1
+    log.debug("Description = ${description}")
     Map deviceParams = new HashMap()
     description.findAll(~/(\w+):(\w+)/) {
 //        log.debug("Storing ${it[2]} at ${it[1]}")
         deviceParams.putAt(it[1], it[2])
     }
-//    log.debug("Params ${deviceParams}")
+    log.debug("Params ${deviceParams}")
 //    theClass = deviceParams.ip.getClass()
 //    log.debug("ip ${deviceParams.ip} of ${theClass}")
     ip = convertIpLong(deviceParams.ip as String)
-    def parsed = parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
-        it & 0xff
-    })
-//    log.debug("Parsed: ${parsed}")
-//    log.debug((lifxSource() == ((parsed.source as int) & 0xFFFFFFFF)) ? 'source matches' : "source DOES NOT match ${lifxSource()}")
-    if (currentState == 'DISCOVERING') {
-//        log.debug('In discovery')
-        if (parsed.type == messageTypes().DEVICE.STATE_VERSION) {
-//            log.debug("It's a state version message")
-            def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
-//            log.debug("Version = ${version}")
-            def device = deviceVersion(version)
-            device.putAt('ip', ip)
-            log.debug("Device descriptor = ${device}")
-        } else {
-//            log.debug('Not state version message')
-        }
-    } else {
-//        log.debug('Not in discovery')
+    mac = hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.mac)
+//	log.debug("Mac: ${mac}")
+    def parsed = parseHeader(deviceParams)
+    log.debug("Got message of type ${parsed.type}")
+    switch (parsed.type) {
+        case messageTypes().DEVICE.STATE_VERSION:
+            createBasicDevice(parsed, ip, mac)
+            break
+        case messageTypes().DEVICE.STATE_LABEL:
+            def data = parseBytes(makeDescriptor('label:32s'), deviceParams.payload)
+            log.debug("data = ${data}")
+            def devices = devicesFound as LinkedList<Map>
+            def device = devices.find { it.ip == ip }
+            log.debug("Device is now ${device}")
+            device?.label = data.label
+            state.devicesFound[ip] = device
+            break
+        case messageTypes().DEVICE.STATE_GROUP:
+            break
+        case messageTypes().DEVICE.STATE_LOCATION:
+            break
+        case messageTypes().DEVICE.STATE_WIFI_INFO:
+            break
+        case messageTypes().DEVICE.STATE_INFO:
+            break
     }
 }
 
-String convertIpLong(String ip)
-{
+Map parseHeader(Map deviceParams) {
+    parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
+        it & 0xff
+    })
+}
+
+def requestExtraInfo(Map data) {
+    def device = data.device
+    log.debug("Trying to send a get label to ${device}")
+    def packet = makeGetLabelPacket()
+    //sendPacket(packet.buffer, device.ip)
+}
+
+
+private void createBasicDevice(Map parsed, String ip, int[] mac) {
+//            log.debug("It's a state version message")
+    def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
+//            log.debug("Version = ${version}")
+    def device = deviceVersion(version)
+    device.putAt('ip', ip)
+    device.putAt('mac', mac)
+    log.debug("Device descriptor = ${device}")
+    addChildDevice('robheyes', device.deviceName, device.ip)
+}
+
+String convertIpLong(String ip) {
     sprintf('%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip))
 }
 
 
 def poll() {
-    def packet = makeStatePacket([0, 0, 0, 0, 0, 0] as byte[])
-    sendPacket(packet.buffer, "192.168.1.45")
+    log.info('Polling')
+    def packet = makeGetLabelPacket()
+    log.debug(packet)
+    sendPacket(packet.buffer, "192.168.1.45", true)
 
-//    log.debug "Sent packet with sequence ${packet.sequence}"
+    log.debug "Sent packet with sequence ${packet.sequence}"
 }
 
-private def static messageTypes() {
+def static messageTypes() {
     return [
             DEVICE: [
                     GET_SERVICE        : 2,
@@ -163,116 +201,138 @@ private def static deviceVersion(Map device) {
     switch (device.product) {
         case 1:
             return [
-                    name    : 'Original 1000',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'Original 1000',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 3:
             return [
-                    name    : 'Color 650',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'Color 650',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 10:
             return [
-                    name    : 'White 800 (Low Voltage)',
-                    features: [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
+                    name      : 'White 800 (Low Voltage)',
+                    deviceName: 'LIFX White',
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
             ]
         case 11:
             return [
-                    name    : 'White 800 (High Voltage)',
-                    features: [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
+                    name      : 'White 800 (High Voltage)',
+                    deviceName: 'LIFX White',
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
             ]
         case 18:
             return [
-                    name    : 'White 900 BR30 (Low Voltage)',
-                    features: [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
+                    name      : 'White 900 BR30 (Low Voltage)',
+                    deviceName: 'LIFX White',
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
             ]
         case 20:
             return [
-                    name    : 'Color 1000 BR30',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'Color 1000 BR30',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 22:
             return [
-                    name    : 'Color 1000',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'Color 1000',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 27:
         case 43:
             return [
-                    name    : 'LIFX A19',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX A19',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 28:
         case 44:
             return [
-                    name    : 'LIFX BR30',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX BR30',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 29:
         case 45:
             return [
-                    name    : 'LIFX+ A19',
-                    features: [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX+ A19',
+                    deviceName: 'LIFX+ Color',
+                    features  : [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 30:
         case 46:
             return [
-                    name    : 'LIFX+ BR30',
-                    features: [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX+ BR30',
+                    deviceName: 'LIFX+ Color',
+                    features  : [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 31:
             return [
-                    name    : 'LIFX Z',
-                    features: [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX Z',
+                    deviceName: 'LIFX Z',
+                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 32:
             return [
-                    name    : 'LIFX Z 2',
-                    features: [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX Z 2',
+                    deviceName: 'LIFX Z',
+                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 36:
         case 37:
             return [
-                    name    : 'LIFX Downlight',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX Downlight',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 38:
         case 56:
             return [
-                    name    : 'LIFX Beam',
-                    features: [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: true]
+                    name      : 'LIFX Beam',
+                    deviceName: 'LIFX Beam',
+                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: true]
             ]
         case 49:
             return [
-                    name    : 'LIFX Mini',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX Mini',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 50:
         case 60:
             return [
-                    name: 'LIFX Mini Day and Dusk', features: [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: true]
+                    name      : 'LIFX Mini Day and Dusk',
+                    deviceName: 'LIFX Day and Dusk',
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: true]
             ]
         case 51:
         case 61:
             return [
-                    name    : 'LIFX Mini White',
-                    features: [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 2700], chain: false]
+                    name      : 'LIFX Mini White',
+                    deviceName: 'LIFX White Mono',
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 2700], chain: false]
             ]
         case 52:
             return [
-                    name    : 'LIFX GU10',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    name      : 'LIFX GU10',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 55:
             return [
-                    name    : 'LIFX Tile',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
+                    name      : 'LIFX Tile',
+                    deviceName: 'LIFX Tile',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
             ]
 
         case 59:
             return [
-                    name    : 'LIFX Mini Color',
-                    features: [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
+                    name      : 'LIFX Mini Color',
+                    deviceName: 'LIFX Color',
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
             ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
@@ -291,6 +351,10 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
         // assume big endian for now
         if ('A' == item.endian) {
             result.put(item.name, data)
+            return
+        }
+        if ('S' == item.endian) {
+            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
             return
         }
         if ('B' != item.endian) {
@@ -319,8 +383,8 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     return result
 }
 
-private List<Map> makeDescriptor(String desc) {
-    desc.findAll(~/(\w+):(\d+)([aAbBlL]?)/) {
+List<Map> makeDescriptor(String desc) {
+    desc.findAll(~/(\w+):(\d+)([aAbBlLsS]?)/) {
         full ->
             [
                     endian: full[3].toUpperCase(),
@@ -345,11 +409,13 @@ private Long makeTarget(List macAddress) {
     return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
 }
 
-private sendPacket(List buffer, String ipAddress) {
+def sendPacket(List buffer, String ipAddress, boolean wantLog = false) {
     def rawBytes = asByteArray(buffer)
 //    log.debug "raw bytes: ${rawBytes}"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-//    log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
+    if (wantLog) {
+        log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
+    }
     sendHubCommand(
             new hubitat.device.HubAction(
                     stringBytes,
@@ -378,10 +444,15 @@ private Map makeEchoPacket(byte[] target) {
 }
 
 private Map makeStatePacket(byte[] target) {
-    def payload = []
     def buffer = []
-    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.GET_VERSION, false, false, payload)
+    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.GET_VERSION)
     return [sequence: echoSequence, buffer: buffer]
+}
+
+Map makeGetLabelPacket() {
+    def buffer = []
+    def labelSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().DEVICE.GET_LABEL)
+    return [sequence: labelSequence, buffer: buffer]
 }
 
 private String getHubIP() {
@@ -391,7 +462,7 @@ private String getHubIP() {
 }
 
 // fills the buffer with the LIFX packet
-private byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired, Boolean responseRequired, List payload) {
+byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = []) {
     def lastSequence = sequenceNumber()
     createFrame(buffer, targetAddress.every { it == 0 })
     createFrameAddress(buffer, targetAddress, ackRequired, responseRequired, lastSequence)
@@ -403,7 +474,7 @@ private byte makePacket(List buffer, byte[] targetAddress, int messageType, Bool
 }
 
 private byte sequenceNumber() {
-    state.sequence = (state.sequence + 1) % 256
+    state.sequence = (state.sequence + 1) % 128
 }
 
 private def createFrame(List buffer, boolean tagged) {
@@ -435,49 +506,49 @@ private def createPayload(List buffer, byte[] payload) {
     add(buffer, payload)
 }
 
-private static byte[] asByteArray(List buffer) {
+static byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }
 
-private static void add(List buffer, byte value) {
+static void add(List buffer, byte value) {
     buffer.add(Byte.toUnsignedInt(value))
 }
 
-private static void put(List buffer, int index, byte value) {
+static void put(List buffer, int index, byte value) {
     buffer.set(index, Byte.toUnsignedInt(value))
 }
 
-private static void add(List buffer, short value) {
+static void add(List buffer, short value) {
     def lower = value & 0xff
     add(buffer, lower as byte)
     add(buffer, ((value - lower) >>> 8) as byte)
 }
 
-private static void put(List buffer, int index, short value) {
+static void put(List buffer, int index, short value) {
     def lower = value & 0xff
     put(buffer, index, lower as byte)
     put(buffer, index + 1, ((value - lower) >>> 8) as byte)
 }
 
-private static void add(List buffer, int value) {
+static void add(List buffer, int value) {
     def lower = value & 0xffff
     add(buffer, lower as short)
     add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
 }
 
-private static void add(List buffer, long value) {
+static void add(List buffer, long value) {
     def lower = value & 0xffffffff
     add(buffer, lower as int)
     add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
 }
 
-private static void add(List buffer, byte[] values) {
+static void add(List buffer, byte[] values) {
     for (value in values) {
         add(buffer, value)
     }
 }
 
-private static void fill(List buffer, byte value, int count) {
+static void fill(List buffer, byte value, int count) {
     for (int i = 0; i < count; i++) {
         add(buffer, value)
     }

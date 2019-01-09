@@ -2,7 +2,7 @@ class Parser {
     private final List<Map> descriptor
 
     Parser(String descriptor) {
-        this.descriptor = descriptor.findAll(~/(\w+):(\d+)([aAbBlL]?)/) {
+        this.descriptor = descriptor.findAll(~/(\w+):(\d+)([aAbBlLsS]?)/) {
             full ->
                 [
                         endian: full[3].toUpperCase(),
@@ -24,6 +24,10 @@ class Parser {
             // assume big endian for now
             if ('A' == item.endian) {
                 result.put(item.name, data)
+                return
+            }
+            if ('S' == item.endian) {
+                result.put(item.name, new String(data as byte[]))
                 return
             }
             if ('B' != item.endian) {
