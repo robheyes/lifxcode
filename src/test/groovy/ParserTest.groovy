@@ -99,5 +99,16 @@ class ParserTest extends Specification {
         ]
     }
 
+    def "It creates a string"() {
+        given:
+        def parser = new Parser('thingy:4s')
+        when:
+        def result = parser.parse([0x48, 0x45, 0x4C, 0x44] as List<Byte>)
+        then:
+        result == [
+                thingy   : 'HELD'
+        ]
+    }
+
 
 }
