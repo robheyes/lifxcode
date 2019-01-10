@@ -84,7 +84,9 @@ def parse(String description) {
     mac = hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.mac)
 //	log.debug("Mac: ${mac}")
     def parsed = parseHeader(deviceParams)
-    log.debug("Got message of type ${parsed.type}")
+    log.debug("looking up message type ${parsed.type}")
+    def theType = lookupMessageType(parsed.type)
+    log.debug("Got message of type ${theType}")
     switch (parsed.type) {
         case messageTypes().DEVICE.STATE_VERSION:
             createBasicDevice(parsed, ip, mac)
@@ -107,6 +109,20 @@ def parse(String description) {
         case messageTypes().DEVICE.STATE_INFO:
             break
     }
+}
+
+String lookupMessageType(messageType) {
+    def result = "unknown message type ${messageType}"
+    messageTypes().each { key, value ->
+        value.each {
+            kind, type ->
+                if (type == messageType) {
+                    result = sprintf('%s.%s', [key, kind])
+                }
+        }
+
+    }
+    return result
 }
 
 Map parseHeader(Map deviceParams) {
@@ -186,7 +202,7 @@ def static messageTypes() {
                     SET_COLOR            : 102,
                     SET_WAVEFORM         : 103,
                     SET_WAVEFORM_OPTIONAL: 119,
-                    STATE_RESPONSE       : 107,
+                    STATE                : 107,
                     GET_POWER            : 116,
                     SET_POWER            : 117,
                     STATE_POWER          : 118,
