@@ -23,8 +23,8 @@ preferences {
 
 //enum States{ INITIALISING, DISCOVERING, POLLING, OPERATING}
 
-@Field List<Map> headerDescriptor = makeDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
-@Field List<Map> stateVersionDescriptor = makeDescriptor('vendor:4l,product:4l,version:4l')
+@Field List<Map> headerDescriptor = getDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
+@Field List<Map> stateVersionDescriptor = getDescriptor('vendor:4l,product:4l,version:4l')
 @Field String currentState = 'DISCOVERING'
 @Field List<Map> devicesFound = []
 
@@ -92,7 +92,7 @@ def parse(String description) {
             createBasicDevice(parsed, ip, mac)
             break
         case messageTypes().DEVICE.STATE_LABEL:
-            def data = parseBytes(makeDescriptor('label:32s'), deviceParams.payload)
+            def data = parseBytes(getDescriptor('label:32s'), deviceParams.payload)
             log.debug("data = ${data}")
             def devices = devicesFound as LinkedList<Map>
             def device = devices.find { it.ip == ip }
@@ -164,7 +164,7 @@ def poll() {
     log.debug "Sent packet with sequence ${packet.sequence}"
 }
 
-def static messageTypes() {
+static Map<String, Map<String, Integer>> messageTypes() {
     return [
             DEVICE: [
                     GET_SERVICE        : 2,
@@ -355,7 +355,7 @@ private def static deviceVersion(Map device) {
     }
 }
 
-Map parseBytes(List<Map> descriptor, List<Long> bytes) {
+static Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     Map result = new HashMap();
     int offset = 0
     descriptor.each { item ->
@@ -367,11 +367,11 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
         // assume big endian for now
         if ('A' == item.endian) {
             result.put(item.name, data)
-            return
+            return result
         }
         if ('S' == item.endian) {
             result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
-            return
+            return result
         }
         if ('B' != item.endian) {
             data = data.reverse()
@@ -389,7 +389,7 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
             case 3: case 4:
                 result.put(item.name, (value & 0xFFFFFFFF) as int)
                 break
-            default:
+            default: // this should complain if longer than 8 bytes
                 result.put(item.name, (value & 0xFFFFFFFFFFFFFFFF) as long)
         }
     }
@@ -399,7 +399,21 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     return result
 }
 
-List<Map> makeDescriptor(String desc) {
+@Field Map<String, List<Map>> cachedDescriptors
+
+List<Map> getDescriptor(String desc) {
+    if (null == cachedDescriptors) {
+        cachedDescriptors = new HashMap<String, List<Map>>()
+    }
+    List<Map> candidate = cachedDescriptors.get(desc)
+    if (!candidate) {
+        candidate = makeDescriptor(desc)
+        cachedDescriptors[desc] = (candidate)
+    }
+    candidate
+}
+
+private static List<Map> makeDescriptor(String desc) {
     desc.findAll(~/(\w+):(\d+)([aAbBlLsS]?)/) {
         full ->
             [
@@ -413,7 +427,6 @@ List<Map> makeDescriptor(String desc) {
 private String getSubnet() {
     def ip = getHubIP()
     def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
-    def partialIp = null
     if (!m) {
         log.warn('ip does not match pattern')
         return null
@@ -421,7 +434,7 @@ private String getSubnet() {
     return m.group(1)
 }
 
-private Long makeTarget(List macAddress) {
+private static Long makeTarget(List macAddress) {
     return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
 }
 
