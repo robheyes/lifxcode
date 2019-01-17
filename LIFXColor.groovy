@@ -95,29 +95,34 @@ def parse(String description) {
             log.warn("STATE_VERSION type ignored")
             break
         case messageTypes().DEVICE.STATE_LABEL:
-            def data = parseBytes(makeDescriptor('name:32s'), header.remainder)
+            def data = parseBytes(makeDescriptor('name:32s'), getRemainder(header))
             String label = data.name
             device.setLabel(label.trim())
             break
         case messageTypes().DEVICE.STATE_GROUP:
-            def data = parseBytes(makeDescriptor('group:16a,name:32s,updated_at:8l'), header.remainder)
+            def data = parseBytes(makeDescriptor('group:16a,name:32s,updated_at:8l'), getRemainder(header))
             String group = data.name
             log.debug("Group: ${group}")
             return createEvent(name: 'Group', value: group)
         case messageTypes().DEVICE.STATE_LOCATION:
-            def data = parseBytes(makeDescriptor('location:16a,name:32s,updated_at:8l'), header.remainder)
+            def data = parseBytes(makeDescriptor('location:16a,name:32s,updated_at:8l'), getRemainder(header))
             String location = data.name
             log.debug("Location: ${location}")
+            return createEvent(name: 'Location', value: location)
             break
         case messageTypes().DEVICE.STATE_WIFI_INFO:
             break
         case messageTypes().DEVICE.STATE_INFO:
             break
         case messageTypes().LIGHT.STATE:
-            def data = parseBytes(makeDescriptor("${hsbkDescriptor},reserved1:2l,power:2l,label:32s,reserved2:8a"), header.remainder)
+            def data = parseBytes(makeDescriptor("${hsbkDescriptor},reserved1:2l,power:2l,label:32s,reserved2:8a"), getRemainder(header))
             log.debug("LIGHT state: ${data}")
             break
     }
+}
+
+private static List<Long> getRemainder(header) {
+    header.remainder as List<Long>
 }
 
 private static Map parseDeviceParameters(String description) {
@@ -131,8 +136,9 @@ private static Map parseDeviceParameters(String description) {
 String lookupMessageType(messageType) {
     parent.lookupMessageType(messageType)
 }
+
 private List<Map> makeDescriptor(String pattern) {
-    parent.makeDescriptor(pattern)
+    parent.getDescriptor(pattern)
 }
 
 private Map parseHeader(Map deviceParams) {
@@ -143,7 +149,7 @@ private Map parseBytes(List<Map> descriptor, List<Long> parseable) {
     parent.parseBytes(descriptor, parseable)
 }
 
-private def messageTypes() {
+private Map<String, Map<String, Integer>> messageTypes() {
     parent.messageTypes()
 }
 
