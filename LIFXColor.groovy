@@ -10,12 +10,14 @@ import groovy.transform.Field
  *
  */
 definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
-	capability "Light"
+    capability "Bulb"
 //	capability "LightEffect"
-    capability "ColorControl"
-    capability "ColorTemperature"
+    capability "Color Control"
+    capability "Color Temperature"
     capability "HealthCheck"
     capability "Polling"
+    capability "Switch"
+    capability "Switch Level"
     capability "Initialize"
     attribute "Label", "string"
     attribute "Group", "string"
@@ -42,19 +44,19 @@ def refresh() {
 }
 
 def poll() {
-    sendCommand(messageTypes().LIGHT.GET_STATE)
+    sendCommand(messageTypes().LIGHT.GET_STATE.type)
 }
 
 def on() {
     def payload = []
     parent.add(payload, 65535 as short)
-    sendCommand(parent.messageTypes().DEVICE.SET_POWER, payload)
+    sendCommand(parent.messageTypes().DEVICE.SET_POWER.type, payload)
 }
 
 def off() {
     def payload = []
     parent.add(payload, 0 as short)
-    sendCommand(parent.messageTypes().DEVICE.SET_POWER, payload)
+    sendCommand(parent.messageTypes().DEVICE.SET_POWER.type, payload)
 }
 
 def setColor(Map colorMap) {
@@ -80,46 +82,75 @@ private void sendCommand(int messageType, List payload = [], boolean responseReq
 }
 
 def requestInfo() {
-    sendCommand(messageTypes().DEVICE.GET_LABEL)
-    sendCommand(messageTypes().DEVICE.GET_GROUP)
-    sendCommand(messageTypes().DEVICE.GET_LOCATION)
-    sendCommand(messageTypes().LIGHT.GET_STATE)
+    sendCommand(messageTypes().LIGHT.GET_STATE.type)
+    sendCommand(messageTypes().DEVICE.GET_GROUP.type)
+    sendCommand(messageTypes().DEVICE.GET_LOCATION.type)
 }
 
 def parse(String description) {
     def header = parent.parseHeader(parseDeviceParameters(description))
-    def type = lookupMessageType(header.type)
-    log.debug("COLOR: Got message type = ${type}")
+//    log.debug("COLOR: Header = ${header}")
+    //    log.debug("COLOR: Got message type = ${type} (${header.type})")
+//    log.debug("COLOR: Got message type = ${type.name} (${header.type}) descriptor: ${type.descriptor}")
+//    def data = parseBytes(getDescriptorString(header), getRemainder(header))
     switch (header.type) {
-        case messageTypes().DEVICE.STATE_VERSION:
+        case messageTypes().DEVICE.STATE_VERSION.type:
             log.warn("STATE_VERSION type ignored")
             break
-        case messageTypes().DEVICE.STATE_LABEL:
-            def data = parseBytes(makeDescriptor('name:32s'), getRemainder(header))
-            String label = data.name
+        case messageTypes().DEVICE.STATE_LABEL.type:
+            def data = parseBytes(lookupPayload('DEVICE', 'STATE_LABEL'), getRemainder(header))
+            String label = data.label
             device.setLabel(label.trim())
             break
-        case messageTypes().DEVICE.STATE_GROUP:
-            def data = parseBytes(makeDescriptor('group:16a,name:32s,updated_at:8l'), getRemainder(header))
-            String group = data.name
-            log.debug("Group: ${group}")
+        case messageTypes().DEVICE.STATE_GROUP.type:
+            def data = parseBytes(lookupPayload('DEVICE', 'STATE_GROUP'), getRemainder(header))
+            //def data = parseBytes(makeDescriptor('group:16a,name:32s,updated_at:8l'), getRemainder(header))
+            String group = data.label
+//            log.debug("Group: ${group}")
             return createEvent(name: 'Group', value: group)
-        case messageTypes().DEVICE.STATE_LOCATION:
-            def data = parseBytes(makeDescriptor('location:16a,name:32s,updated_at:8l'), getRemainder(header))
-            String location = data.name
-            log.debug("Location: ${location}")
+        case messageTypes().DEVICE.STATE_LOCATION.type:
+            def data = parseBytes(lookupPayload('DEVICE', 'STATE_LOCATION'), getRemainder(header))
+            String location = data.label
+//            log.debug("Location: ${location}")
             return createEvent(name: 'Location', value: location)
+        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+            def data = parseBytes(lookupPayload('DEVICE', 'STATE_WIFI_INFO'), getRemainder(header))
             break
-        case messageTypes().DEVICE.STATE_WIFI_INFO:
+        case messageTypes().DEVICE.STATE_INFO.type:
+            def data = parseBytes(lookupPayload('DEVICE', 'STATE_INFO'), getRemainder(header))
             break
-        case messageTypes().DEVICE.STATE_INFO:
-            break
-        case messageTypes().LIGHT.STATE:
-            def data = parseBytes(makeDescriptor("${hsbkDescriptor},reserved1:2l,power:2l,label:32s,reserved2:8a"), getRemainder(header))
+        case messageTypes().LIGHT.STATE.type:
+            def data = parseBytes(lookupPayload('LIGHT', 'STATE'), getRemainder(header))
             log.debug("LIGHT state: ${data}")
+            device.setLabel(data.label.trim())
+            return [
+                    createEvent(name: "hue", value: scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "saturation", value: scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "level", value: scaleDown(data.brightness, 100), displayed: getUseActivityLogDebug()),
+            ]
             break
     }
 }
+
+private String lookupPayload(String device, String type) {
+    parent.lookupPayloadForDeviceAndType(device, type)
+}
+//
+//private String getDescriptorString(header) {
+//    responseDescriptor().get(header.type as Integer, 'none')
+//}
+
+private static Integer scaleDown(value, maxValue) {
+    (value * maxValue) / 65535
+}
+
+private static Integer scaleUp(value, maxValue) {
+    (value * 65535) / maxValue
+}
+//
+//private Map<Integer, String> responseDescriptor() {
+//    parent.responseDescriptor()
+//}
 
 private static List<Long> getRemainder(header) {
     header.remainder as List<Long>
@@ -132,14 +163,14 @@ private static Map parseDeviceParameters(String description) {
     }
     return deviceParams
 }
+//
+//Map lookupMessageType(messageType) {
+//    parent.lookupMessageType(messageType)
+//}
 
-String lookupMessageType(messageType) {
-    parent.lookupMessageType(messageType)
-}
-
-private List<Map> makeDescriptor(String pattern) {
-    parent.getDescriptor(pattern)
-}
+//private List<Map> makeDescriptor(String pattern) {
+//    parent.getDescriptor(pattern)
+//}
 
 private Map parseHeader(Map deviceParams) {
     parent.parseHeader(deviceParams)
@@ -149,7 +180,11 @@ private Map parseBytes(List<Map> descriptor, List<Long> parseable) {
     parent.parseBytes(descriptor, parseable)
 }
 
-private Map<String, Map<String, Integer>> messageTypes() {
+private Map parseBytes(String descriptor, List<Long> parseable) {
+    parent.parseBytes(descriptor, parseable)
+}
+
+private Map<String, Map<String, Map>> messageTypes() {
     parent.messageTypes()
 }
 
@@ -162,8 +197,8 @@ private def sendPacket(List buffer, boolean wantLog = false) {
     def rawBytes = parent.asByteArray(buffer)
 //    log.debug "raw bytes: ${rawBytes}"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-    if (wantLog){
-        log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
+    if (wantLog) {
+//        log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
     }
     sendHubCommand(
             new hubitat.device.HubAction(
@@ -176,4 +211,26 @@ private def sendPacket(List buffer, boolean wantLog = false) {
                     ]
             )
     )
+}
+
+def getUseActivityLog() {
+    if(state.useActivityLog == null) {
+        state.useActivityLog = true
+    }
+    return state.useActivityLog
+}
+
+def setUseActivityLog(value) {
+    state.useActivityLog = value
+}
+
+def getUseActivityLogDebug() {
+    if(state.useActivityLogDebug == null) {
+        state.useActivityLogDebug = false
+    }
+    return state.useActivityLogDebug
+}
+
+def setUseActivityLogDebug(value) {
+    state.useActivityLogDebug = value
 }
