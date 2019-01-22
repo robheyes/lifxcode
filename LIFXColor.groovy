@@ -133,7 +133,7 @@ def parse(String description) {
 }
 
 private String lookupPayload(String device, String type) {
-    parent.lookupPayloadForDeviceAndType(device, type)
+    parent.lookupDescriptorForDeviceAndType(device, type)
 }
 //
 //private String getDescriptorString(header) {
