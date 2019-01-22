@@ -58,7 +58,6 @@ def refresh() {
     1.upto(254) {
         def packet = makeVersionPacket([0, 0, 0, 0, 0, 0] as byte[])
         def ipAddress = subnet + it
-        log.debug "Going to test ${ipAddress}"
         sendPacket(packet.buffer, ipAddress)
     }
 
@@ -82,24 +81,24 @@ def parse(String description) {
 //        logDebug("Storing ${it[2]} at ${it[1]}")
         deviceParams.putAt(it[1], it[2])
     }
-//    logDebug("Params ${deviceParams}")
+    logDebug("Params ${deviceParams}")
 //    theClass = deviceParams.ip.getClass()
 //    logDebug("ip ${deviceParams.ip} of ${theClass}")
     ip = convertIpLong(deviceParams.ip as String)
     mac = hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.mac)
 //	logDebug("Mac: ${mac}")
     def parsed = parseHeader(deviceParams)
-//    logDebug("looking up message type ${parsed.type}")
+    logDebug("Parsed ${parsed}")
 //    def theType = lookupMessageType(parsed.type)
 //    logDebug("Got message of type ${theType}")
 //    def descriptor = responseDescriptor()[parsed.type] ?: ''
-    final List<Long> payload = deviceParams.payload
+    final String payload = deviceParams.payload
     switch (parsed.type) {
         case messageTypes().DEVICE.STATE_VERSION.type:
             createBasicDevice(parsed, ip, mac)
             break
         case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parseBytes(lookupPayloadForDeviceAndType('DEVICE', 'STATE_LABEL'), payload)
+            def data = parseBytes(lookupDescriptorForDeviceAndType('DEVICE', 'STATE_LABEL'), parsed.remainder as List<Long>)
             logDebug("data = ${data}")
             def devices = devicesFound as LinkedList<Map>
             def device = devices.find { it.ip == ip }
@@ -108,10 +107,11 @@ def parse(String description) {
             state.devicesFound[ip] = device
             break
         case messageTypes().LIGHT.STATE.type:
-            if (null != descriptor) {
-                def data = parseBytes(lookupPayloadForDeviceAndType('LIGHT', 'STATE'), payload)
-                logDebug("State data: ${data}")
-            }
+            logDebug('looking for descriptor')
+            def desc = lookupDescriptorForDeviceAndType('LIGHT', 'STATE')
+            logDebug("Descriptor: ${desc}")
+            def data = parseBytes(desc, parsed.remainder as List<Long>)
+            logDebug("State data: ${data}")
             break
         case messageTypes().DEVICE.STATE_GROUP.type:
             break
@@ -128,8 +128,8 @@ static Map lookupDeviceAndType(String device, String type) {
     return messageTypes()[device][type]
 }
 
-static String lookupPayloadForDeviceAndType(String device, String type) {
-    return lookupDeviceAndType(device, type).payload
+static String lookupDescriptorForDeviceAndType(String device, String type) {
+    return lookupDeviceAndType(device, type).descriptor
 }
 //
 //Map lookupMessageType(messageType) {
@@ -192,48 +192,48 @@ static Map<String, Map<String, Map>> messageTypes() {
     final def color = 'hue:2l,saturation:2l,brightness:2l,kelvin:2l'
     final def types = [
             DEVICE: [
-                    GET_SERVICE        : [type: 2, payload: ''],
-                    STATE_SERVICE      : [type: 3, payload: 'service:1;port:4l'],
-                    GET_HOST_INFO      : [type: 12, payload: ''],
-                    STATE_HOST_INFO    : [type: 13, payload: 'signal:4l;tx:4l;rx:4l,reservedHost:2l'],
-                    GET_HOST_FIRMWARE  : [type: 14, payload: ''],
-                    STATE_HOST_FIRMWARE: [type: 15, payload: 'build:8l;reservedFirmware:8l;version:4l'],
-                    GET_WIFI_INFO      : [type: 16, payload: ''],
-                    STATE_WIFI_INFO    : [type: 17, payload: 'signal:4l;tx:4l;rx:4l,reservedWifi:2l'],
-                    GET_WIFI_FIRMWARE  : [type: 18, payload: ''],
-                    STATE_WIFI_FIRMWARE: [type: 19, payload: 'build:8l;reservedFirmware:8l;version:4l'],
-                    GET_POWER          : [type: 20, payload: ''],
-                    SET_POWER          : [type: 21, payload: 'level:2l'],
-                    STATE_POWER        : [type: 22, payload: 'level:2l'],
-                    GET_LABEL          : [type: 23, payload: ''],
-                    SET_LABEL          : [type: 24, payload: 'label:32s'],
-                    STATE_LABEL        : [type: 25, payload: 'label:32s'],
-                    GET_VERSION        : [type: 32, payload: ''],
-                    STATE_VERSION      : [type: 33, payload: 'vendor:4l;product:4l;version:4l'],
-                    GET_INFO           : [type: 34, payload: ''],
-                    STATE_INFO         : [type: 35, payload: 'time:8l;uptime:8l;downtime:8l'],
-                    ACKNOWLEDGEMENT    : [type: 45, payload: ''],
-                    GET_LOCATION       : [type: 48, payload: ''],
-                    SET_LOCATION       : [type: 49, payload: 'location:16a;label:32s;updated_at:8l'],
-                    STATE_LOCATION     : [type: 50, payload: 'location:16a;label:32s;updated_at:8l'],
-                    GET_GROUP          : [type: 51, payload: ''],
-                    SET_GROUP          : [type: 52, payload: 'group:16a;label:32s;updated_at:8l'],
-                    STATE_GROUP        : [type: 53, payload: 'group:16a;label:32s;updated_at:8l'],
-                    ECHO_REQUEST       : [type: 58, payload: 'payload:64a'],
-                    ECHO_RESPONSE      : [type: 59, payload: 'payload:64a'],
+                    GET_SERVICE        : [type: 2, descriptor: ''],
+                    STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
+                    GET_HOST_INFO      : [type: 12, descriptor: ''],
+                    STATE_HOST_INFO    : [type: 13, descriptor: 'signal:4l;tx:4l;rx:4l,reservedHost:2l'],
+                    GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
+                    STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                    GET_WIFI_INFO      : [type: 16, descriptor: ''],
+                    STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:4l;tx:4l;rx:4l,reservedWifi:2l'],
+                    GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
+                    STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                    GET_POWER          : [type: 20, descriptor: ''],
+                    SET_POWER          : [type: 21, descriptor: 'level:2l'],
+                    STATE_POWER        : [type: 22, descriptor: 'level:2l'],
+                    GET_LABEL          : [type: 23, descriptor: ''],
+                    SET_LABEL          : [type: 24, descriptor: 'label:32s'],
+                    STATE_LABEL        : [type: 25, descriptor: 'label:32s'],
+                    GET_VERSION        : [type: 32, descriptor: ''],
+                    STATE_VERSION      : [type: 33, descriptor: 'vendor:4l;product:4l;version:4l'],
+                    GET_INFO           : [type: 34, descriptor: ''],
+                    STATE_INFO         : [type: 35, descriptor: 'time:8l;uptime:8l;downtime:8l'],
+                    ACKNOWLEDGEMENT    : [type: 45, descriptor: ''],
+                    GET_LOCATION       : [type: 48, descriptor: ''],
+                    SET_LOCATION       : [type: 49, descriptor: 'location:16a;label:32s;updated_at:8l'],
+                    STATE_LOCATION     : [type: 50, descriptor: 'location:16a;label:32s;updated_at:8l'],
+                    GET_GROUP          : [type: 51, descriptor: ''],
+                    SET_GROUP          : [type: 52, descriptor: 'group:16a;label:32s;updated_at:8l'],
+                    STATE_GROUP        : [type: 53, descriptor: 'group:16a;label:32s;updated_at:8l'],
+                    ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
+                    ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
             ],
             LIGHT : [
-                    GET_STATE            : [type: 101, payload: ''],
-                    SET_COLOR            : [type: 102, payload: "reservedColor:1;${color};duration:4l"],
-                    SET_WAVEFORM         : [type: 103, payload: "reservedWaveform:1;transient:1;${color};period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
-                    SET_WAVEFORM_OPTIONAL: [type: 119, payload: "reservedWaveform:1;transient:1;${color};period:4l;cycles:4l;skew_ratio:2l;waveform:1;set_hue:1;set_saturation:1;set_brightness:1;set_kelvin:1"],
-                    STATE                : [type: 107, payload: "${color};reserved1State:2l;power:2l;label:32s;reserved2state:8l"],
-                    GET_POWER            : [type: 116, payload: ''],
-                    SET_POWER            : [type: 117, payload: 'level:2l;duration:4l'],
-                    STATE_POWER          : [type: 118, payload: 'level:2l'],
-                    GET_INFRARED         : [type: 120, payload: ''],
-                    STATE_INFRARED       : [type: 121, payload: 'brightness:2l'],
-                    SET_INFRARED         : [type: 122, payload: 'brightness:2l'],
+                    GET_STATE            : [type: 101, descriptor: ''],
+                    SET_COLOR            : [type: 102, descriptor: "reservedColor:1;${color};duration:4l"],
+                    SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;${color};period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
+                    SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:1;transient:1;${color};period:4l;cycles:4l;skew_ratio:2l;waveform:1;set_hue:1;set_saturation:1;set_brightness:1;set_kelvin:1"],
+                    STATE                : [type: 107, descriptor: "${color};reserved1State:2l;power:2l;label:32s;reserved2state:8l"],
+                    GET_POWER            : [type: 116, descriptor: ''],
+                    SET_POWER            : [type: 117, descriptor: 'level:2l;duration:4l'],
+                    STATE_POWER          : [type: 118, descriptor: 'level:2l'],
+                    GET_INFRARED         : [type: 120, descriptor: ''],
+                    STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
+                    SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
             ]
     ]
     return types
@@ -402,12 +402,13 @@ private def static deviceVersion(Map device) {
     }
 }
 
-static Map parseBytes(String descriptor, List<Long> bytes) {
+Map parseBytes(String descriptor, List<Long> bytes) {
+    log.debug("Looking for descriptor for ${descriptor}")
     def realDescriptor = getDescriptor(descriptor)
     return parseBytes(realDescriptor, bytes)
 }
 
-static Map parseBytes(List<Map> descriptor, List<Long> bytes) {
+Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     Map result = new HashMap();
     int offset = 0
     descriptor.each { item ->
@@ -514,33 +515,37 @@ def sendPacket(List buffer, String ipAddress, boolean wantLog = false) {
 
 private Map makeGetDevicePacket() {
     def buffer = []
-    def getServiceSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().DEVICE.GET_SERVICE, false, true, [])
+    def getServiceSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('DEVICE', 'GET_SERVICE'), false, true, [])
     return [sequence: getServiceSequence, buffer: buffer]
+}
+
+private static Integer getTypeFor(String dev, String act) {
+    lookupDeviceAndType(dev, act).type as Integer
 }
 
 private Map makeEchoPacket(byte[] target) {
     def payload = []
     fill(payload, 0xAA as byte, 64)
     def buffer = []
-    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.ECHO_REQUEST, false, false, payload)
+    def echoSequence = makePacket(buffer, target, getTypeFor('DEVICE', 'ECHO_REQUEST'), false, false, payload)
     return [sequence: echoSequence, buffer: buffer]
 }
 
 private Map makeVersionPacket(byte[] target) {
     def buffer = []
-    def echoSequence = makePacket(buffer, target, messageTypes().DEVICE.GET_VERSION)
+    def echoSequence = makePacket(buffer, target, getTypeFor('DEVICE', 'GET_VERSION'))
     return [sequence: echoSequence, buffer: buffer]
 }
 
 Map makeGetLabelPacket() {
     def buffer = []
-    def labelSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().DEVICE.GET_LABEL)
+    def labelSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('DEVICE', 'GET_LABEL'))
     return [sequence: labelSequence, buffer: buffer]
 }
 
 Map makeGetStatePacket() {
     def buffer = []
-    def stateSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageTypes().LIGHT.GET_STATE)
+    def stateSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('LIGHT', 'GET_STATE'))
     return [sequence: stateSequence, buffer: buffer]
 }
 
