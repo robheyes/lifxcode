@@ -127,6 +127,7 @@ def parse(String description) {
                     createEvent(name: "hue", value: scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "saturation", value: scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "level", value: scaleDown(data.brightness, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "kelvin", value: data.kelvin, 100, displayed: getUseActivityLogDebug()),
             ]
             break
     }

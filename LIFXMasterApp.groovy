@@ -9,196 +9,197 @@
  */
 import groovy.transform.Field
 
-metadata {
-    definition(name: 'LIFX discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
+definition(
+        name: "LIFX Master",
+        namespace: "robheyes",
+        author: "Robert Alan Heyes",
+        description: "Provides for discovery and control of LIFX devices"
+) {
 //	capability: "Switch"
-//        capability "Polling"
-        capability "Refresh"
-//        command "refresh"
-//        command "removeChildren"
-    }
-
-    preferences {
-        input "logEnable", "bool", title: "Enable debug logging", required: false
-        //input "refreshBtn", "button", title: "Refresh"
-    }
+//    capability "Polling"
+//    capability "Refresh"
+//    command "refresh"
+//    command "removeChildren"
 }
+
+preferences {
+//    input "logEnable", "bool", title: "Enable debug logging", required: false
+    input "discoverBtn", "button", title: "Discover LIFX devices"
+    input "deleteDevicesBtn", 'button', title: 'Delete all devices'
+}
+
 //enum States{ INITIALISING, DISCOVERING, POLLING, OPERATING}
 
-//@Field List<Map> headerDescriptor = getDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
-//@Field List<Map> stateVersionDescriptor = getDescriptor('vendor:4l,product:4l,version:4l')
-//@Field String currentState = 'DISCOVERING'
-@Field List<Map> devicesFound = []
+@Field List<Map> headerDescriptor = getDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
+@Field List<Map> stateVersionDescriptor = getDescriptor('vendor:4l,product:4l,version:4l')
+@Field DeviceWrapper lifxDiscovery = null
 
 def updated() {
-    log.debug "LIFX updating"
-    initialize()
+    logDebug 'LIFX updating'
 }
 
 def installed() {
-    log.debug "LIFX installed"
-    initialize()
+    logDebug 'LIFX installed'
+
+}
+
+def uninstalled() {
+    logDebug 'LIFX uninstalled'
 }
 
 def initialize() {
-//    state.sequence = 1
-//    state.deviceCount = 0
-//    def localIP = getHubIP()
-
-//    log.debug "localIP: ${localIP}"
     refresh()
 }
 
 def refresh() {
-//    removeChildren()
-//    String subnet = parent.getSubnet()
-//    if (!subnet) {
-//        return
-//    }
-//    currentState = 'DISCOVERING'
-//    1.upto(254) {
+    removeChildren()
+    String subnet = getSubnet()
+    if (!subnet) {
+        return
+    }
+    atomicState.devices = new HashMap()
+    lifxDiscovery = getChildDevice('LIFX Discovery')
+    1.upto(254) {
+        def ipAddress = subnet + it
+        sendCommand(lifxDiscovery, messageTypes().DEVICE.GET_VERSION.type as int)
+        sendCommand(lifxDiscovery, messageTypes().LIGHT.GET_STATE.type as int)
+        sendCommand(lifxDiscovery, messageTypes().DEVICE.GET_GROUP.type as int)
+        sendCommand(lifxDiscovery, messageTypes().DEVICE.GET_LOCATION.type as int)
 //        def packet = makeVersionPacket([0, 0, 0, 0, 0, 0] as byte[])
-//        def ipAddress = subnet + it
-//        sendPacket(packet.buffer, ipAddress)
-//    }
+//        lifxDiscovery.sendPacket(packet.buffer, ipAddress)
+    }
 
-
-    // maybe change the state to OPERATING after a period?
+    // now schedule processing of the device list after a delay
 }
 
-//def removeChildren() {
-//    log.debug "Removing child devices"
-//    childDevices.each {
-//        if (it != null) {
-//            deleteChildDevice(it.getDeviceNetworkId())
-//        }
+private void sendCommand(DeviceWrapper device, int messageType, List payload = [], boolean responseRequired = false) {
+    def buffer = []
+    def packet = parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
+    device.sendPacket(buffer, true)
+    packet
+}
+
+def removeChildren() {
+    logDebug "Removing child devices"
+    childDevices.each {
+        if (it != null) {
+            deleteChildDevice(it.getDeviceNetworkId())
+        }
+    }
+    addChildDevice('robheyes', 'LIFX discovery', 'LIFX discovery')
+}
+
+//def parse(String description) {
+////    logDebug("Description = ${description}")
+//    Map deviceParams = new HashMap()
+//    description.findAll(~/(\w+):(\w+)/) {
+////        logDebug("Storing ${it[2]} at ${it[1]}")
+//        deviceParams.putAt(it[1], it[2])
+//    }
+//    logDebug("Params ${deviceParams}")
+////    theClass = deviceParams.ip.getClass()
+////    logDebug("ip ${deviceParams.ip} of ${theClass}")
+//    ip = convertIpLong(deviceParams.ip as String)
+//    mac = hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.mac)
+////	logDebug("Mac: ${mac}")
+//    def parsed = parseHeader(deviceParams)
+//    logDebug("Parsed ${parsed}")
+////    def theType = lookupMessageType(parsed.type)
+////    logDebug("Got message of type ${theType}")
+////    def descriptor = responseDescriptor()[parsed.type] ?: ''
+//    final String payload = deviceParams.payload
+//    switch (parsed.type) {
+//        case messageTypes().DEVICE.STATE_VERSION.type:
+//            createDeviceDefinition(parsed, ip, mac)
+//            break
+//        case messageTypes().DEVICE.STATE_LABEL.type:
+//            def data = parseBytes(lookupDescriptorForDeviceAndType('DEVICE', 'STATE_LABEL'), parsed.remainder as List<Long>)
+//            logDebug("data = ${data}")
+//            def devices = devicesFound as LinkedList<Map>
+//            def device = devices.find { it.ip == ip }
+//            logDebug("Device is now ${device}")
+//            device?.label = data.label
+//            state.devicesFound[ip] = device
+//            break
+//        case messageTypes().LIGHT.STATE.type:
+//            logDebug('looking for descriptor')
+//            def desc = lookupDescriptorForDeviceAndType('LIGHT', 'STATE')
+//            logDebug("Descriptor: ${desc}")
+//            def data = parseBytes(desc, parsed.remainder as List<Long>)
+//            logDebug("State data: ${data}")
+//            break
+//        case messageTypes().DEVICE.STATE_GROUP.type:
+//            break
+//        case messageTypes().DEVICE.STATE_LOCATION.type:
+//            break
+//        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+//            break
+//        case messageTypes().DEVICE.STATE_INFO.type:
+//            break
 //    }
 //}
 
-def parse(String description) {
-//    logDebug("Description = ${description}")
-    Map deviceParams = parseDeviceParameters(description)
-    logDebug"Params ${deviceParams}"
-//    theClass = deviceParams.ip.getClass()
-//    logDebug("ip ${deviceParams.ip} of ${theClass}")
-    ip = parent.convertIpLong(deviceParams.ip as String)
-    mac = hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.mac)
-//	logDebug("Mac: ${mac}")
-    def parsed = parent.parseHeader(deviceParams)
-    logDebug"Parsed ${parsed}"
-//    def theType = lookupMessageType(parsed.type)
-//    logDebug("Got message of type ${theType}")
-//    def descriptor = responseDescriptor()[parsed.type] ?: ''
-    final String payload = deviceParams.payload
-    switch (parsed.type) {
-        case messageTypes().DEVICE.STATE_VERSION.type:
-            parent.createDeviceDefinition(parsed, ip, mac)
-            break
-        case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parseBytes(lookupDescriptorForDeviceAndType('DEVICE', 'STATE_LABEL'), parsed.remainder as List<Long>)
-            logDebug "data = ${data}"
-            def devices = devicesFound as LinkedList<Map>
-            def device = devices.find { it.ip == ip }
-            logDebug "Device is now ${device}"
-            device?.label = data.label
-            state.devicesFound[ip] = device
-            break
-        case messageTypes().LIGHT.STATE.type:
-            logDebug('looking for descriptor')
-            def desc = lookupDescriptorForDeviceAndType('LIGHT', 'STATE')
-            logDebug("Descriptor: ${desc}")
-            def data = parseBytes(desc, parsed.remainder as List<Long>)
-            logDebug("State data: ${data}")
-            break
-        case messageTypes().DEVICE.STATE_GROUP.type:
-            break
-        case messageTypes().DEVICE.STATE_LOCATION.type:
-            break
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            break
-        case messageTypes().DEVICE.STATE_INFO.type:
-            break
-    }
-}
-
-private Map parseDeviceParameters(String description) {
-    Map deviceParams = new HashMap()
-    description.findAll(~/(\w+):(\w+)/) {
-        deviceParams.putAt(it[1], it[2])
-    }
-    deviceParams
-}
-
 static Map lookupDeviceAndType(String device, String type) {
-    parent.lookupDeviceAndType(device, type)
-//    return messageTypes()[device][type]
+    return messageTypes()[device][type]
 }
 
 static String lookupDescriptorForDeviceAndType(String device, String type) {
-    parent.lookupDescriptorForDeviceAndType(device, type)
-//    return lookupDeviceAndType(device, type).descriptor
+    return lookupDeviceAndType(device, type).descriptor
 }
 
-//
-//Map lookupMessageType(messageType) {
-//    def result = [name: "unknown message type ${messageType}"]
-//    messageTypes().each { key, value ->
-//        value.each {
-//            kind, descriptor ->
-//                if (descriptor.type == messageType) {
-//                    result = [name: sprintf('%s.%s', [key, kind]), descriptor: responseDescriptor()[type] ?: 'none']
-//                }
-//        }
-//
-//    }
-//    return result
-//}
-
 Map parseHeader(Map deviceParams) {
-    parent.parseHeader(deviceParams)
-/*
     parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
         it & 0xff
     })
-*/
 }
+//
+//def requestExtraInfo(Map data) {
+//    def device = data.device
+//    logDebug("Trying to send a get state to ${device}")
+//    def packet = makeGetStatePacket()
+//    //sendPacket(packet.buffer, device.ip)
+//}
 
-def requestExtraInfo(Map data) {
-    def device = data.device
-    logDebug("Trying to send a get state to ${device}")
-    def packet = makeGetStatePacket()
-    //sendPacket(packet.buffer, device.ip)
-}
-
-//private void createDeviceDefinition(Map parsed, String ip, int[] mac) {
-////            logDebug("It's a state version message")
-//    log.debug("Creating device for ip address ${ip} and mac ${mac}")
-//    def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
-////            logDebug("Version = ${version}")
-//    def device = parent.deviceVersion(version)
-//    device.putAt('ip', ip)
-//    device.putAt('mac', mac)
-//    logDebug("Device descriptor = ${device}")
+void createDeviceDefinition(Map parsed, String ip, int[] mac) {
+//            logDebug("It's a state version message")
+    logDebug("Creating device descriptor for ip address ${ip} and mac ${mac}")
+    def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
+//            logDebug("Version = ${version}")
+    def device = deviceVersion(version)
+    device.putAt('ip', ip)
+    device.putAt('mac', mac)
+    logDebug("Device descriptor = ${device}")
+    saveDeviceDefinitition(device)
+//    Map devices = atomicState.devices
+//    devices[mac] = device
+//    atomicState.devices = devices
 //    if (null == getChildDevice(device.ip)) {
 //        addChildDevice('robheyes', device.deviceName, device.ip)
 //    }
-//}
+}
 
+Map getDeviceDefinition(String mac)
+{
+    Map devices = atomicState.devices
 
-//
-//def poll() {
-//    logInfo('Polling')
-//    def packet = makeGetLabelPacket()
-//    logDebug(packet)
-//    sendPacket(packet.buffer, "192.168.1.45", true)
-//
-//    logDebug "Sent packet with sequence ${packet.sequence}"
-//}
-//
+    devices.getAt(mac)
+}
+
+void saveDeviceDefinitition(Map device)
+{
+    Map devices = atomicState.devices
+
+    devices[device.mac] = device
+
+    atomicState.devices = devices
+}
+
+String convertIpLong(String ip) {
+    sprintf('%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip))
+}
 
 Map<String, Map<String, Map>> messageTypes() {
-    parent.messageTypes()
-/*    final def color = 'hue:2l,saturation:2l,brightness:2l,kelvin:2l'
+    final def color = 'hue:2l,saturation:2l,brightness:2l,kelvin:2l'
     final def types = [
             DEVICE: [
                     GET_SERVICE        : [type: 2, descriptor: ''],
@@ -245,11 +246,10 @@ Map<String, Map<String, Map>> messageTypes() {
                     SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
             ]
     ]
-    return types*/
+    return types
 }
 
-/*
-private def static deviceVersion(Map device) {
+Map deviceVersion(Map device) {
     switch (device.product) {
         case 1:
             return [
@@ -390,20 +390,15 @@ private def static deviceVersion(Map device) {
             return [name: "Unknown LIFX device with product id ${device.product}"]
     }
 }
-*/
 
 Map parseBytes(String descriptor, List<Long> bytes) {
-    parent.parseBytes(descriptor, bytes)
-/*
-    log.debug("Looking for descriptor for ${descriptor}")
+    logDebug("Looking for descriptor for ${descriptor}")
     def realDescriptor = getDescriptor(descriptor)
     return parseBytes(realDescriptor, bytes)
-*/
 }
 
 Map parseBytes(List<Map> descriptor, List<Long> bytes) {
-    parent.parseBytes(descriptor, bytes)
-/*    Map result = new HashMap();
+    Map result = new HashMap()
     int offset = 0
     descriptor.each { item ->
         int nextOffset = offset + (item.bytes as int)
@@ -443,29 +438,29 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     if (offset < bytes.size()) {
         result.put('remainder', bytes[offset..-1])
     }
-    return result*/
+    return result
 }
 
-//@Field Map<String, List<Map>> cachedDescriptors
+List<Long> getRemainder(header) {
+    header.remainder as List<Long>
+}
 
 List<Map> getDescriptor(String desc) {
-    parent.getDescriptor(desc)
-/*
+    def cachedDescriptors = atomicState.cachedDescriptors
     if (null == cachedDescriptors) {
         cachedDescriptors = new HashMap<String, List<Map>>()
     }
     List<Map> candidate = cachedDescriptors.get(desc)
     if (candidate) {
-        logDebug('Found candidate')
+        logDebug("Found candidate for ${desc}")
     } else {
         candidate = makeDescriptor(desc)
         cachedDescriptors[desc] = (candidate)
+        atomicState.cachedDescriptors = cachedDescriptors
     }
     candidate
-*/
 }
 
-/*
 private static List<Map> makeDescriptor(String desc) {
     desc.findAll(~/(\w+):(\d+)([aAbBlLsS]?)/) {
         full ->
@@ -477,7 +472,7 @@ private static List<Map> makeDescriptor(String desc) {
     }
 }
 
-private String getSubnet() {
+String getSubnet() {
     def ip = getHubIP()
     def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
     if (!m) {
@@ -486,13 +481,11 @@ private String getSubnet() {
     }
     return m.group(1)
 }
-*/
+//
+//private static Long makeTarget(List macAddress) {
+//    return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
+//}
 
-/*private static Long makeTarget(List macAddress) {
-    return macAddress.inject(0L) { Long current, Long val -> current * 256 + val }
-}*/
-
-// NB this is called by the LIFXMasterApp - do not delete
 def sendPacket(List buffer, String ipAddress, boolean wantLog = false) {
     def rawBytes = asByteArray(buffer)
 //    logDebug "raw bytes: ${rawBytes}"
@@ -512,162 +505,177 @@ def sendPacket(List buffer, String ipAddress, boolean wantLog = false) {
             )
     )
 }
+//
+//private Map makeGetDevicePacket() {
+//    def buffer = []
+//    def getServiceSequence = makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('DEVICE', 'GET_SERVICE'), false, true, [])
+//    return [sequence: getServiceSequence, buffer: buffer]
+//}
 
-/*
-private Map makeGetDevicePacket() {
-    def buffer = []
-    def getServiceSequence = parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('DEVICE', 'GET_SERVICE'), false, true, [])
-    return [sequence: getServiceSequence, buffer: buffer]
+def /* Hub */ getHub()
+{
+    location.hubs[0]
 }
-*/
 
-private static Integer getTypeFor(String dev, String act) {
-    parent.getTypeFor(dev, act)
-//    lookupDeviceAndType(dev, act).type as Integer
+static Integer getTypeFor(String dev, String act) {
+    lookupDeviceAndType(dev, act).type as Integer
 }
-/*
 
 private Map makeEchoPacket(byte[] target) {
     def payload = []
     fill(payload, 0xAA as byte, 64)
     def buffer = []
-    def echoSequence = parent.makePacket(buffer, target, getTypeFor('DEVICE', 'ECHO_REQUEST'), false, false, payload)
+    def echoSequence = makePacket(buffer, target, getTypeFor('DEVICE', 'ECHO_REQUEST'), false, false, payload)
     return [sequence: echoSequence, buffer: buffer]
 }
 
 private Map makeVersionPacket(byte[] target) {
     def buffer = []
-    def echoSequence = parent.makePacket(buffer, target, getTypeFor('DEVICE', 'GET_VERSION'))
+    def echoSequence = makePacket(buffer, target, getTypeFor('DEVICE', 'GET_VERSION'))
     return [sequence: echoSequence, buffer: buffer]
 }
-*/
 
 Map makeGetLabelPacket() {
-    parent.makeGetLabelPacket()
-/*
     def buffer = []
-    def labelSequence = parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('DEVICE', 'GET_LABEL'))
+    def labelSequence = makePacket(buffer, getTypeFor('DEVICE', 'GET_LABEL'))
     return [sequence: labelSequence, buffer: buffer]
-*/
 }
 
 Map makeGetStatePacket() {
-    parent.makeGetStatePacket()
-/*
     def buffer = []
-    def stateSequence = parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], getTypeFor('LIGHT', 'GET_STATE'))
+    def stateSequence = makePacket(buffer, getTypeFor('LIGHT', 'GET_STATE'))
     return [sequence: stateSequence, buffer: buffer]
-*/
 }
 
-//private String getHubIP() {
-//    def hub = location.hubs[0]
-//
-//    hub.localIP
-//}
-//
-//// fills the buffer with the LIFX packet
-//byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = []) {
-//    def lastSequence = sequenceNumber()
-//    parent.createFrame(buffer, targetAddress.every { it == 0 })
-//    parent.createFrameAddress(buffer, targetAddress, ackRequired, responseRequired, lastSequence)
-//    parent.createProtocolHeader(buffer, messageType as short)
-//    parent.createPayload(buffer, payload as byte[])
-//
-//    parent.put(buffer, 0, buffer.size() as short)
-//    return lastSequence
-//}
+String getHubIP() {
+    def hub = location.hubs[0]
 
-//private byte sequenceNumber() {
-//    state.sequence = (state.sequence + 1) % 128
-//}
-//
-//private static def createFrame(List buffer, boolean tagged) {
-//    parent.add(buffer, 0 as short)
-//    parent.add(buffer, 0x00 as byte)
-//    parent.add(buffer, (tagged ? 0x34 : 0x14) as byte)
-//    parent.add(buffer, parent.lifxSource())
-//}
+    hub.localIP
+}
 
-//
-//private int lifxSource() {
-//    0x48454C44 // = HELD: Hubitat Elevation LIFX Device
-//}
+byte makePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = [])
+{
+    makePacket(buffer, [0,0,0,0,0,0] as byte[], messageType, false, responseRequired, payload)
+}
 
-//private static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
-//    parent.add(buffer, target)
-//    parent.add(buffer, 0 as short)
-//    parent.fill(buffer, 0 as byte, 6)
-//    parent.add(buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
-//    parent.add(buffer, sequenceNumber)
-//}
-//
-//private static def createProtocolHeader(List buffer, short messageType) {
-//    parent.fill(buffer, 0 as byte, 8)
-//    parent.add(buffer, messageType)
-//    parent.add(buffer, 0 as short)
-//}
-//
-//private static def createPayload(List buffer, byte[] payload) {
-//    parent.add(buffer, payload)
-//}
+// fills the buffer with the LIFX packet and returns the sequence number
+byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = []) {
+    def lastSequence = sequenceNumber()
+    createFrame(buffer, targetAddress.every { it == 0 })
+    createFrameAddress(buffer, targetAddress, ackRequired, responseRequired, lastSequence)
+    createProtocolHeader(buffer, messageType as short)
+    createPayload(buffer, payload as byte[])
+
+    put(buffer, 0, buffer.size() as short)
+    return lastSequence
+}
 
 static byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }
 
-//static void add(List buffer, byte value) {
-//    buffer.add(Byte.toUnsignedInt(value))
-//}
-//
-//static void put(List buffer, int index, byte value) {
-//    buffer.set(index, Byte.toUnsignedInt(value))
-//}
-//
-//static void add(List buffer, short value) {
-//    def lower = value & 0xff
-//    add(buffer, lower as byte)
-//    add(buffer, ((value - lower) >>> 8) as byte)
-//}
-//
-//static void put(List buffer, int index, short value) {
-//    def lower = value & 0xff
-//    put(buffer, index, lower as byte)
-//    put(buffer, index + 1, ((value - lower) >>> 8) as byte)
-//}
-//
-//static void add(List buffer, int value) {
-//    def lower = value & 0xffff
-//    add(buffer, lower as short)
-//    add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
-//}
-//
-//static void add(List buffer, long value) {
-//    def lower = value & 0xffffffff
-//    add(buffer, lower as int)
-//    add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
-//}
-//
-//static void add(List buffer, byte[] values) {
-//    for (value in values) {
-//        add(buffer, value)
-//    }
-//}
-//
-//static void fill(List buffer, byte value, int count) {
-//    for (int i = 0; i < count; i++) {
-//        add(buffer, value)
-//    }
-//}
+byte sequenceNumber() {
+    state.sequence = (state.sequence + 1) % 128
+}
 
-private void logDebug(msg) {
+static def createFrame(List buffer, boolean tagged) {
+    add(buffer, 0 as short)
+    add(buffer, 0x00 as byte)
+    add(buffer, (tagged ? 0x34 : 0x14) as byte)
+    add(buffer, lifxSource())
+}
+
+static int lifxSource() {
+    0x48454C44 // = HELD: Hubitat Elevation LIFX Device :)
+}
+
+static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
+    add(buffer, target)
+    add(buffer, 0 as short)
+    fill(buffer, 0 as byte, 6)
+    add(buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
+    add(buffer, sequenceNumber)
+}
+
+static def createProtocolHeader(List buffer, short messageType) {
+    fill(buffer, 0 as byte, 8)
+    add(buffer, messageType)
+    add(buffer, 0 as short)
+}
+
+static def createPayload(List buffer, byte[] payload) {
+    add(buffer, payload)
+}
+
+static void add(List buffer, byte value) {
+    buffer.add(Byte.toUnsignedInt(value))
+}
+
+static void put(List buffer, int index, byte value) {
+    buffer.set(index, Byte.toUnsignedInt(value))
+}
+
+static void add(List buffer, short value) {
+    def lower = value & 0xff
+    add(buffer, lower as byte)
+    add(buffer, ((value - lower) >>> 8) as byte)
+}
+
+static void put(List buffer, int index, short value) {
+    def lower = value & 0xff
+    put(buffer, index, lower as byte)
+    put(buffer, index + 1, ((value - lower) >>> 8) as byte)
+}
+
+static void add(List buffer, int value) {
+    def lower = value & 0xffff
+    add(buffer, lower as short)
+    add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
+}
+
+static void add(List buffer, long value) {
+    def lower = value & 0xffffffff
+    add(buffer, lower as int)
+    add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
+}
+
+static void add(List buffer, byte[] values) {
+    for (value in values) {
+        add(buffer, value)
+    }
+}
+
+static void fill(List buffer, byte value, int count) {
+    for (int i = 0; i < count; i++) {
+        add(buffer, value)
+    }
+}
+
+void logDebug(msg) {
     log.debug(msg)
 }
 
-private void logInfo(msg) {
+void logInfo(msg) {
     log.info(msg)
 }
 
-private void logWarn(String msg) {
+void logWarn(String msg) {
     log.warn(msg)
+}
+
+def doReflection(obj) {
+    logInfo 'Reflection:'
+    logInfo "\tClass Name: ${obj.class.name}"
+    def methods = obj.class.declaredMethods
+    def methodsNames = new StringBuilder()
+    methods.each {
+        methodsNames << it.name << " "
+    }
+    logInfo "\tMethods Names: ${methodsNames}"
+    def fields = obj.class.declaredFields
+    def fieldsNames = new StringBuilder()
+    fields.each {
+        fieldsNames << it.name << " "
+    }
+    logInfo "\tFields Names: ${fieldsNames}"
 }
