@@ -38,7 +38,7 @@ def refresh() {
     if (!subnet) {
         return
     }
-    1.upto(3) {
+    1.upto(parent.maxScanPasses()) {
         logDebug "Scanning pass $it"
         scanNetwork(subnet)
     }
