@@ -83,8 +83,6 @@ private void sendCommand(int messageType, List payload = [], boolean responseReq
 
 def requestInfo() {
     sendCommand(messageTypes().LIGHT.GET_STATE.type)
-    sendCommand(messageTypes().DEVICE.GET_GROUP.type)
-    sendCommand(messageTypes().DEVICE.GET_LOCATION.type)
 }
 
 def parse(String description) {
@@ -121,13 +119,13 @@ def parse(String description) {
             break
         case messageTypes().LIGHT.STATE.type:
             def data = parseBytes(lookupPayload('LIGHT', 'STATE'), getRemainder(header))
-            log.debug("LIGHT state: ${data}")
+//            log.debug("LIGHT state: ${data}")
             device.setLabel(data.label.trim())
             return [
                     createEvent(name: "hue", value: scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "saturation", value: scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "level", value: scaleDown(data.brightness, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "kelvin", value: data.kelvin, 100, displayed: getUseActivityLogDebug()),
+                    createEvent(name: "kelvin", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
             ]
             break
     }
