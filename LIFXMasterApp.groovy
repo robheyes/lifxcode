@@ -30,9 +30,17 @@ preferences {
 }
 
 
-//@Field List<Map> headerDescriptor = getDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
-//@Field List<Map> stateVersionDescriptor = getDescriptor('vendor:4l,product:4l,version:4l')
-//@Field /*Device*/ lifxDiscovery = null
+Integer interCommandPauseMilliseconds() {
+    50
+}
+
+Integer maxScanTimeSeconds() {
+    300
+}
+
+Integer maxScanPasses() {
+    5
+}
 
 def updated() {
     logDebug 'LIFX updating'
@@ -72,14 +80,6 @@ def refresh() {
     addChildDevice('robheyes', 'LIFX Discovery', 'LIFX Discovery')
    // now schedule processing of the device list after a delay
     runIn(maxScanTimeSeconds(), removeDiscoveryDevice)
-}
-
-Integer interCommandPauseMilliseconds() {
-    30
-}
-
-Integer maxScanTimeSeconds() {
-    300
 }
 
 void removeDiscoveryDevice() {
@@ -311,14 +311,14 @@ Map deviceVersion(Map device) {
         case 45:
             return [
                     name      : 'LIFX+ A19',
-                    deviceName: 'LIFX+ Color',
+                    deviceName: 'LIFXPlus Color',
                     features  : [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 30:
         case 46:
             return [
                     name      : 'LIFX+ BR30',
-                    deviceName: 'LIFX+ Color',
+                    deviceName: 'LIFXPlus Color',
                     features  : [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 31:
