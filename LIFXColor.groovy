@@ -29,7 +29,7 @@ preferences {
     input "logEnable", "bool", title: "Enable debug logging", required: false
 }
 
-@Field String hsbkDescriptor = 'hue:2l,saturation:2l,brightness:2l,kelvin:2l'
+//@Field String hsbkDescriptor = 'hue:2l,saturation:2l,level:2l,kelvin:2l'
 
 def installed() {
     requestInfo()
@@ -60,10 +60,26 @@ def off() {
 }
 
 def setColor(Map colorMap) {
+// for now assume that we have the current state
+    def hsbkMap = getCurrentHSBK()
+    log.debug("Color map: $colorMap")
+    def scaledColorMap = getScaledColorMap(colorMap)
+    log.debug("Scaled color map: $scaledColorMap")
+    log.debug("Scaled hsbk $hsbkMap")
 
+    hsbkMap << scaledColorMap
+
+    log.debug("new map $hsbkMap")
+    sendCommand('LIGHT', 'SET_COLOR', hsbkMap, true)
 }
 
 def setHue(number) {
+    def hsbkMap = getCurrentHSBK()
+    hsbkMap.hue = scaleUp(number, 100)
+    
+
+    log.debug("new map $hsbkMap")
+    sendCommand('LIGHT', 'SET_COLOR', hsbkMap, true)
 
 }
 
@@ -75,9 +91,32 @@ def setColorTemperature(temperature) {
 
 }
 
+private Map<String, Integer> getCurrentHSBK() {
+    [
+            hue       : scaleUp(device.currentValue('hue'), 100),
+            saturation: scaleUp(device.currentValue('saturation'), 100),
+            level     : scaleUp(device.currentValue('level'), 100),
+            kelvin    : device.currentValue('kelvin')
+    ]
+}
+
+private Map<String, Integer> getScaledColorMap(Map colorMap) {
+    [
+            hue       : scaleUp(colorMap.hue, 100),
+            saturation: scaleUp(colorMap.saturation, 100),
+            level     : scaleUp(colorMap.level, 100),
+    ]
+}
+
 private void sendCommand(int messageType, List payload = [], boolean responseRequired = false) {
     def buffer = []
-    def packet = parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
+    def packet = parent.makePacket(buffer, messageType, responseRequired, payload)
+    sendPacket(buffer, true)
+}
+
+private void sendCommand(String device, String type, Map payload = [:], boolean responseRequired = true) {
+    def buffer = []
+    def packet = parent.makePacket(buffer, device, type, payload, responseRequired)
     sendPacket(buffer, true)
 }
 
@@ -124,7 +163,7 @@ def parse(String description) {
             return [
                     createEvent(name: "hue", value: scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "saturation", value: scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "level", value: scaleDown(data.brightness, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "level", value: scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "kelvin", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
             ]
             break
@@ -139,11 +178,11 @@ private String lookupPayload(String device, String type) {
 //    responseDescriptor().get(header.type as Integer, 'none')
 //}
 
-private static Integer scaleDown(value, maxValue) {
+private static Float scaleDown(value, maxValue) {
     (value * maxValue) / 65535
 }
 
-private static Integer scaleUp(value, maxValue) {
+private static Float scaleUp(value, maxValue) {
     (value * 65535) / maxValue
 }
 //
@@ -213,7 +252,7 @@ private def sendPacket(List buffer, boolean wantLog = false) {
 }
 
 def getUseActivityLog() {
-    if(state.useActivityLog == null) {
+    if (state.useActivityLog == null) {
         state.useActivityLog = true
     }
     return state.useActivityLog
@@ -224,7 +263,7 @@ def setUseActivityLog(value) {
 }
 
 def getUseActivityLogDebug() {
-    if(state.useActivityLogDebug == null) {
+    if (state.useActivityLogDebug == null) {
         state.useActivityLogDebug = false
     }
     return state.useActivityLogDebug

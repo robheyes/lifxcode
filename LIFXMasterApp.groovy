@@ -199,7 +199,7 @@ String convertIpLong(String ip) {
 }
 
 Map<String, Map<String, Map>> messageTypes() {
-    final def color = 'hue:2l,saturation:2l,brightness:2l,kelvin:2l'
+    final def color = 'hue:2l,saturation:2l,level:2l,kelvin:2l'
     final def types = [
             DEVICE: [
                     GET_SERVICE        : [type: 2, descriptor: ''],
@@ -441,6 +441,37 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     return result
 }
 
+List makePayload(String device, String type, Map payload)
+{
+    def descriptorString = lookupDescriptorForDeviceAndType(device, type)
+    def descriptor = getDescriptor(descriptorString)
+    def result = []
+    descriptor.each {
+        Map item ->
+            def value = payload[item.name] ?: 0
+            switch (item.bytes as int) {
+                case 1:
+                    logDebug('length 1')
+                    add(result, value as byte)
+//                    result.add((value & 0xFF) as byte)
+                    break
+                case 2:
+                    add(result, value as short)
+//                    result.add((value & 0xFFFF) as short)
+                    break
+                case 3: case 4:
+                    add(result, value as int)
+//                    result.add((value & 0xFFFFFFFF) as int)
+                    break
+                default: // this should complain if longer than 8 bytes
+                    add (result, value as long)
+//                    result.add((value & 0xFFFFFFFFFFFFFFFF) as long)
+            }
+            def bytesResult = result as List<Byte>
+    }
+    result as List<Byte>
+}
+
 List<Long> getRemainder(header) {
     header.remainder as List<Long>
 }
@@ -464,7 +495,7 @@ private static List<Map> makeDescriptor(String desc) {
         full ->
             [
                     endian: full[3].toUpperCase(),
-                    bytes : full[2],
+                    bytes : full[2].toInteger(),
                     name  : full[1],
             ]
     }
@@ -479,26 +510,6 @@ String getSubnet() {
     }
     return m.group(1)
 }
-
-//def sendPacket(List buffer, String ipAddress, boolean wantLog = false) {
-//    def rawBytes = asByteArray(buffer)
-////    logDebug "raw bytes: ${rawBytes}"
-//    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-//    if (wantLog) {
-//        logDebug "sending bytes: ${stringBytes} to ${ipAddress}"
-//    }
-//    sendHubCommand(
-//            new hubitat.device.HubAction(
-//                    stringBytes,
-//                    hubitat.device.Protocol.LAN,
-//                    [
-//                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-//                            destinationAddress: ipAddress + ":56700",
-//                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
-//                    ]
-//            )
-//    )
-//}
 
 def /* Hub */ getHub() {
     location.hubs[0]
@@ -544,6 +555,13 @@ byte makePacket(List buffer, int messageType, Boolean responseRequired = false, 
     makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
 }
 
+byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true) {
+    def listPayload = makePayload(device, type, payload)
+    int messageType = lookupDeviceAndType(device, type).type
+    logDebug("List payload is $listPayload")
+    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, listPayload)
+}
+
 // fills the buffer with the LIFX packet and returns the sequence number
 byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = []) {
     def lastSequence = sequenceNumber()
@@ -555,6 +573,8 @@ byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackR
     put(buffer, 0, buffer.size() as short)
     return lastSequence
 }
+
+
 
 byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
