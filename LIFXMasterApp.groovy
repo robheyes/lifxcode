@@ -1,14 +1,16 @@
 /**
  *
- * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
+ *  Copyright 2019 Robert Heyes. All Rights Reserved
  *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
- *  You may not grant a sublicense to modify and distribute this software to third parties.
+ *  This software is free for Private Use. You may use and modify the software without distributing it.
+ *  If you make a fork, and add new code, then you should create a pull request to add value, there is no
+ *  guarantee that your pull request will be merged.
+ *
+ *  You may not grant a sublicense to modify and distribute this software to third parties without permission
+ *  from the copyright holder
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
-import groovy.transform.Field
-//import com.hubitat.app.ChildDeviceWrapper
 
 definition(
         name: "LIFX Master",
@@ -23,27 +25,35 @@ definition(
 
 preferences {
     page(name: "mainPage", title: "", install: true, uninstall: true) {
+        section('Options') {
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands milliseconds'
+            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 300
+            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 5
+        }
         section('Discovery') {
-            input(name: "discoverBtn", type: "button", title: 'Discover devices')
+            input 'discoverBtn', 'button', title: 'Discover devices'
         }
     }
 }
 
 
 Integer interCommandPauseMilliseconds() {
-    50
+    settings.interCommandPause ?: 50
 }
 
 Integer maxScanTimeSeconds() {
-    300
+    settings.scanTimeLimit ?: 300
 }
 
 Integer maxScanPasses() {
-    5
+    settings.maxPasses ?: 5
 }
 
 def updated() {
     logDebug 'LIFX updating'
+//    atomicState.interCommandPause = interCommandPause
+//    atomicState.maxScanTime = scanTimeLimit
+//    atomicState.maxScanPasses = maxPasses
 }
 
 def installed() {
@@ -66,34 +76,51 @@ def appButtonHandler(btn) {
     if (state.btnCall == "discoverBtn") {
         refresh()
     }
-
 }
 
 def refresh() {
-//    def lifxDiscovery =
     removeChildren()
+    atomicState.knownIps = []
     String subnet = getSubnet()
     if (!subnet) {
         return
     }
-    clearDevices()
+    clearDeviceDefinitions()
     addChildDevice('robheyes', 'LIFX Discovery', 'LIFX Discovery')
-   // now schedule processing of the device list after a delay
+    // now schedule removal of the discovery device after a delay
     runIn(maxScanTimeSeconds(), removeDiscoveryDevice)
 }
 
+// used by runIn - DND
 void removeDiscoveryDevice() {
-    logDebug 'Removing LIFX Discovery device'
+    logInfo 'Removing LIFX Discovery device'
     deleteChildDevice('LIFX Discovery')
 }
 
 void removeChildren() {
-    logDebug "Removing child devices"
+    logInfo "Removing child devices"
     childDevices.each {
         if (it != null) {
             deleteChildDevice(it.deviceNetworkId)
         }
     }
+}
+
+Map<String, Integer> getCurrentHSBK(theDevice) {
+    [
+            hue       : scaleUp(theDevice.currentValue('hue'), 100),
+            saturation: scaleUp(theDevice.currentValue('saturation'), 100),
+            level     : scaleUp(theDevice.currentValue('level'), 100),
+            kelvin    : theDevice.currentValue('kelvin')
+    ]
+}
+
+Float scaleDown(value, maxValue) {
+    (value * maxValue) / 65535
+}
+
+Integer scaleUp(value, maxValue) {
+    (value * 65535) / maxValue
 }
 
 Map lookupDeviceAndType(String device, String type) {
@@ -112,32 +139,29 @@ Map parseHeader(Map deviceParams) {
 }
 
 void createDeviceDefinition(Map parsed, String ip, String mac) {
-//    logDebug("Creating device descriptor for ip address ${ip} and mac ${mac}")
     List<Map> stateVersionDescriptor = getDescriptor('vendor:4l,product:4l,version:4l')
     def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
-//            logDebug("Version = ${version}")
     def device = deviceVersion(version)
     device.putAt('ip', ip)
     device.putAt('mac', mac)
-//    logDebug("Device descriptor = ${device}")
     saveDeviceDefinition(device)
 }
 
 Map getDeviceDefinition(String mac) {
-    Map devices = getDevices()
+    Map devices = getDeviceDefinitions()
 
     devices.getAt(mac)
 }
 
-private void clearDevices() {
+private void clearDeviceDefinitions() {
     atomicState.devices = new HashMap()
 }
 
-private Map getDevices() {
+private Map getDeviceDefinitions() {
     atomicState.devices
 }
 
-private void saveDevices(Map devices) {
+private void saveDeviceDefinitions(Map devices) {
     atomicState.devices = devices
 }
 
@@ -147,12 +171,13 @@ void updateDeviceDefinition(String mac, Map properties)
     if (device) {
         properties.each {key, val -> device.putAt(key, val)}
         if (isDeviceComplete(device)) {
-//            logDebug("Device definition is complete ${device.label}, good to create child device")
             try {
                 addChildDevice('robheyes', device.deviceName, device.ip, null, [group: device.group, label: device.label, location: device.location])
-                logDebug "Added device ${device.label} of type ${device.deviceName}"
-            } catch (IllegalArgumentException) {
-//                logDebug('Device already present')
+                addToKnownIps(device)
+                logInfo "Added device ${device.label} of type ${device.deviceName} with ip address ${device.ip}"
+            } catch (IllegalArgumentException e) {
+                // ignore this, expected if device already present
+                logWarn("Exception ignored ${e.message} - probably not unexpected")
             }
             deleteDeviceDefinition(device)
         } else {
@@ -161,12 +186,24 @@ void updateDeviceDefinition(String mac, Map properties)
     }
 }
 
-Boolean isDeviceComplete(Map device) {
-    def missing = matchKeys(device, ['ip', 'mac', 'group', 'label', 'location'])
-    return missing.isEmpty()
+private void addToKnownIps(Map device) {
+    knownIps = atomicState.knownIps ?: []
+    knownIps << device.ip
+    atomicState.knownIps = knownIps
 }
 
-List matchKeys(Map device, List<String> expected) {
+Boolean isKnownIp(String ip)
+{
+    knownIps = atomicState.knownIps ?: []
+    knownIps.contains(ip)
+}
+
+private static Boolean isDeviceComplete(Map device) {
+    List missing = matchKeys(device, ['ip', 'mac', 'group', 'label', 'location'])
+    missing.isEmpty()
+}
+
+private static List matchKeys(Map device, List<String> expected) {
     def result = []
     expected.each {
         if (!device.containsKey(it)) {
@@ -178,19 +215,19 @@ List matchKeys(Map device, List<String> expected) {
 
 void saveDeviceDefinition(Map device) {
 //    logDebug("Saving device $device")
-    Map devices = getDevices()
+    Map devices = getDeviceDefinitions()
 
     devices[device.mac] = device
 
-    saveDevices(devices)
+    saveDeviceDefinitions(devices)
 }
 
 void deleteDeviceDefinition(Map device) {
-    Map devices = getDevices()
+    Map devices = getDeviceDefinitions()
 
     devices.remove(device.mac)
 
-    saveDevices(devices)
+    saveDeviceDefinitions(devices)
 }
 
 
@@ -391,31 +428,54 @@ Map deviceVersion(Map device) {
     }
 }
 
+
+Map parseDeviceParameters(String description) {
+    Map deviceParams = new HashMap()
+    description.findAll(~/(\w+):(\w+)/) {
+        deviceParams.putAt(it[1], it[2])
+    }
+    deviceParams
+}
+
+Map parseHeaderFromDescription(String description) {
+    parseHeader(parseDeviceParameters(description))
+}
+
+Map parsePayload(String theDevice, String theType, Map header) {
+    parseBytes(lookupDescriptorForDeviceAndType(theDevice, theType), getRemainder(header))
+}
+
+Map parsePayload(String deviceAndType, Map header) {
+    def parts = deviceAndType.split(/\./)
+    parsePayload(parts[0], parts[1], header)
+}
+
 Map parseBytes(String descriptor, List<Long> bytes) {
 //    logDebug("Looking for descriptor for ${descriptor}")
-    def realDescriptor = getDescriptor(descriptor)
-    return parseBytes(realDescriptor, bytes)
+    return parseBytes(getDescriptor(descriptor), bytes)
 }
 
 Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     Map result = new HashMap()
     int offset = 0
+//    logDebug("Descriptor is {$descriptor}")
     descriptor.each { item ->
         int nextOffset = offset + (item.bytes as int)
 
         List<Long> data = bytes.subList(offset, nextOffset)
         assert (data.size() == item.bytes as int)
         offset = nextOffset
-        // assume big endian for now
-        if ('A' == item.endian) {
+        // assume big kind
+        //for now
+        if ('A' == item.kind) {
             result.put(item.name, data)
             return result
         }
-        if ('S' == item.endian) {
+        if ('S' == item.kind) {
             result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
             return result
         }
-        if ('B' != item.endian) {
+        if ('B' != item.kind) {
             data = data.reverse()
         }
 
@@ -449,34 +509,30 @@ List makePayload(String device, String type, Map payload)
     descriptor.each {
         Map item ->
             def value = payload[item.name] ?: 0
+            //TODO possibly extend this to the other types A,S & B
             switch (item.bytes as int) {
                 case 1:
                     logDebug('length 1')
                     add(result, value as byte)
-//                    result.add((value & 0xFF) as byte)
                     break
                 case 2:
                     add(result, value as short)
-//                    result.add((value & 0xFFFF) as short)
                     break
                 case 3: case 4:
                     add(result, value as int)
-//                    result.add((value & 0xFFFFFFFF) as int)
                     break
                 default: // this should complain if longer than 8 bytes
                     add (result, value as long)
-//                    result.add((value & 0xFFFFFFFFFFFFFFFF) as long)
             }
-            def bytesResult = result as List<Byte>
     }
     result as List<Byte>
 }
 
-List<Long> getRemainder(header) {
+private static List<Long> getRemainder(header) {
     header.remainder as List<Long>
 }
 
-List<Map> getDescriptor(String desc) {
+private List<Map> getDescriptor(String desc) {
     def cachedDescriptors = atomicState.cachedDescriptors
     if (null == cachedDescriptors) {
         cachedDescriptors = new HashMap<String, List<Map>>()
@@ -494,7 +550,7 @@ private static List<Map> makeDescriptor(String desc) {
     desc.findAll(~/(\w+):(\d+)([aAbBlLsS]?)/) {
         full ->
             [
-                    endian: full[3].toUpperCase(),
+                    kind: full[3].toUpperCase(),
                     bytes : full[2].toInteger(),
                     name  : full[1],
             ]
@@ -519,32 +575,6 @@ static Integer getTypeFor(String dev, String act) {
     lookupDeviceAndType(dev, act).type as Integer
 }
 
-private Map makeEchoPacket(byte[] target) {
-    def payload = []
-    fill(payload, 0xAA as byte, 64)
-    def buffer = []
-    def echoSequence = makePacket(buffer, target, getTypeFor('DEVICE', 'ECHO_REQUEST'), false, false, payload)
-    return [sequence: echoSequence, buffer: buffer]
-}
-
-private Map makeVersionPacket(byte[] target) {
-    def buffer = []
-    def echoSequence = makePacket(buffer, target, getTypeFor('DEVICE', 'GET_VERSION'))
-    return [sequence: echoSequence, buffer: buffer]
-}
-
-Map makeGetLabelPacket() {
-    def buffer = []
-    def labelSequence = makePacket(buffer, getTypeFor('DEVICE', 'GET_LABEL'))
-    return [sequence: labelSequence, buffer: buffer]
-}
-
-Map makeGetStatePacket() {
-    def buffer = []
-    def stateSequence = makePacket(buffer, getTypeFor('LIGHT', 'GET_STATE'))
-    return [sequence: stateSequence, buffer: buffer]
-}
-
 String getHubIP() {
     def hub = location.hubs[0]
 
@@ -556,6 +586,7 @@ byte makePacket(List buffer, int messageType, Boolean responseRequired = false, 
 }
 
 byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true) {
+    logDebug("Map payload is $payload")
     def listPayload = makePayload(device, type, payload)
     int messageType = lookupDeviceAndType(device, type).type
     logDebug("List payload is $listPayload")
@@ -584,18 +615,18 @@ byte sequenceNumber() {
     atomicState.sequence = ((atomicState.sequence ?: 0) + 1) % 128
 }
 
-static def createFrame(List buffer, boolean tagged) {
+private static def createFrame(List buffer, boolean tagged) {
     add(buffer, 0 as short)
     add(buffer, 0x00 as byte)
     add(buffer, (tagged ? 0x34 : 0x14) as byte)
     add(buffer, lifxSource())
 }
 
-static int lifxSource() {
+private static int lifxSource() {
     0x48454C44 // = HELD: Hubitat Elevation LIFX Device :)
 }
 
-static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
+private static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
     add(buffer, target)
     add(buffer, 0 as short)
     fill(buffer, 0 as byte, 6)
@@ -603,58 +634,58 @@ static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, b
     add(buffer, sequenceNumber)
 }
 
-static def createProtocolHeader(List buffer, short messageType) {
+private static def createProtocolHeader(List buffer, short messageType) {
     fill(buffer, 0 as byte, 8)
     add(buffer, messageType)
     add(buffer, 0 as short)
 }
 
-static def createPayload(List buffer, byte[] payload) {
+private static def createPayload(List buffer, byte[] payload) {
     add(buffer, payload)
 }
 
-static void add(List buffer, byte value) {
+private static void add(List buffer, byte value) {
     buffer.add(Byte.toUnsignedInt(value))
 }
 
-static void put(List buffer, int index, byte value) {
-    buffer.set(index, Byte.toUnsignedInt(value))
-}
-
-static void add(List buffer, short value) {
+private static void add(List buffer, short value) {
     def lower = value & 0xff
     add(buffer, lower as byte)
     add(buffer, ((value - lower) >>> 8) as byte)
 }
 
-static void put(List buffer, int index, short value) {
-    def lower = value & 0xff
-    put(buffer, index, lower as byte)
-    put(buffer, index + 1, ((value - lower) >>> 8) as byte)
-}
-
-static void add(List buffer, int value) {
+private static void add(List buffer, int value) {
     def lower = value & 0xffff
     add(buffer, lower as short)
     add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
 }
 
-static void add(List buffer, long value) {
+private static void add(List buffer, long value) {
     def lower = value & 0xffffffff
     add(buffer, lower as int)
     add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
 }
 
-static void add(List buffer, byte[] values) {
+private static void add(List buffer, byte[] values) {
     for (value in values) {
         add(buffer, value)
     }
 }
 
-static void fill(List buffer, byte value, int count) {
+private static void fill(List buffer, byte value, int count) {
     for (int i = 0; i < count; i++) {
         add(buffer, value)
     }
+}
+
+private static void put(List buffer, int index, byte value) {
+    buffer.set(index, Byte.toUnsignedInt(value))
+}
+
+private static void put(List buffer, int index, short value) {
+    def lower = value & 0xff
+    put(buffer, index, lower as byte)
+    put(buffer, index + 1, ((value - lower) >>> 8) as byte)
 }
 
 void logDebug(msg) {
