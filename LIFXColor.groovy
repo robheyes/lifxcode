@@ -1,41 +1,49 @@
-import groovy.transform.Field
-
 /**
  *
- * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
+ *  Copyright 2019 Robert Heyes. All Rights Reserved
  *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
- *  You may not grant a sublicense to modify and distribute this software to third parties.
+ *  This software is free for Private Use. You may use and modify the software without distributing it.
+ *  If you make a fork, and add new code, then you should create a pull request to add value, there is no
+ *  guarantee that your pull request will be merged.
+ *
+ *  You may not grant a sublicense to modify and distribute this software to third parties without permission
+ *  from the copyright holder
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
-definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
-    capability "Bulb"
-//	capability "LightEffect"
-    capability "Color Control"
-    capability "Color Temperature"
-    capability "HealthCheck"
-    capability "Polling"
-    capability "Switch"
-    capability "Switch Level"
-    capability "Initialize"
-    attribute "Label", "string"
-    attribute "Group", "string"
-    attribute "Location", "string"
+
+metadata {
+    definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
+        capability "Bulb"
+        capability "Color Temperature"
+        capability "HealthCheck"
+        capability "Polling"
+        capability "Switch"
+        capability "Switch Level"
+        capability "Initialize"
+        attribute "Label", "string"
+        capability "Color Control"
+        // capability "LightEffect"
+        attribute "Group", "string"
+        attribute "Location", "string"
+    }
+
+    preferences {
+        input "logEnable", "bool", title: "Enable debug logging", required: false
+        input "defaultTransition", "decimal", title: "Color map level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
+    }
 }
-
-
-preferences {
-    input "logEnable", "bool", title: "Enable debug logging", required: false
-}
-
-//@Field String hsbkDescriptor = 'hue:2l,saturation:2l,level:2l,kelvin:2l'
 
 def installed() {
-    requestInfo()
+    initialize()
+}
+
+def updated() {
+    initialize()
 }
 
 def initialize() {
+    state.colorTransitionTime = defaultTransition
     requestInfo()
 }
 
@@ -44,183 +52,127 @@ def refresh() {
 }
 
 def poll() {
-    sendCommand(messageTypes().LIGHT.GET_STATE.type)
+    Integer msgType = messageTypes().DEVICE.GET_STATE.type
+    sendCommand(msgType)
 }
 
 def on() {
     def payload = []
     parent.add(payload, 65535 as short)
-    sendCommand(parent.messageTypes().DEVICE.SET_POWER.type, payload)
+    Integer msgType = messageTypes().DEVICE.SET_POWER.type
+    sendCommand(msgType, payload)
 }
 
 def off() {
     def payload = []
     parent.add(payload, 0 as short)
-    sendCommand(parent.messageTypes().DEVICE.SET_POWER.type, payload)
+    Integer msgType = messageTypes().DEVICE.SET_POWER.type
+    sendCommand(msgType, payload)
 }
 
 def setColor(Map colorMap) {
 // for now assume that we have the current state
-    def hsbkMap = getCurrentHSBK()
-    log.debug("Color map: $colorMap")
-    def scaledColorMap = getScaledColorMap(colorMap)
-    log.debug("Scaled color map: $scaledColorMap")
-    log.debug("Scaled hsbk $hsbkMap")
-
-    hsbkMap << scaledColorMap
-
-    log.debug("new map $hsbkMap")
-    sendCommand('LIGHT', 'SET_COLOR', hsbkMap, true)
+    Map hsbkMap = parent.getCurrentHSBK(device)
+    hsbkMap << getScaledColorMap(colorMap)
+    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
+    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
 }
 
 def setHue(number) {
-    def hsbkMap = getCurrentHSBK()
-    hsbkMap.hue = scaleUp(number, 100)
-    
-
-    log.debug("new map $hsbkMap")
-    sendCommand('LIGHT', 'SET_COLOR', hsbkMap, true)
-
+    Map hsbkMap = parent.getCurrentHSBK(device)
+    hsbkMap.hue = parent.scaleUp(number, 100)
+    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
 }
 
 def setSaturation(number) {
+    Map hsbkMap = parent.getCurrentHSBK(device)
+    hsbkMap.saturation = parent.scaleUp(number, 100)
+    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
+}
 
+def setLevel(level, duration = 0) {
+    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
+    if (level > 100) {
+        level = 100
+    } else if ((level <= 0 || level == null) && duration == 0) {
+        return off()
+    }
+    Map hsbkMap = parent.getCurrentHSBK(device)
+    hsbkMap.level = parent.scaleUp(level, 100)
+    hsbkMap.duration = duration * 1000
+    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
 }
 
 def setColorTemperature(temperature) {
 
 }
 
-private Map<String, Integer> getCurrentHSBK() {
-    [
-            hue       : scaleUp(device.currentValue('hue'), 100),
-            saturation: scaleUp(device.currentValue('saturation'), 100),
-            level     : scaleUp(device.currentValue('level'), 100),
-            kelvin    : device.currentValue('kelvin')
-    ]
-}
-
 private Map<String, Integer> getScaledColorMap(Map colorMap) {
     [
-            hue       : scaleUp(colorMap.hue, 100),
-            saturation: scaleUp(colorMap.saturation, 100),
-            level     : scaleUp(colorMap.level, 100),
+            hue       : parent.scaleUp(colorMap.hue, 100) as Integer,
+            saturation: parent.scaleUp(colorMap.saturation, 100) as Integer,
+            level     : parent.scaleUp(colorMap.level, 100) as Integer,
     ]
 }
 
 private void sendCommand(int messageType, List payload = [], boolean responseRequired = false) {
     def buffer = []
-    def packet = parent.makePacket(buffer, messageType, responseRequired, payload)
-    sendPacket(buffer, true)
+    parent.makePacket(buffer, messageType, responseRequired, payload)
+    sendPacket(buffer)
 }
 
 private void sendCommand(String device, String type, Map payload = [:], boolean responseRequired = true) {
     def buffer = []
-    def packet = parent.makePacket(buffer, device, type, payload, responseRequired)
-    sendPacket(buffer, true)
+    parent.makePacket(buffer, device, type, payload, responseRequired)
+    sendPacket(buffer)
+}
+
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true) {
+    def parts = deviceAndType.split(/\./)
+    sendCommand(parts[0], parts[1], payload, responseRequired)
 }
 
 def requestInfo() {
-    sendCommand(messageTypes().LIGHT.GET_STATE.type)
+    sendCommand(messageTypes().LIGHT.GET_STATE.type as Integer)
 }
 
 def parse(String description) {
-    def header = parent.parseHeader(parseDeviceParameters(description))
-//    log.debug("COLOR: Header = ${header}")
-    //    log.debug("COLOR: Got message type = ${type} (${header.type})")
-//    log.debug("COLOR: Got message type = ${type.name} (${header.type}) descriptor: ${type.descriptor}")
-//    def data = parseBytes(getDescriptorString(header), getRemainder(header))
+    Map header = parent.parseHeaderFromDescription(description)
     switch (header.type) {
         case messageTypes().DEVICE.STATE_VERSION.type:
             log.warn("STATE_VERSION type ignored")
             break
         case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parseBytes(lookupPayload('DEVICE', 'STATE_LABEL'), getRemainder(header))
+            def data = parent.parsePayload('DEVICE.STATE_LABEL', header)
             String label = data.label
             device.setLabel(label.trim())
             break
         case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parseBytes(lookupPayload('DEVICE', 'STATE_GROUP'), getRemainder(header))
-            //def data = parseBytes(makeDescriptor('group:16a,name:32s,updated_at:8l'), getRemainder(header))
+            def data = parent.parsePayload('DEVICE.STATE_GROUP', header)
             String group = data.label
-//            log.debug("Group: ${group}")
             return createEvent(name: 'Group', value: group)
         case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parseBytes(lookupPayload('DEVICE', 'STATE_LOCATION'), getRemainder(header))
+            def data = parent.parsePayload('DEVICE.STATE_LOCATION', header)
             String location = data.label
-//            log.debug("Location: ${location}")
             return createEvent(name: 'Location', value: location)
         case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            def data = parseBytes(lookupPayload('DEVICE', 'STATE_WIFI_INFO'), getRemainder(header))
+            def data = parent.parsePayload('DEVICE.STATE_WIFI_INFO', header)
             break
         case messageTypes().DEVICE.STATE_INFO.type:
-            def data = parseBytes(lookupPayload('DEVICE', 'STATE_INFO'), getRemainder(header))
+            def data = parent.parsePayload('DEVICE.STATE_INFO', header)
             break
         case messageTypes().LIGHT.STATE.type:
-            def data = parseBytes(lookupPayload('LIGHT', 'STATE'), getRemainder(header))
-//            log.debug("LIGHT state: ${data}")
+            def data = parent.parsePayload('LIGHT.STATE', header)
             device.setLabel(data.label.trim())
             return [
-                    createEvent(name: "hue", value: scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "saturation", value: scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "level", value: scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "hue", value: parent.scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "saturation", value: parent.scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "level", value: parent.scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "kelvin", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
             ]
-            break
     }
 }
 
-private String lookupPayload(String device, String type) {
-    parent.lookupDescriptorForDeviceAndType(device, type)
-}
-//
-//private String getDescriptorString(header) {
-//    responseDescriptor().get(header.type as Integer, 'none')
-//}
-
-private static Float scaleDown(value, maxValue) {
-    (value * maxValue) / 65535
-}
-
-private static Float scaleUp(value, maxValue) {
-    (value * 65535) / maxValue
-}
-//
-//private Map<Integer, String> responseDescriptor() {
-//    parent.responseDescriptor()
-//}
-
-private static List<Long> getRemainder(header) {
-    header.remainder as List<Long>
-}
-
-private static Map parseDeviceParameters(String description) {
-    Map deviceParams = new HashMap()
-    description.findAll(~/(\w+):(\w+)/) {
-        deviceParams.putAt(it[1], it[2])
-    }
-    return deviceParams
-}
-//
-//Map lookupMessageType(messageType) {
-//    parent.lookupMessageType(messageType)
-//}
-
-//private List<Map> makeDescriptor(String pattern) {
-//    parent.getDescriptor(pattern)
-//}
-
-private Map parseHeader(Map deviceParams) {
-    parent.parseHeader(deviceParams)
-}
-
-private Map parseBytes(List<Map> descriptor, List<Long> parseable) {
-    parent.parseBytes(descriptor, parseable)
-}
-
-private Map parseBytes(String descriptor, List<Long> parseable) {
-    parent.parseBytes(descriptor, parseable)
-}
 
 private Map<String, Map<String, Map>> messageTypes() {
     parent.messageTypes()
@@ -230,14 +182,10 @@ private def myIp() {
     device.getDeviceNetworkId()
 }
 
-private def sendPacket(List buffer, boolean wantLog = false) {
+private def sendPacket(List buffer) {
     String ipAddress = myIp()
     def rawBytes = parent.asByteArray(buffer)
-//    log.debug "raw bytes: ${rawBytes}"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-    if (wantLog) {
-//        log.debug "sending bytes: ${stringBytes} to ${ipAddress}"
-    }
     sendHubCommand(
             new hubitat.device.HubAction(
                     stringBytes,
@@ -271,4 +219,16 @@ def getUseActivityLogDebug() {
 
 def setUseActivityLogDebug(value) {
     state.useActivityLogDebug = value
+}
+
+void logDebug(msg) {
+    log.debug(msg)
+}
+
+void logInfo(msg) {
+    log.info(msg)
+}
+
+void logWarn(String msg) {
+    log.warn(msg)
 }

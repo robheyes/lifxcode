@@ -1,9 +1,13 @@
 /**
  *
- * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
+ *  Copyright 2019 Robert Heyes. All Rights Reserved
  *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
- *  You may not grant a sublicense to modify and distribute this software to third parties.
+ *  This software is free for Private Use. You may use and modify the software without distributing it.
+ *  If you make a fork, and add new code, then you should create a pull request to add value, there is no
+ *  guarantee that your pull request will be merged.
+ *
+ *  You may not grant a sublicense to modify and distribute this software to third parties without permission
+ *  from the copyright holder
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
@@ -15,13 +19,11 @@ metadata {
 
     preferences {
         input "logEnable", "bool", title: "Enable debug logging", required: false
-        //input "refreshBtn", "button", title: "Refresh"
     }
 }
 
 def updated() {
     log.debug "LIFX updating"
-//    initialize()
 }
 
 def installed() {
@@ -38,35 +40,36 @@ def refresh() {
     if (!subnet) {
         return
     }
-    1.upto(parent.maxScanPasses()) {
-        logDebug "Scanning pass $it"
+    def scanPasses = parent.maxScanPasses()
+    1.upto(scanPasses) {
+        logDebug "Scanning pass $it of $scanPasses"
         scanNetwork(subnet)
+        logDebug "Pass $it complete"
     }
 }
 
 private scanNetwork(String subnet) {
     1.upto(254) {
         def ipAddress = subnet + it
-        sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int)
+        if (!parent.isKnownIp(ipAddress)) {
+            sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int)
+        }
     }
 }
-
 
 private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true) {
     def buffer = []
     parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
     def rawBytes = parent.asByteArray(buffer)
-//    logDebug "raw bytes: ${rawBytes}"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
     sendPacket(ipAddress, stringBytes)
     pauseExecution(parent.interCommandPauseMilliseconds())
 }
 
 def parse(String description) {
-    Map deviceParams = parseDeviceParameters(description)
+    Map deviceParams = parent.parseDeviceParameters(description)
     def ip = parent.convertIpLong(deviceParams.ip as String)
-    def parsed = parent.parseHeader(deviceParams)
-    final String payload = deviceParams.payload
+    Map parsed = parent.parseHeader(deviceParams)
     final String mac = deviceParams.mac
     switch (parsed.type) {
         case messageTypes().DEVICE.STATE_VERSION.type:
@@ -76,21 +79,17 @@ def parse(String description) {
                 sendCommand(ip, messageTypes().DEVICE.GET_GROUP.type as int)
             }
             break
-//        case messageTypes().LIGHT.STATE.type:
-//            def desc = lookupDescriptorForDeviceAndType('LIGHT', 'STATE')
-//            def data = parseBytes(desc, parsed.remainder as List<Long>)
-//            break
         case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parseBytes(lookupDescriptorForDeviceAndType('DEVICE', 'STATE_LABEL'), parsed.remainder as List<Long>)
+            def data = parent.parsePayload('DEVICE.STATE_LABEL', parsed)
             parent.updateDeviceDefinition(mac, [label: data.label])
             break
         case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parseBytes(lookupDescriptorForDeviceAndType('DEVICE', 'STATE_GROUP'), parsed.remainder as List<Long>)
+            def data = parent.parsePayload('DEVICE.STATE_GROUP', parsed)
             parent.updateDeviceDefinition(mac, [group: data.label])
             sendCommand(ip, messageTypes().DEVICE.GET_LOCATION.type as int)
             break
         case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parseBytes(lookupDescriptorForDeviceAndType('DEVICE', 'STATE_LOCATION'), parsed.remainder as List<Long>)
+            def data = parent.parsePayload('DEVICE.STATE_LOCATION', parsed)
             parent.updateDeviceDefinition(mac, [location: data.label])
             sendCommand(ip, messageTypes().DEVICE.GET_LABEL.type as int)
             break
@@ -101,41 +100,8 @@ def parse(String description) {
     }
 }
 
-private Map parseDeviceParameters(String description) {
-    Map deviceParams = new HashMap()
-    description.findAll(~/(\w+):(\w+)/) {
-        deviceParams.putAt(it[1], it[2])
-    }
-    deviceParams
-}
-
-Map lookupDeviceAndType(String device, String type) {
-    parent.lookupDeviceAndType(device, type)
-}
-
-String lookupDescriptorForDeviceAndType(String device, String type) {
-    parent.lookupDescriptorForDeviceAndType(device, type)
-}
-
-Map parseHeader(Map deviceParams) {
-    parent.parseHeader(deviceParams)
-}
-
 Map<String, Map<String, Map>> messageTypes() {
     parent.messageTypes()
-}
-
-
-Map parseBytes(String descriptor, List<Long> bytes) {
-    parent.parseBytes(descriptor, bytes)
-}
-
-Map parseBytes(List<Map> descriptor, List<Long> bytes) {
-    parent.parseBytes(descriptor, bytes)
-}
-
-List<Map> getDescriptor(String desc) {
-    parent.getDescriptor(desc)
 }
 
 def sendPacket(String ipAddress, String bytes, boolean wantLog = false) {
@@ -162,15 +128,6 @@ private void broadcast(String stringBytes, String ipAddress) {
 private Integer getTypeFor(String dev, String act) {
     parent.getTypeFor(dev, act)
 }
-
-Map makeGetLabelPacket() {
-    parent.makeGetLabelPacket()
-}
-
-Map makeGetStatePacket() {
-    parent.makeGetStatePacket()
-}
-
 
 static byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
