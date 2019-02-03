@@ -43,27 +43,29 @@ def refresh() {
     def scanPasses = parent.maxScanPasses()
     1.upto(scanPasses) {
         logDebug "Scanning pass $it of $scanPasses"
-        scanNetwork(subnet)
+        parent.setScanPass(it)
+        scanNetwork(subnet, it)
         logDebug "Pass $it complete"
     }
+    parent.setScanPass('DONE')
 }
 
-private scanNetwork(String subnet) {
+private scanNetwork(String subnet, int pass) {
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
-            sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int)
+            sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass)
         }
     }
 }
 
-private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true) {
+private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true, int pass = 1) {
     def buffer = []
     parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
     def rawBytes = parent.asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
     sendPacket(ipAddress, stringBytes)
-    pauseExecution(parent.interCommandPauseMilliseconds())
+    pauseExecution(parent.interCommandPauseMilliseconds(pass))
 }
 
 def parse(String description) {
