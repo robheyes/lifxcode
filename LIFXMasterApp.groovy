@@ -24,21 +24,46 @@ definition(
 )
 
 preferences {
-    page(name: "mainPage", title: "", install: true, uninstall: true) {
+    page(name: 'mainPage')
+}
+
+def mainPage() {
+    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
         section('Options') {
-            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands milliseconds'
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands for first pass (milliseconds) - will increase by 10 ms for each pass'
             input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 300
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 5
+            input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         section('Discovery') {
             input 'discoverBtn', 'button', title: 'Discover devices'
+            input 'discoverNewBtn', 'button', title: 'Discover only new devices'
+            paragraph(
+                    null == atomicState.scanPass ?
+                            '' :
+                            (
+                                    ('DONE' == atomicState.scanPass) ?
+                                            'Scanning complete' :
+                                            "Scanning your network for devices, pass ${atomicState.scanPass}"
+                            )
+
+            )
+            paragraph(
+                    (atomicState.numDevices == null) || (0 == atomicState.numDevices)
+                            ? 'No devices known'
+                            :
+                            (
+                                    "I have found ${atomicState.numDevices} LIFX "
+                                            + ((1 == atomicState.numDevices) ? 'device' : 'devices')
+                                            + " so far: ${atomicState.deviceNames}"
+                            )
+            )
         }
     }
 }
 
-
-Integer interCommandPauseMilliseconds() {
-    settings.interCommandPause ?: 50
+Integer interCommandPauseMilliseconds(int pass = 1) {
+    settings.interCommandPause ?: 50 + 10 * (pass - 1)
 }
 
 Integer maxScanTimeSeconds() {
@@ -51,22 +76,30 @@ Integer maxScanPasses() {
 
 def updated() {
     logDebug 'LIFX updating'
-//    atomicState.interCommandPause = interCommandPause
-//    atomicState.maxScanTime = scanTimeLimit
-//    atomicState.maxScanPasses = maxPasses
+    initialize()
 }
 
 def installed() {
     logDebug 'LIFX installed'
+    initialize()
 
 }
 
 def uninstalled() {
-    logDebug 'LIFX uninstalled'
+    logDebug 'LIFX uninstalling - removing children'
+    removeChildren()
+    unsubscribe()
 }
 
 def initialize() {
 //    refresh()
+    updateKnownDevices()
+}
+
+private void updateKnownDevices() {
+    def knownDevices = knownDeviceLabels()
+    atomicState.numDevices = knownDevices.size()
+    atomicState.deviceNames = knownDevices.toSorted { a, b -> a.compareToIgnoreCase(b) }
 }
 
 
@@ -75,16 +108,33 @@ def appButtonHandler(btn) {
     state.btnCall = btn
     if (state.btnCall == "discoverBtn") {
         refresh()
+    } else if (state.btnCall == 'discoverNewBtn') {
+        discoverNew()
     }
+}
+
+def setScanPass(pass) {
+    atomicState.scanPass = pass ?: null
 }
 
 def refresh() {
     removeChildren()
-    atomicState.knownIps = []
+
     String subnet = getSubnet()
     if (!subnet) {
         return
     }
+    discovery()
+}
+
+def discoverNew() {
+    removeDiscoveryDevice()
+    discovery()
+}
+
+private void discovery() {
+    atomicState.scanPass = null
+    updateKnownDevices()
     clearDeviceDefinitions()
     addChildDevice('robheyes', 'LIFX Discovery', 'LIFX Discovery')
     // now schedule removal of the discovery device after a delay
@@ -94,7 +144,12 @@ def refresh() {
 // used by runIn - DND
 void removeDiscoveryDevice() {
     logInfo 'Removing LIFX Discovery device'
-    deleteChildDevice('LIFX Discovery')
+    atomicState.scanPass = 'DONE'
+    try {
+        deleteChildDevice('LIFX Discovery')
+    } catch (Exception e) {
+        // don't care, let it fail
+    }
 }
 
 void removeChildren() {
@@ -104,6 +159,8 @@ void removeChildren() {
             deleteChildDevice(it.deviceNetworkId)
         }
     }
+    atomicState.knownIps = [:]
+    updateKnownDevices()
 }
 
 Map<String, Integer> getCurrentHSBK(theDevice) {
@@ -154,7 +211,7 @@ Map getDeviceDefinition(String mac) {
 }
 
 private void clearDeviceDefinitions() {
-    atomicState.devices = new HashMap()
+    atomicState.devices = [:]
 }
 
 private Map getDeviceDefinitions() {
@@ -165,19 +222,20 @@ private void saveDeviceDefinitions(Map devices) {
     atomicState.devices = devices
 }
 
-void updateDeviceDefinition(String mac, Map properties)
-{
+void updateDeviceDefinition(String mac, Map properties) {
     Map device = getDeviceDefinition(mac)
     if (device) {
-        properties.each {key, val -> device.putAt(key, val)}
+        properties.each { key, val -> device.putAt(key, val) }
+//        logDebug("Device being updated is $device")
         if (isDeviceComplete(device)) {
+            addToKnownIps(device)
             try {
                 addChildDevice('robheyes', device.deviceName, device.ip, null, [group: device.group, label: device.label, location: device.location])
-                addToKnownIps(device)
+                updateKnownDevices()
                 logInfo "Added device ${device.label} of type ${device.deviceName} with ip address ${device.ip}"
-            } catch (IllegalArgumentException e) {
+            } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
                 // ignore this, expected if device already present
-                logWarn("Exception ignored ${e.message} - probably not unexpected")
+                logWarn("${e.message} - you need to install the appropriate driver")
             }
             deleteDeviceDefinition(device)
         } else {
@@ -187,15 +245,23 @@ void updateDeviceDefinition(String mac, Map properties)
 }
 
 private void addToKnownIps(Map device) {
-    knownIps = atomicState.knownIps ?: []
-    knownIps << device.ip
+    def knownIps = getKnownIps()
+    knownIps[device.ip] = device.label
     atomicState.knownIps = knownIps
 }
 
-Boolean isKnownIp(String ip)
-{
-    knownIps = atomicState.knownIps ?: []
-    knownIps.contains(ip)
+private Map getKnownIps() {
+    atomicState.knownIps ?: [:]
+}
+
+Boolean isKnownIp(String ip) {
+    def knownIps = getKnownIps()
+    null != knownIps[ip]
+}
+
+List knownDeviceLabels() {
+    def knownDevices = getKnownIps()
+    knownDevices.values().asList()
 }
 
 private static Boolean isDeviceComplete(Map device) {
@@ -501,8 +567,7 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     return result
 }
 
-List makePayload(String device, String type, Map payload)
-{
+List makePayload(String device, String type, Map payload) {
     def descriptorString = lookupDescriptorForDeviceAndType(device, type)
     def descriptor = getDescriptor(descriptorString)
     def result = []
@@ -522,7 +587,7 @@ List makePayload(String device, String type, Map payload)
                     add(result, value as int)
                     break
                 default: // this should complain if longer than 8 bytes
-                    add (result, value as long)
+                    add(result, value as long)
             }
     }
     result as List<Byte>
@@ -550,9 +615,9 @@ private static List<Map> makeDescriptor(String desc) {
     desc.findAll(~/(\w+):(\d+)([aAbBlLsS]?)/) {
         full ->
             [
-                    kind: full[3].toUpperCase(),
-                    bytes : full[2].toInteger(),
-                    name  : full[1],
+                    kind : full[3].toUpperCase(),
+                    bytes: full[2].toInteger(),
+                    name : full[1],
             ]
     }
 }
@@ -604,7 +669,6 @@ byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackR
     put(buffer, 0, buffer.size() as short)
     return lastSequence
 }
-
 
 
 byte[] asByteArray(List buffer) {

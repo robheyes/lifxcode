@@ -52,22 +52,15 @@ def refresh() {
 }
 
 def poll() {
-    Integer msgType = messageTypes().DEVICE.GET_STATE.type
-    sendCommand(msgType)
+    sendCommand('DEVICE.GET_STATE')
 }
 
 def on() {
-    def payload = []
-    parent.add(payload, 65535 as short)
-    Integer msgType = messageTypes().DEVICE.SET_POWER.type
-    sendCommand(msgType, payload)
+    sendCommand('DEVICE.SET_POWER', [level: 65535])
 }
 
 def off() {
-    def payload = []
-    parent.add(payload, 0 as short)
-    Integer msgType = messageTypes().DEVICE.SET_POWER.type
-    sendCommand(msgType, payload)
+    sendCommand('DEVICE.SET_POWER', [level: 0])
 }
 
 def setColor(Map colorMap) {
@@ -75,19 +68,19 @@ def setColor(Map colorMap) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap << getScaledColorMap(colorMap)
     hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
+    sendCommand'LIGHT.SET_COLOR', hsbkMap
 }
 
 def setHue(number) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap.hue = parent.scaleUp(number, 100)
-    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
+    sendCommand'LIGHT.SET_COLOR', hsbkMap
 }
 
 def setSaturation(number) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap.saturation = parent.scaleUp(number, 100)
-    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
+    sendCommand'LIGHT.SET_COLOR', hsbkMap
 }
 
 def setLevel(level, duration = 0) {
@@ -100,11 +93,14 @@ def setLevel(level, duration = 0) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap.level = parent.scaleUp(level, 100)
     hsbkMap.duration = duration * 1000
-    sendCommand('LIGHT.SET_COLOR', hsbkMap, true)
+    sendCommand'LIGHT.SET_COLOR', hsbkMap
 }
 
 def setColorTemperature(temperature) {
-
+    Map hsbkMap = parent.getCurrentHSBK(device)
+    hsbkMap.kelvin = temperature
+    hsbkMap.saturation = 0
+    sendCommand'LIGHT.SET_COLOR', hsbkMap
 }
 
 private Map<String, Integer> getScaledColorMap(Map colorMap) {
