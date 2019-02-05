@@ -36,6 +36,7 @@ def mainPage() {
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         section('Discovery') {
+            paragraph(styles())
             input 'discoverBtn', 'button', title: 'Discover devices'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
             paragraph(
@@ -55,6 +56,39 @@ def mainPage() {
     }
 }
 
+private static String styles() {
+    $/
+<style>
+    ul {
+        list-style-type: none;
+        
+    }
+    
+    ul.device-group {
+        background: #81BC00;
+        padding: 0;
+    }
+    
+    ul.device {
+        background: #d9ecb1;
+    }
+    
+    li.device-group {
+        font-weight: bold;
+    }    
+    
+    li.device {
+        font-weight: normal;
+    }
+
+    li.device-error {
+        font-weight: bold;
+        background: violet
+    }
+</style>
+/$
+}
+
 private String discoveryTextKnownDevices() {
     if ((atomicState.numDevices == null) || (0 == atomicState.numDevices)) {
         return 'No devices known'
@@ -72,18 +106,19 @@ private String describeDevices() {
 
 
     def builder = new StringBuilder()
-    builder << '<ul style="list-style: none;">'
+    builder << '<ul class="device-group">'
     grouped.each {
         groupName, devices ->
-            builder << "<li><strong>$groupName</strong></li>"
-            builder << '<ul style="list-style: none;">'
+            builder << "<li class='device-group'>$groupName</li>"
+            builder << '<ul class="device">'
             devices.each {
                 ip, device ->
-                    builder << "<li>${device.label}"
                     if (device.error) {
-                        builder << " (${device.error})"
+                        builder << "<li class='device-error'>${device.label} (${device.error})</li>"
+                    } else {
+                        builder << "<li class='device'>${device.label}</li>"
                     }
-                    builder << '</li>'
+
             }
 
             builder << '</ul>'
