@@ -30,8 +30,8 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
         section('Options') {
-            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands for first pass (milliseconds) - will increase by 10 ms for each pass'
-            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 300
+            input 'interCommandPause', 'number', defaultValue: 70, title: 'Time between commands for first pass (milliseconds) - will increase by 10 ms for each pass'
+            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 600
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 5
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
@@ -57,8 +57,7 @@ def mainPage() {
 }
 
 private static String styles() {
-    $/
-<style>
+    $/<style>
     ul {
         list-style-type: none;
         
@@ -85,8 +84,7 @@ private static String styles() {
         font-weight: bold;
         background: violet
     }
-</style>
-/$
+</style>/$
 }
 
 private String discoveryTextKnownDevices() {
@@ -94,8 +92,9 @@ private String discoveryTextKnownDevices() {
         return 'No devices known'
     }
 
-    ("I have found ${atomicState.numDevices} LIFX "
-            + ((1 == atomicState.numDevices) ? 'device' : 'devices so far:')
+    ("I have found <strong>${atomicState.numDevices}</strong> LIFX "
+            + ((1 == atomicState.numDevices) ? 'device' : 'useable devices')
+            + ' so far:'
             + describeDevices())
 
 }
@@ -128,11 +127,11 @@ private String describeDevices() {
 }
 
 Integer interCommandPauseMilliseconds(int pass = 1) {
-    settings.interCommandPause ?: 50 + 10 * (pass - 1)
+    settings.interCommandPause ?: 70 + 10 * (pass - 1)
 }
 
 Integer maxScanTimeSeconds() {
-    settings.scanTimeLimit ?: 300
+    settings.scanTimeLimit ?: 600
 }
 
 Integer maxScanPasses() {
@@ -720,10 +719,10 @@ byte makePacket(List buffer, int messageType, Boolean responseRequired = false, 
 }
 
 byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true) {
-    logDebug("Map payload is $payload")
+//    logDebug("Map payload is $payload")
     def listPayload = makePayload(device, type, payload)
     int messageType = lookupDeviceAndType(device, type).type
-    logDebug("List payload is $listPayload")
+//    logDebug("List payload is $listPayload")
     makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, listPayload)
 }
 
