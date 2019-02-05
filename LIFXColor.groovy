@@ -45,6 +45,7 @@ def updated() {
 def initialize() {
     state.colorTransitionTime = defaultTransition
     requestInfo()
+    runEvery1Minute(poll)
 }
 
 def refresh() {
@@ -52,7 +53,7 @@ def refresh() {
 }
 
 def poll() {
-    sendCommand('DEVICE.GET_STATE')
+    sendCommand('LIGHT.GET_STATE')
 }
 
 def on() {
@@ -124,6 +125,7 @@ private void sendCommand(String device, String type, Map payload = [:], boolean 
 }
 
 private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true) {
+    //logDebug("Sending command $deviceAndType")
     def parts = deviceAndType.split(/\./)
     sendCommand(parts[0], parts[1], payload, responseRequired)
 }
