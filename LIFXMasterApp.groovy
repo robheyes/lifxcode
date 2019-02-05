@@ -25,18 +25,6 @@ definition(
 
 preferences {
     page(name: 'mainPage')
-    /*, title: "", install: true, uninstall: true) {
-        section('Options') {
-            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands milliseconds'
-            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 300
-            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 5
-        }
-        section('Discovery') {
-            paragraph 'Once you have pressed either of the discovery buttons, head on over to the logs to see what is going on'
-            input 'discoverBtn', 'button', title: 'Discover devices'
-            input 'discoverNewBtn', 'button', title: 'Discover only new devices'
-        }
-    }*/
 }
 
 def mainPage() {
@@ -48,7 +36,6 @@ def mainPage() {
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         section('Discovery') {
-            paragraph 'Once you have pressed either of the discovery buttons, head on over to the logs to see what is going on'
             input 'discoverBtn', 'button', title: 'Discover devices'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
             paragraph(
@@ -85,11 +72,11 @@ private String describeDevices() {
 
 
     def builder = new StringBuilder()
-    builder << '<ul>'
+    builder << '<ul style="list-style: none;">'
     grouped.each {
         groupName, devices ->
-            builder << "<li>$groupName</li>"
-            builder << '<ul>'
+            builder << "<li><strong>$groupName</strong></li>"
+            builder << '<ul style="list-style: none;">'
             devices.each {
                 ip, device ->
                     builder << "<li>${device.label}"
