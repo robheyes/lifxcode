@@ -25,6 +25,18 @@ definition(
 
 preferences {
     page(name: 'mainPage')
+    /*, title: "", install: true, uninstall: true) {
+        section('Options') {
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands milliseconds'
+            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 300
+            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 5
+        }
+        section('Discovery') {
+            paragraph 'Once you have pressed either of the discovery buttons, head on over to the logs to see what is going on'
+            input 'discoverBtn', 'button', title: 'Discover devices'
+            input 'discoverNewBtn', 'button', title: 'Discover only new devices'
+        }
+    }*/
 }
 
 def mainPage() {
@@ -36,6 +48,7 @@ def mainPage() {
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         section('Discovery') {
+            paragraph 'Once you have pressed either of the discovery buttons, head on over to the logs to see what is going on'
             input 'discoverBtn', 'button', title: 'Discover devices'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
             paragraph(
@@ -49,17 +62,47 @@ def mainPage() {
 
             )
             paragraph(
-                    (atomicState.numDevices == null) || (0 == atomicState.numDevices)
-                            ? 'No devices known'
-                            :
-                            (
-                                    "I have found ${atomicState.numDevices} LIFX "
-                                            + ((1 == atomicState.numDevices) ? 'device' : 'devices')
-                                            + " so far: ${atomicState.deviceNames}"
-                            )
+                    discoveryTextKnownDevices()
             )
         }
     }
+}
+
+private String discoveryTextKnownDevices() {
+    if ((atomicState.numDevices == null) || (0 == atomicState.numDevices)) {
+        return 'No devices known'
+    }
+
+    ("I have found ${atomicState.numDevices} LIFX "
+            + ((1 == atomicState.numDevices) ? 'device' : 'devices so far:')
+            + describeDevices())
+
+}
+
+private String describeDevices() {
+    def grouped = getKnownIps().groupBy { it.value.group }
+//    logDebug("Devices in groups = $grouped")
+
+
+    def builder = new StringBuilder()
+    builder << '<ul>'
+    grouped.each {
+        groupName, devices ->
+            builder << "<li>$groupName</li>"
+            builder << '<ul>'
+            devices.each {
+                ip, device ->
+                    builder << "<li>${device.label}"
+                    if (device.error) {
+                        builder << " (${device.error})"
+                    }
+                    builder << '</li>'
+            }
+
+            builder << '</ul>'
+    }
+    builder << '</ul>'
+    builder.toString()
 }
 
 Integer interCommandPauseMilliseconds(int pass = 1) {
@@ -82,7 +125,6 @@ def updated() {
 def installed() {
     logDebug 'LIFX installed'
     initialize()
-
 }
 
 def uninstalled() {
@@ -99,7 +141,7 @@ def initialize() {
 private void updateKnownDevices() {
     def knownDevices = knownDeviceLabels()
     atomicState.numDevices = knownDevices.size()
-    atomicState.deviceNames = knownDevices.toSorted { a, b -> a.compareToIgnoreCase(b) }
+//    atomicState.deviceNames = knownDevices.toSorted { a, b -> a.compareToIgnoreCase(b) }
 }
 
 
@@ -231,11 +273,16 @@ void updateDeviceDefinition(String mac, Map properties) {
             addToKnownIps(device)
             try {
                 addChildDevice('robheyes', device.deviceName, device.ip, null, [group: device.group, label: device.label, location: device.location])
+                addToKnownIps(device)
                 updateKnownDevices()
                 logInfo "Added device ${device.label} of type ${device.deviceName} with ip address ${device.ip}"
             } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
                 // ignore this, expected if device already present
                 logWarn("${e.message} - you need to install the appropriate driver")
+                device.error = "No driver installed for ${device.deviceName}"
+                addToKnownIps(device)
+            } catch (IllegalArgumentException e) {
+                // ignore
             }
             deleteDeviceDefinition(device)
         } else {
@@ -246,11 +293,11 @@ void updateDeviceDefinition(String mac, Map properties) {
 
 private void addToKnownIps(Map device) {
     def knownIps = getKnownIps()
-    knownIps[device.ip] = device.label
+    knownIps[device.ip] = device
     atomicState.knownIps = knownIps
 }
 
-private Map getKnownIps() {
+private Map<String, Map> getKnownIps() {
     atomicState.knownIps ?: [:]
 }
 
@@ -261,7 +308,7 @@ Boolean isKnownIp(String ip) {
 
 List knownDeviceLabels() {
     def knownDevices = getKnownIps()
-    knownDevices.values().asList()
+    knownDevices.values().each { it.label }.asList()
 }
 
 private static Boolean isDeviceComplete(Map device) {
