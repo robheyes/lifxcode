@@ -230,7 +230,14 @@ Map<String, Integer> getCurrentHSBK(theDevice) {
     [
             hue       : scaleUp(theDevice.currentValue('hue'), 100),
             saturation: scaleUp(theDevice.currentValue('saturation'), 100),
-            level     : scaleUp(theDevice.currentValue('level'), 100),
+            level     : scaleUp(theDevice.currentValue('level') as Long, 100),
+            kelvin    : theDevice.currentValue('kelvin')
+    ]
+}
+
+Map<String, Integer> getCurrentBK(theDevice) {
+    [
+            level     : scaleUp(theDevice.currentValue('level') as Long, 100),
             kelvin    : theDevice.currentValue('kelvin')
     ]
 }
@@ -239,7 +246,7 @@ Float scaleDown(value, maxValue) {
     (value * maxValue) / 65535
 }
 
-Integer scaleUp(value, maxValue) {
+Long scaleUp(value, maxValue) {
     (value * 65535) / maxValue
 }
 
@@ -617,13 +624,13 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
         data.each { value = (value * 256) + it }
         switch (item.bytes) {
             case 1:
-                result.put(item.name, (value & 0xFF) as byte)
+                result.put(item.name, (value & 0xFF) as long)
                 break
             case 2:
-                result.put(item.name, (value & 0xFFFF) as short)
+                result.put(item.name, (value & 0xFFFF) as long)
                 break
             case 3: case 4:
-                result.put(item.name, (value & 0xFFFFFFFF) as int)
+                result.put(item.name, (value & 0xFFFFFFFF) as long)
                 break
             default: // this should complain if longer than 8 bytes
                 result.put(item.name, (value & 0xFFFFFFFFFFFFFFFF) as long)
@@ -645,7 +652,7 @@ List makePayload(String device, String type, Map payload) {
             //TODO possibly extend this to the other types A,S & B
             switch (item.bytes as int) {
                 case 1:
-                    logDebug('length 1')
+//                    logDebug('length 1')
                     add(result, value as byte)
                     break
                 case 2:
