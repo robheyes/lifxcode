@@ -110,7 +110,6 @@ def setLevel(level, duration = 0) {
     logDebug "Map to be sent: $hsbkMap"
     sendCommand 'LIGHT.SET_COLOR', hsbkMap
     sendEvent(name: 'level', value: level, displayed: getUseActivityLog())
-    poll()
 }
 
 def setColorTemperature(temperature) {

@@ -96,11 +96,20 @@ def setLevel(level, duration = 0) {
     } else if ((level <= 0 || level == null) && duration == 0) {
         return off()
     }
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap.level = parent.scaleUp(level, 100)
-    hsbkMap.duration = duration * 1000
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent(hsbkMap)
+//    Map hsbkMap = parent.getCurrentBK(device)
+//    logDebug("BK Map: $hsbkMap")
+    hsbkMap = [
+            level     : parent.scaleUp(level as Long, 100),
+            duration  : duration * 1000,
+            hue       : 0,
+            saturation: 0,
+            kelvin    : device.currentColorTemperature
+    ]
+    logDebug "Map to be sent: $hsbkMap"
+    sendCommand 'LIGHT.SET_COLOR', hsbkMap
+    sendEvent(name: 'level', value: level, displayed: getUseActivityLog())
+    pauseExecution 1000
+    poll()
 }
 
 def setColorTemperature(temperature) {
@@ -116,7 +125,7 @@ private void sendColorMapEvent(Map hsbkMap) {
     sendEvent(name: "hue", value: parent.scaleDown(hsbkMap.hue, 100), displayed: getUseActivityLogDebug())
     sendEvent(name: "saturation", value: parent.scaleDown(hsbkMap.saturation, 100), displayed: getUseActivityLogDebug())
     sendEvent(name: "level", value: parent.scaleDown(hsbkMap.level, 100), displayed: getUseActivityLogDebug())
-    sendEvent(name: "kelvin", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug())
+    sendEvent(name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug())
     sendEvent(name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"])
 }
 
@@ -182,7 +191,7 @@ def parse(String description) {
                     createEvent(name: "hue", value: parent.scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "saturation", value: parent.scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
                     createEvent(name: "level", value: parent.scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "kelvin", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
+                    createEvent(name: "colorTemperature", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
                     createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
             ]
         case messageTypes().DEVICE.STATE_POWER.type:
