@@ -13,7 +13,7 @@
  */
 
 metadata {
-    definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
+    definition(name: "LIFXPlus Color", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
         capability "Color Temperature"
         capability "HealthCheck"
@@ -21,11 +21,14 @@ metadata {
         capability "Switch"
         capability "Switch Level"
         capability "Initialize"
-        attribute "Label", "string"
         capability "Color Control"
         // capability "LightEffect"
+
         attribute "Group", "string"
+        attribute "Label", "string"
         attribute "Location", "string"
+        attribute "irLevel", 'number'
+
     }
 
     preferences {

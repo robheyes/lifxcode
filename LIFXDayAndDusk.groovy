@@ -13,16 +13,17 @@
  */
 
 metadata {
-    definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
+    definition(name: "LIFX Day and Dusk", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
-        capability "Color Temperature"
+        capability "ColorTemperature"
+        capability "ColorMode"
         capability "HealthCheck"
         capability "Polling"
         capability "Switch"
-        capability "Switch Level"
+        capability "SwitchLevel"
         capability "Initialize"
         attribute "Label", "string"
-        capability "Color Control"
+//        capability "Color Control"
         // capability "LightEffect"
         attribute "Group", "string"
         attribute "Location", "string"
@@ -30,7 +31,7 @@ metadata {
 
     preferences {
         input "logEnable", "bool", title: "Enable debug logging", required: false
-        input "defaultTransition", "decimal", title: "Color map level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
+        input "defaultTransition", "decimal", title: "Level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
     }
 }
 
@@ -44,6 +45,7 @@ def updated() {
 
 def initialize() {
     state.colorTransitionTime = defaultTransition
+    colorMode = 'CT'
     requestInfo()
     runEvery1Minute(poll)
 }
@@ -65,29 +67,29 @@ def off() {
     sendCommand('DEVICE.SET_POWER', [level: 0])
     sendEvent(name: "switch", value: "off", displayed: getUseActivityLog(), data: [syncing: "false"])
 }
-
-def setColor(Map colorMap) {
-// for now assume that we have the current state
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap << getScaledColorMap(colorMap)
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent(hsbkMap)
-}
-
-def setHue(number) {
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap.hue = parent.scaleUp(number, 100)
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent(hsbkMap)
-}
-
-def setSaturation(number) {
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap.saturation = parent.scaleUp(number, 100)
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent(hsbkMap)
-}
+//
+//def setColor(Map colorMap) {
+//// for now assume that we have the current state
+//    Map hsbkMap = parent.getCurrentHSBK(device)
+//    hsbkMap << getScaledColorMap(colorMap)
+//    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
+//    sendCommand'LIGHT.SET_COLOR', hsbkMap
+//    sendColorMapEvent(hsbkMap)
+//}
+//
+//def setHue(number) {
+//    Map hsbkMap = parent.getCurrentHSBK(device)
+//    hsbkMap.hue = parent.scaleUp(number, 100)
+//    sendCommand'LIGHT.SET_COLOR', hsbkMap
+//    sendColorMapEvent(hsbkMap)
+//}
+//
+//def setSaturation(number) {
+//    Map hsbkMap = parent.getCurrentHSBK(device)
+//    hsbkMap.saturation = parent.scaleUp(number, 100)
+//    sendCommand'LIGHT.SET_COLOR', hsbkMap
+//    sendColorMapEvent(hsbkMap)
+//}
 
 def setLevel(level, duration = 0) {
     log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
@@ -96,35 +98,43 @@ def setLevel(level, duration = 0) {
     } else if ((level <= 0 || level == null) && duration == 0) {
         return off()
     }
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap.level = parent.scaleUp(level, 100)
-    hsbkMap.duration = duration * 1000
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent(hsbkMap)
+//    Map hsbkMap = parent.getCurrentBK(device)
+//    logDebug("BK Map: $hsbkMap")
+    hsbkMap = [
+            level     : parent.scaleUp(level as Long, 100),
+            duration  : duration * 1000,
+            hue       : 0,
+            saturation: 0,
+            kelvin    : device.currentColorTemperature
+    ]
+    logDebug "Map to be sent: $hsbkMap"
+    sendCommand 'LIGHT.SET_COLOR', hsbkMap
+    sendEvent(name: 'level', value: level, displayed: getUseActivityLog())
+    poll()
 }
 
 def setColorTemperature(temperature) {
-    Map hsbkMap = parent.getCurrentHSBK(device)
+    Map hsbkMap = parent.getCurrentBK(device)
     hsbkMap.kelvin = temperature
-    hsbkMap.saturation = 0
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent(hsbkMap)
+//    hsbkMap.saturation = 0
+    sendCommand 'LIGHT.SET_COLOR', hsbkMap
+    sendEvent(name: 'colorTemperature', value: temperature)
 
 }
 
 private void sendColorMapEvent(Map hsbkMap) {
-    sendEvent(name: "hue", value: parent.scaleDown(hsbkMap.hue, 100), displayed: getUseActivityLogDebug())
-    sendEvent(name: "saturation", value: parent.scaleDown(hsbkMap.saturation, 100), displayed: getUseActivityLogDebug())
-    sendEvent(name: "level", value: parent.scaleDown(hsbkMap.level, 100), displayed: getUseActivityLogDebug())
-    sendEvent(name: "kelvin", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug())
-    sendEvent(name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"])
+//    sendEvent(name: "hue", value: parent.scaleDown(hsbkMap.hue, 100), displayed: getUseActivityLogDebug())
+//    sendEvent(name: "saturation", value: parent.scaleDown(hsbkMap.saturation, 100), displayed: getUseActivityLogDebug())
+    sendEvent(name: "level", value: parent.scaleDown((hsbkMap.level as Long) & 0xFFFFFFFF, 100), displayed: getUseActivityLogDebug())
+    sendEvent(name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug())
+//    sendEvent(name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"])
 }
 
 private Map<String, Integer> getScaledColorMap(Map colorMap) {
     [
-            hue       : parent.scaleUp(colorMap.hue, 100) as Integer,
-            saturation: parent.scaleUp(colorMap.saturation, 100) as Integer,
-            level     : parent.scaleUp(colorMap.level, 100) as Integer,
+//            hue       : parent.scaleUp(colorMap.hue, 100) as Integer,
+//            saturation: parent.scaleUp(colorMap.saturation, 100) as Integer,
+level: parent.scaleUp(colorMap.level, 100) as Integer,
     ]
 }
 
@@ -177,16 +187,24 @@ def parse(String description) {
             break
         case messageTypes().LIGHT.STATE.type:
             def data = parent.parsePayload('LIGHT.STATE', header)
+            logDebug("LIGHT STATE is $data")
             device.setLabel(data.label.trim())
             return [
-                    createEvent(name: "hue", value: parent.scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "saturation", value: parent.scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "level", value: parent.scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "kelvin", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
+                    createEvent(name: "level", value: parent.scaleDown((data.level as Long) & 0xFFFFFFFF, 100), displayed: getUseActivityLogDebug()),
+                    createEvent(name: "colorTemperature", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
                     createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
+//                    createEvent(name: "hue", value: parent.scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
+//                    createEvent(name: "saturation", value: parent.scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
             ]
         case messageTypes().DEVICE.STATE_POWER.type:
             Map data = parent.parsePayload('DEVICE.STATE_POWER', header)
+            return [
+                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
+                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
+            ]
+        case messageTypes().LIGHT.STATE_POWER.type:
+            Map data = parent.parsePayload('LIGHT.STATE_POWER', header)
+            logDebug "Data returned is $data"
             return [
                     createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
                     createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
