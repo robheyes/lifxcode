@@ -53,16 +53,16 @@ def refresh() {
 }
 
 def poll() {
-    sendCommand('LIGHT.GET_STATE')
+    sendCommand('LIGHT.GET_STATE', [:], true)
 }
 
 def on() {
-    sendCommand('DEVICE.SET_POWER', [level: 65535])
+    sendCommandWithAck('DEVICE.SET_POWER', [level: 65535])
     sendEvent(name: "switch", value: "on", displayed: getUseActivityLog(), data: [syncing: "false"])
 }
 
 def off() {
-    sendCommand('DEVICE.SET_POWER', [level: 0])
+    sendCommandWithAck('DEVICE.SET_POWER', [level: 0])
     sendEvent(name: "switch", value: "off", displayed: getUseActivityLog(), data: [syncing: "false"])
 }
 
@@ -71,21 +71,21 @@ def setColor(Map colorMap) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap << getScaledColorMap(colorMap)
     hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
+    sendCommandWithAck 'LIGHT.SET_COLOR', hsbkMap
     sendColorMapEvent(hsbkMap)
 }
 
 def setHue(number) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap.hue = parent.scaleUp(number, 100)
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
+    sendCommandWithAck 'LIGHT.SET_COLOR', hsbkMap
     sendColorMapEvent(hsbkMap)
 }
 
 def setSaturation(number) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap.saturation = parent.scaleUp(number, 100)
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
+    sendCommandWithAck 'LIGHT.SET_COLOR', hsbkMap
     sendColorMapEvent(hsbkMap)
 }
 
@@ -96,27 +96,34 @@ def setLevel(level, duration = 0) {
     } else if ((level <= 0 || level == null) && duration == 0) {
         return off()
     }
-//    Map hsbkMap = parent.getCurrentBK(device)
+    Map hsbkMap = parent.getCurrentHSBK(device)
 //    logDebug("BK Map: $hsbkMap")
-    hsbkMap = [
-            level     : parent.scaleUp(level as Long, 100),
-            duration  : duration * 1000,
-            hue       : 0,
-            saturation: 0,
-            kelvin    : device.currentColorTemperature
-    ]
-    logDebug "Map to be sent: $hsbkMap"
-    sendCommand 'LIGHT.SET_COLOR', hsbkMap
+    if (hsbkMap.saturation == 0) {
+        hsbkMap.level = parent.scaleUp(level as Long, 100)
+        hsbkMap.hue = 0
+        hsbkMap.saturation = 0
+        hsbkMap.duration * 1000
+    } else {
+        hsbkMap = [
+                level     : parent.scaleUp(level as Long, 100),
+                duration  : duration * 1000,
+                hue       : parent.scaleUp(device.currentHue as Float, 100),
+                saturation: parent.scaleUp(device.currentSaturation as Float, 100),
+                kelvin    : device.currentColorTemperature
+        ]
+    }
+//    logDebug "Map to be sent: $hsbkMap"
+    sendCommandWithAck 'LIGHT.SET_COLOR', hsbkMap
     sendEvent(name: 'level', value: level, displayed: getUseActivityLog())
     pauseExecution 1000
-    poll()
+//    poll()
 }
 
 def setColorTemperature(temperature) {
     Map hsbkMap = parent.getCurrentHSBK(device)
     hsbkMap.kelvin = temperature
     hsbkMap.saturation = 0
-    sendCommand'LIGHT.SET_COLOR', hsbkMap
+    sendCommandWithAck 'LIGHT.SET_COLOR', hsbkMap
     sendColorMapEvent(hsbkMap)
 
 }
@@ -137,22 +144,53 @@ private Map<String, Integer> getScaledColorMap(Map colorMap) {
     ]
 }
 
-private void sendCommand(int messageType, List payload = [], boolean responseRequired = false) {
+private sendCommand(int messageType, List payload = [], boolean responseRequired = true) {
     def buffer = []
     parent.makePacket(buffer, messageType, responseRequired, payload)
     sendPacket(buffer)
 }
 
-private void sendCommand(String device, String type, Map payload = [:], boolean responseRequired = true) {
+private void sendCommand(String deviceKind, String type, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false) {
+    def expectedSequence = ackWasExpected()
+    if (expectedSequence) {
+//        logDebug("Previous command was not acknowledged: sequence ${expectedSequence}")
+        def resendBuffer = parent.getBufferToResend(device, expectedSequence)
+        logWarn("resend buffer is $resendBuffer")
+        clearExpectedAckFor(expectedSequence)
+        sendPacket(resendBuffer)
+    }
     def buffer = []
-    parent.makePacket(buffer, device, type, payload, responseRequired)
+    byte sequence = parent.makePacket(buffer, deviceKind, type, payload, responseRequired, ackRequired)
+    if (ackRequired) {
+//        logDebug "Sending packet with sequence $sequence"
+        expectAckFor(sequence, buffer)
+    }
     sendPacket(buffer)
 }
 
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true) {
+private Byte ackWasExpected() {
+    parent.ackWasExpected(device)
+}
+
+private void expectAckFor(Byte sequence, buffer = []) {
+    parent.expectAckFor(device, sequence, buffer)
+}
+
+private void clearExpectedAckFor(Byte sequence)
+{
+    parent.clearExpectedAckFor(device, sequence)
+}
+
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = false) {
     //logDebug("Sending command $deviceAndType")
     def parts = deviceAndType.split(/\./)
     sendCommand(parts[0], parts[1], payload, responseRequired)
+}
+
+private void sendCommandWithAck(String deviceAndType, Map payload = [:]) {
+    //logDebug("Sending command $deviceAndType")
+    def parts = deviceAndType.split(/\./)
+    sendCommand(parts[0], parts[1], payload, false, true)
 }
 
 def requestInfo() {
@@ -200,6 +238,11 @@ def parse(String description) {
                     createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
                     createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
             ]
+        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
+            Byte sequence = header.sequence
+//            logDebug("Got acknowledgement for sequence $sequence")
+            clearExpectedAckFor(sequence)
+            break
         default:
             logDebug "Unhandled response for ${header.type}"
     }
@@ -214,7 +257,7 @@ private def myIp() {
     device.getDeviceNetworkId()
 }
 
-private def sendPacket(List buffer) {
+private void sendPacket(List buffer) {
     String ipAddress = myIp()
     def rawBytes = parent.asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)

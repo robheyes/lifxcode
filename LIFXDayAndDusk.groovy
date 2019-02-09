@@ -59,12 +59,12 @@ def poll() {
 }
 
 def on() {
-    sendCommand('DEVICE.SET_POWER', [level: 65535])
+    sendCommand('DEVICE.SET_POWER', [level: 65535], false)
     sendEvent(name: "switch", value: "on", displayed: getUseActivityLog(), data: [syncing: "false"])
 }
 
 def off() {
-    sendCommand('DEVICE.SET_POWER', [level: 0])
+    sendCommand('DEVICE.SET_POWER', [level: 0], false)
     sendEvent(name: "switch", value: "off", displayed: getUseActivityLog(), data: [syncing: "false"])
 }
 //
@@ -108,7 +108,7 @@ def setLevel(level, duration = 0) {
             kelvin    : device.currentColorTemperature
     ]
     logDebug "Map to be sent: $hsbkMap"
-    sendCommand 'LIGHT.SET_COLOR', hsbkMap
+    sendCommand 'LIGHT.SET_COLOR', hsbkMap, false
     sendEvent(name: 'level', value: level, displayed: getUseActivityLog())
 }
 
@@ -116,7 +116,7 @@ def setColorTemperature(temperature) {
     Map hsbkMap = parent.getCurrentBK(device)
     hsbkMap.kelvin = temperature
 //    hsbkMap.saturation = 0
-    sendCommand 'LIGHT.SET_COLOR', hsbkMap
+    sendCommand 'LIGHT.SET_COLOR', hsbkMap, false
     sendEvent(name: 'colorTemperature', value: temperature)
 
 }
@@ -186,7 +186,7 @@ def parse(String description) {
             break
         case messageTypes().LIGHT.STATE.type:
             def data = parent.parsePayload('LIGHT.STATE', header)
-            logDebug("LIGHT STATE is $data")
+//            logDebug("LIGHT STATE is $data")
             device.setLabel(data.label.trim())
             return [
                     createEvent(name: "level", value: parent.scaleDown((data.level as Long) & 0xFFFFFFFF, 100), displayed: getUseActivityLogDebug()),

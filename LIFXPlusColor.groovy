@@ -57,7 +57,7 @@ def refresh() {
 }
 
 def poll() {
-    sendCommand('LIGHT.GET_STATE')
+    sendCommand('LIGHT.GET_STATE', [:], false)
 }
 
 def on() {
@@ -153,7 +153,7 @@ private void sendCommand(String device, String type, Map payload = [:], boolean 
     sendPacket(buffer)
 }
 
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true) {
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = false) {
     //logDebug("Sending command $deviceAndType")
     def parts = deviceAndType.split(/\./)
     sendCommand(parts[0], parts[1], payload, responseRequired)

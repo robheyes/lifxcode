@@ -228,17 +228,17 @@ void removeChildren() {
 
 Map<String, Integer> getCurrentHSBK(theDevice) {
     [
-            hue       : scaleUp(theDevice.currentValue('hue'), 100),
-            saturation: scaleUp(theDevice.currentValue('saturation'), 100),
+            hue       : scaleUp(theDevice.currentHue, 100),
+            saturation: scaleUp(theDevice.currentSaturation, 100),
             level     : scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin    : theDevice.currentValue('kelvin')
+            kelvin    : theDevice.currentValue('colorTemperature')
     ]
 }
 
 Map<String, Integer> getCurrentBK(theDevice) {
     [
             level     : scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin    : theDevice.currentValue('kelvin')
+            kelvin    : theDevice.currentValue('colorTemperature')
     ]
 }
 
@@ -371,6 +371,38 @@ void deleteDeviceDefinition(Map device) {
     saveDeviceDefinitions(devices)
 }
 
+void expectAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence, List buffer) {
+    def expected = atomicState.expectedAckFor ?: [:]
+    expected[device.getDeviceNetworkId()] = [sequence: sequence, buffer: buffer]
+    atomicState.expectedAckFor = expected
+}
+
+
+Byte ackWasExpected(com.hubitat.app.DeviceWrapper device) {
+    def expected = atomicState.expectedAckFor ?: [:]
+    expected[device.getDeviceNetworkId()]?.sequence as Byte
+}
+
+void clearExpectedAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence)
+{
+    def expected = atomicState.expectedAckFor ?: [:]
+    expected.remove(device.getDeviceNetworkId())
+    atomicState.expectedAckFor = expected
+}
+
+List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence)
+{
+    def expected = atomicState.expectedAckFor ?: [:]
+    Map expectation = expected[device.getDeviceNetworkId()]
+    if (null == expectation) {
+        null
+    }
+    if (expectation?.sequence == sequence) {
+        expectation?.buffer
+    } else {
+        null
+    }
+}
 
 String convertIpLong(String ip) {
     sprintf('%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip))
@@ -724,13 +756,21 @@ String getHubIP() {
 byte makePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = []) {
     makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
 }
+//
+//byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true) {
+////    logDebug("Map payload is $payload")
+//    def listPayload = makePayload(device, type, payload)
+//    int messageType = lookupDeviceAndType(device, type).type
+////    logDebug("List payload is $listPayload")
+//    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, listPayload)
+//}
 
-byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true) {
+byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false) {
 //    logDebug("Map payload is $payload")
     def listPayload = makePayload(device, type, payload)
     int messageType = lookupDeviceAndType(device, type).type
 //    logDebug("List payload is $listPayload")
-    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, listPayload)
+    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload)
 }
 
 // fills the buffer with the LIFX packet and returns the sequence number
