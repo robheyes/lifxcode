@@ -112,12 +112,8 @@ private String describeDevices() {
             builder << '<ul class="device">'
             devices.each {
                 ip, device ->
-                    if (device.error) {
-                        builder << "<li class='device-error'>${device.label} (${device.error})</li>"
-                    } else {
-                        builder << "<li class='device'>${device.label}</li>"
-                    }
-
+                    def item
+                    builder << (device.error ? "<li class='device-error'>${device.label} (${device.error})</li>" : "<li class='device'>${device.label}</li>")
             }
 
             builder << '</ul>'
@@ -199,9 +195,9 @@ private void discovery() {
     atomicState.scanPass = null
     updateKnownDevices()
     clearDeviceDefinitions()
-    addChildDevice('robheyes', 'LIFX Discovery', 'LIFX Discovery')
+    addChildDevice 'robheyes', 'LIFX Discovery', 'LIFX Discovery'
     // now schedule removal of the discovery device after a delay
-    runIn(maxScanTimeSeconds(), removeDiscoveryDevice)
+    runIn maxScanTimeSeconds(), removeDiscoveryDevice
 }
 
 // used by runIn - DND
@@ -209,7 +205,7 @@ void removeDiscoveryDevice() {
     logInfo 'Removing LIFX Discovery device'
     atomicState.scanPass = 'DONE'
     try {
-        deleteChildDevice('LIFX Discovery')
+        deleteChildDevice 'LIFX Discovery'
     } catch (Exception e) {
         // don't care, let it fail
     }
@@ -219,14 +215,14 @@ void removeChildren() {
     logInfo "Removing child devices"
     childDevices.each {
         if (it != null) {
-            deleteChildDevice(it.deviceNetworkId)
+            deleteChildDevice it.deviceNetworkId
         }
     }
     atomicState.knownIps = [:]
     updateKnownDevices()
 }
 
-Map<String, Integer> getCurrentHSBK(theDevice) {
+Map<String, Number> getCurrentHSBK(theDevice) {
     [
             hue       : scaleUp(theDevice.currentHue, 100),
             saturation: scaleUp(theDevice.currentSaturation, 100),
@@ -235,10 +231,10 @@ Map<String, Integer> getCurrentHSBK(theDevice) {
     ]
 }
 
-Map<String, Integer> getCurrentBK(theDevice) {
+Map<String, Number> getCurrentBK(theDevice) {
     [
-            level     : scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin    : theDevice.currentValue('colorTemperature')
+            level : scaleUp(theDevice.currentValue('level') as Long, 100),
+            kelvin: theDevice.currentValue('colorTemperature')
     ]
 }
 
@@ -251,33 +247,33 @@ Long scaleUp(value, maxValue) {
 }
 
 Map lookupDeviceAndType(String device, String type) {
-    return messageTypes()[device][type]
+    messageTypes()[device][type]
 }
 
 String lookupDescriptorForDeviceAndType(String device, String type) {
-    return lookupDeviceAndType(device, type).descriptor
+    lookupDeviceAndType(device, type).descriptor
 }
 
 Map parseHeader(Map deviceParams) {
-    List<Map> headerDescriptor = getDescriptor('size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2')
+    List<Map> headerDescriptor = getDescriptor 'size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2'
     parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
         it & 0xff
     })
 }
 
 void createDeviceDefinition(Map parsed, String ip, String mac) {
-    List<Map> stateVersionDescriptor = getDescriptor('vendor:4l,product:4l,version:4l')
-    def version = parseBytes(stateVersionDescriptor, parsed.remainder as List<Long>)
-    def device = deviceVersion(version)
-    device.putAt('ip', ip)
-    device.putAt('mac', mac)
-    saveDeviceDefinition(device)
+    List<Map> stateVersionDescriptor = getDescriptor 'vendor:4l,product:4l,version:4l'
+    def version = parseBytes stateVersionDescriptor, parsed.remainder as List<Long>
+    def device = deviceVersion version
+    device['ip'] = ip
+    device['mac'] = mac
+    saveDeviceDefinition device
 }
 
 Map getDeviceDefinition(String mac) {
     Map devices = getDeviceDefinitions()
 
-    devices.getAt(mac)
+    devices[mac]
 }
 
 private void clearDeviceDefinitions() {
@@ -293,35 +289,40 @@ private void saveDeviceDefinitions(Map devices) {
 }
 
 void updateDeviceDefinition(String mac, Map properties) {
-    Map device = getDeviceDefinition(mac)
+    Map device = getDeviceDefinition mac
     if (device) {
-        properties.each { key, val -> device.putAt(key, val) }
+        properties.each { key, val -> (device[key] = val) }
 //        logDebug("Device being updated is $device")
-        if (isDeviceComplete(device)) {
-            addToKnownIps(device)
-            try {
-                addChildDevice('robheyes', device.deviceName, device.ip, null, [group: device.group, label: device.label, location: device.location])
-                addToKnownIps(device)
-                updateKnownDevices()
-                logInfo "Added device ${device.label} of type ${device.deviceName} with ip address ${device.ip}"
-            } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
-                // ignore this, expected if device already present
-                logWarn("${e.message} - you need to install the appropriate driver")
-                device.error = "No driver installed for ${device.deviceName}"
-                addToKnownIps(device)
-            } catch (IllegalArgumentException e) {
-                // ignore
-            }
-            deleteDeviceDefinition(device)
-        } else {
-            saveDeviceDefinition(device)
+        if (!isDeviceComplete(device)) {
+            saveDeviceDefinition device
+            return
         }
+
+        makeRealDevice(device)
     }
+}
+
+private void makeRealDevice(Map device) {
+    addToKnownIps device
+    try {
+        addChildDevice 'robheyes', device.deviceName, device.ip, null, [group: device.group, label: device.label, location: device.location]
+        addToKnownIps device
+        updateKnownDevices()
+        logInfo "Added device $device.label of type $device.deviceName with ip address $device.ip"
+    } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
+        // ignore this, expected if device already present
+        logWarn "${e.message} - you need to install the appropriate driver"
+        device.error = "No driver installed for $device.deviceName"
+        addToKnownIps(device)
+    } catch (IllegalArgumentException e) {
+        // ignore
+    }
+    deleteDeviceDefinition device
 }
 
 private void addToKnownIps(Map device) {
     def knownIps = getKnownIps()
-    knownIps[device.ip] = device
+    knownIps[device.ip as String] = device
     atomicState.knownIps = knownIps
 }
 
@@ -340,7 +341,7 @@ List knownDeviceLabels() {
 }
 
 private static Boolean isDeviceComplete(Map device) {
-    List missing = matchKeys(device, ['ip', 'mac', 'group', 'label', 'location'])
+    List missing = matchKeys device, ['ip', 'mac', 'group', 'label', 'location']
     missing.isEmpty()
 }
 
@@ -360,38 +361,36 @@ void saveDeviceDefinition(Map device) {
 
     devices[device.mac] = device
 
-    saveDeviceDefinitions(devices)
+    saveDeviceDefinitions devices
 }
 
 void deleteDeviceDefinition(Map device) {
     Map devices = getDeviceDefinitions()
 
-    devices.remove(device.mac)
+    devices.remove device.mac
 
-    saveDeviceDefinitions(devices)
+    saveDeviceDefinitions devices
 }
 
 void expectAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence, List buffer) {
     def expected = atomicState.expectedAckFor ?: [:]
-    expected[device.getDeviceNetworkId()] = [sequence: sequence, buffer: buffer]
+    expected[device.getDeviceNetworkId() as String] = [sequence: sequence, buffer: buffer]
     atomicState.expectedAckFor = expected
 }
 
 
 Byte ackWasExpected(com.hubitat.app.DeviceWrapper device) {
     def expected = atomicState.expectedAckFor ?: [:]
-    expected[device.getDeviceNetworkId()]?.sequence as Byte
+    expected[device.getDeviceNetworkId() as String]?.sequence as Byte
 }
 
-void clearExpectedAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence)
-{
+void clearExpectedAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence) {
     def expected = atomicState.expectedAckFor ?: [:]
     expected.remove(device.getDeviceNetworkId())
     atomicState.expectedAckFor = expected
 }
 
-List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence)
-{
+List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence) {
     def expected = atomicState.expectedAckFor ?: [:]
     Map expectation = expected[device.getDeviceNetworkId()]
     if (null == expectation) {
@@ -405,7 +404,7 @@ List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence)
 }
 
 String convertIpLong(String ip) {
-    sprintf('%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip))
+    sprintf '%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip)
 }
 
 Map<String, Map<String, Map>> messageTypes() {
@@ -603,29 +602,29 @@ Map deviceVersion(Map device) {
 
 
 Map parseDeviceParameters(String description) {
-    Map deviceParams = new HashMap()
+    def deviceParams = [:]
     description.findAll(~/(\w+):(\w+)/) {
-        deviceParams.putAt(it[1], it[2])
+        (deviceParams[it[1]] = it[2])
     }
     deviceParams
 }
 
 Map parseHeaderFromDescription(String description) {
-    parseHeader(parseDeviceParameters(description))
+    parseHeader parseDeviceParameters(description)
 }
 
 Map parsePayload(String theDevice, String theType, Map header) {
-    parseBytes(lookupDescriptorForDeviceAndType(theDevice, theType), getRemainder(header))
+    parseBytes lookupDescriptorForDeviceAndType(theDevice, theType), getRemainder(header)
 }
 
 Map parsePayload(String deviceAndType, Map header) {
     def parts = deviceAndType.split(/\./)
-    parsePayload(parts[0], parts[1], header)
+    parsePayload parts[0], parts[1], header
 }
 
 Map parseBytes(String descriptor, List<Long> bytes) {
 //    logDebug("Looking for descriptor for ${descriptor}")
-    return parseBytes(getDescriptor(descriptor), bytes)
+    parseBytes getDescriptor(descriptor) , bytes
 }
 
 Map parseBytes(List<Map> descriptor, List<Long> bytes) {
@@ -635,7 +634,7 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     descriptor.each { item ->
         int nextOffset = offset + (item.bytes as int)
 
-        List<Long> data = bytes.subList(offset, nextOffset)
+        List<Long> data = bytes.subList offset, nextOffset
         assert (data.size() == item.bytes as int)
         offset = nextOffset
         // assume big kind
@@ -656,27 +655,26 @@ Map parseBytes(List<Map> descriptor, List<Long> bytes) {
         data.each { value = (value * 256) + it }
         switch (item.bytes) {
             case 1:
-                result.put(item.name, (value & 0xFF) as long)
+                result.put item.name, (value & 0xFF) as long
                 break
             case 2:
-                result.put(item.name, (value & 0xFFFF) as long)
+                result.put item.name, (value & 0xFFFF) as long
                 break
             case 3: case 4:
-                result.put(item.name, (value & 0xFFFFFFFF) as long)
+                result.put item.name, (value & 0xFFFFFFFF) as long
                 break
             default: // this should complain if longer than 8 bytes
-                result.put(item.name, (value & 0xFFFFFFFFFFFFFFFF) as long)
+                result.put item.name, (value & 0xFFFFFFFFFFFFFFFF) as long
         }
     }
     if (offset < bytes.size()) {
-        result.put('remainder', bytes[offset..-1])
+        result.put 'remainder', bytes[offset..-1]
     }
     return result
 }
 
 List makePayload(String device, String type, Map payload) {
-    def descriptorString = lookupDescriptorForDeviceAndType(device, type)
-    def descriptor = getDescriptor(descriptorString)
+    def descriptor = getDescriptor lookupDescriptorForDeviceAndType(device, type)
     def result = []
     descriptor.each {
         Map item ->
@@ -685,16 +683,16 @@ List makePayload(String device, String type, Map payload) {
             switch (item.bytes as int) {
                 case 1:
 //                    logDebug('length 1')
-                    add(result, value as byte)
+                    add result, value as byte
                     break
                 case 2:
-                    add(result, value as short)
+                    add result, value as short
                     break
                 case 3: case 4:
-                    add(result, value as int)
+                    add result, value as int
                     break
                 default: // this should complain if longer than 8 bytes
-                    add(result, value as long)
+                    add result, value as long
             }
     }
     result as List<Byte>
@@ -711,7 +709,7 @@ private List<Map> getDescriptor(String desc) {
     }
     List<Map> candidate = cachedDescriptors.get(desc)
     if (!candidate) {
-        candidate = makeDescriptor(desc)
+        candidate = makeDescriptor desc
         cachedDescriptors[desc] = (candidate)
         atomicState.cachedDescriptors = cachedDescriptors
     }
@@ -744,7 +742,8 @@ def /* Hub */ getHub() {
 }
 
 static Integer getTypeFor(String dev, String act) {
-    lookupDeviceAndType(dev, act).type as Integer
+    def deviceAndType = lookupDeviceAndType dev, act
+    deviceAndType.type as Integer
 }
 
 String getHubIP() {
@@ -752,17 +751,9 @@ String getHubIP() {
 
     hub.localIP
 }
-
-byte makePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = []) {
-    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
-}
 //
-//byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true) {
-////    logDebug("Map payload is $payload")
-//    def listPayload = makePayload(device, type, payload)
-//    int messageType = lookupDeviceAndType(device, type).type
-////    logDebug("List payload is $listPayload")
-//    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, listPayload)
+//byte makePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = []) {
+//    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
 //}
 
 byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false) {
@@ -776,12 +767,12 @@ byte makePacket(List buffer, String device, String type, Map payload, Boolean re
 // fills the buffer with the LIFX packet and returns the sequence number
 byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = []) {
     def lastSequence = sequenceNumber()
-    createFrame(buffer, targetAddress.every { it == 0 })
-    createFrameAddress(buffer, targetAddress, ackRequired, responseRequired, lastSequence)
-    createProtocolHeader(buffer, messageType as short)
-    createPayload(buffer, payload as byte[])
+    createFrame buffer, targetAddress.every { it == 0 }
+    createFrameAddress buffer, targetAddress, ackRequired, responseRequired, lastSequence
+    createProtocolHeader buffer, messageType as short
+    createPayload buffer, payload as byte[]
 
-    put(buffer, 0, buffer.size() as short)
+    put buffer, 0, buffer.size() as short
     return lastSequence
 }
 
@@ -794,11 +785,13 @@ byte sequenceNumber() {
     atomicState.sequence = ((atomicState.sequence ?: 0) + 1) % 128
 }
 
+/** Protocol packet building */
+
 private static def createFrame(List buffer, boolean tagged) {
-    add(buffer, 0 as short)
-    add(buffer, 0x00 as byte)
-    add(buffer, (tagged ? 0x34 : 0x14) as byte)
-    add(buffer, lifxSource())
+    add buffer, 0 as short
+    add buffer, 0x00 as byte
+    add buffer, (tagged ? 0x34 : 0x14) as byte
+    add buffer, lifxSource()
 }
 
 private static int lifxSource() {
@@ -806,75 +799,77 @@ private static int lifxSource() {
 }
 
 private static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
-    add(buffer, target)
-    add(buffer, 0 as short)
-    fill(buffer, 0 as byte, 6)
-    add(buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte)
-    add(buffer, sequenceNumber)
+    add buffer, target
+    add buffer, 0 as short
+    fill buffer, 0 as byte, 6
+    add buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte
+    add buffer, sequenceNumber
 }
 
 private static def createProtocolHeader(List buffer, short messageType) {
-    fill(buffer, 0 as byte, 8)
-    add(buffer, messageType)
-    add(buffer, 0 as short)
+    fill buffer, 0 as byte, 8
+    add buffer, messageType
+    add buffer, 0 as short
 }
 
 private static def createPayload(List buffer, byte[] payload) {
-    add(buffer, payload)
+    add buffer, payload
 }
 
+/** LOW LEVEL BUFFER FILLING */
 private static void add(List buffer, byte value) {
-    buffer.add(Byte.toUnsignedInt(value))
+    buffer.add Byte.toUnsignedInt(value)
 }
 
 private static void add(List buffer, short value) {
     def lower = value & 0xff
-    add(buffer, lower as byte)
-    add(buffer, ((value - lower) >>> 8) as byte)
+    add buffer, lower as byte
+    add buffer, ((value - lower) >>> 8) as byte
 }
 
 private static void add(List buffer, int value) {
     def lower = value & 0xffff
-    add(buffer, lower as short)
-    add(buffer, Integer.divideUnsigned(value - lower, 0x10000) as short)
+    add buffer, lower as short
+    add buffer, Integer.divideUnsigned(value - lower, 0x10000) as short
 }
 
 private static void add(List buffer, long value) {
     def lower = value & 0xffffffff
-    add(buffer, lower as int)
-    add(buffer, Long.divideUnsigned(value - lower, 0x100000000) as int)
+    add buffer, lower as int
+    add buffer, Long.divideUnsigned(value - lower, 0x100000000) as int
 }
 
 private static void add(List buffer, byte[] values) {
     for (value in values) {
-        add(buffer, value)
+        add buffer, value
     }
 }
 
 private static void fill(List buffer, byte value, int count) {
     for (int i = 0; i < count; i++) {
-        add(buffer, value)
+        add buffer, value
     }
 }
 
 private static void put(List buffer, int index, byte value) {
-    buffer.set(index, Byte.toUnsignedInt(value))
+    buffer.set index, Byte.toUnsignedInt(value)
 }
 
 private static void put(List buffer, int index, short value) {
     def lower = value & 0xff
-    put(buffer, index, lower as byte)
-    put(buffer, index + 1, ((value - lower) >>> 8) as byte)
+    put buffer, index, lower as byte
+    put buffer, index + 1, ((value - lower) >>> 8) as byte
 }
 
+/** LOGGING **/
 void logDebug(msg) {
-    log.debug(msg)
+    log.debug msg
 }
 
 void logInfo(msg) {
-    log.info(msg)
+    log.info msg
 }
 
 void logWarn(String msg) {
-    log.warn(msg)
+    log.warn msg
 }

@@ -44,58 +44,56 @@ def refresh() {
     1.upto(scanPasses) {
         logDebug "Scanning pass $it of $scanPasses"
         parent.setScanPass(it)
-        scanNetwork(subnet, it)
+        scanNetwork subnet, it
         logDebug "Pass $it complete"
     }
-    parent.setScanPass('DONE')
+    parent.setScanPass 'DONE'
 }
 
 private scanNetwork(String subnet, int pass) {
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
-            sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass)
-            //sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass+1)
-            //sendCommand(ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass+2)
+            sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass
         }
     }
 }
 
 private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true, int pass = 1) {
     def buffer = []
-    parent.makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
+    parent.makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload
     def rawBytes = parent.asByteArray(buffer)
-    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
-    sendPacket(ipAddress, stringBytes)
+    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString rawBytes
+    sendPacket ipAddress, stringBytes
     pauseExecution(parent.interCommandPauseMilliseconds(pass))
 }
 
 def parse(String description) {
-    Map deviceParams = parent.parseDeviceParameters(description)
-    def ip = parent.convertIpLong(deviceParams.ip as String)
-    Map parsed = parent.parseHeader(deviceParams)
+    Map deviceParams = parent.parseDeviceParameters description
+    String ip = parent.convertIpLong(deviceParams.ip as String)
+    Map parsed = parent.parseHeader deviceParams
     final String mac = deviceParams.mac
     switch (parsed.type) {
         case messageTypes().DEVICE.STATE_VERSION.type:
-            def existing = parent.getDeviceDefinition(mac)
+            def existing = parent.getDeviceDefinition mac
             if (!existing) {
-                parent.createDeviceDefinition(parsed, ip, mac)
-                sendCommand(ip, messageTypes().DEVICE.GET_GROUP.type as int)
+                parent.createDeviceDefinition parsed, ip, mac
+                sendCommand ip, messageTypes().DEVICE.GET_GROUP.type as int
             }
             break
         case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parent.parsePayload('DEVICE.STATE_LABEL', parsed)
-            parent.updateDeviceDefinition(mac, [label: data.label])
+            def data = parent.parsePayload 'DEVICE.STATE_LABEL', parsed
+            parent.updateDeviceDefinition mac, [label: data.label]
             break
         case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parent.parsePayload('DEVICE.STATE_GROUP', parsed)
-            parent.updateDeviceDefinition(mac, [group: data.label])
-            sendCommand(ip, messageTypes().DEVICE.GET_LOCATION.type as int)
+            def data = parent.parsePayload 'DEVICE.STATE_GROUP', parsed
+            parent.updateDeviceDefinition mac, [group: data.label]
+            sendCommand ip, messageTypes().DEVICE.GET_LOCATION.type as int
             break
         case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parent.parsePayload('DEVICE.STATE_LOCATION', parsed)
-            parent.updateDeviceDefinition(mac, [location: data.label])
-            sendCommand(ip, messageTypes().DEVICE.GET_LABEL.type as int)
+            def data = parent.parsePayload 'DEVICE.STATE_LOCATION', parsed
+            parent.updateDeviceDefinition mac, [location: data.label]
+            sendCommand ip, messageTypes().DEVICE.GET_LABEL.type as int
             break
         case messageTypes().DEVICE.STATE_WIFI_INFO.type:
             break
@@ -112,7 +110,7 @@ def sendPacket(String ipAddress, String bytes, boolean wantLog = false) {
     if (wantLog) {
         logDebug "sending bytes: ${stringBytes} to ${ipAddress}"
     }
-    broadcast(bytes, ipAddress)
+    broadcast bytes, ipAddress
 }
 
 private void broadcast(String stringBytes, String ipAddress) {
@@ -130,7 +128,7 @@ private void broadcast(String stringBytes, String ipAddress) {
 }
 
 private Integer getTypeFor(String dev, String act) {
-    parent.getTypeFor(dev, act)
+    parent.getTypeFor dev, act
 }
 
 static byte[] asByteArray(List buffer) {
@@ -138,13 +136,13 @@ static byte[] asByteArray(List buffer) {
 }
 
 private void logDebug(msg) {
-    log.debug("DISCOVERY: $msg")
+    log.debug "DISCOVERY: $msg"
 }
 
 private void logInfo(msg) {
-    log.info(msg)
+    log.info msg
 }
 
 private void logWarn(String msg) {
-    log.warn(msg)
+    log.warn msg
 }
