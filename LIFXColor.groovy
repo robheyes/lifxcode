@@ -23,9 +23,14 @@ metadata {
         capability "Initialize"
         capability "Color Control"
         // capability "LightEffect"
+
         attribute "Label", "string"
         attribute "Group", "string"
         attribute "Location", "string"
+        attribute "colorName", "string"
+        attribute "lightStatus", "string"
+
+        command "setState", ["MAP"]
     }
 
     preferences {
@@ -57,37 +62,27 @@ def poll() {
 }
 
 def on() {
-    lifxCommand 'DEVICE.SET_POWER', [level: 65535]
-    sendEvent name: "switch", value: "on", displayed: getUseActivityLog(), data: [syncing: "false"]
+    sendActions parent.deviceOnOff('on', getUseActivityLog())
 }
 
 def off() {
-    lifxCommand 'DEVICE.SET_POWER', [level: 0]
-    sendEvent name: "switch", value: "off", displayed: getUseActivityLog(), data: [syncing: "false"]
+    sendActions parent.deviceOnOff('off', getUseActivityLog())
 }
 
 def setColor(Map colorMap) {
-    Map hsbkMap = parent.getCurrentHSBK device
-    hsbkMap << getScaledColorMap(colorMap)
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent hsbkMap
+    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.colorTransitionTime ?: 0)
 }
 
 def setHue(hue) {
-    Map hsbkMap = parent.getCurrentHSBK device
-    hsbkMap.hue = scaleUp100 hue
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'hue', value: hue, displayed: getUseActivityLog()
+    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.colorTransitionTime ?: 0)
 }
 
 def setSaturation(saturation) {
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap.saturation = scaleUp100 saturation
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'saturation', value: saturation, displayed: getUseActivityLog()
+    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.colorTransitionTime ?: 0)
+}
+
+def setColorTemperature(temperature) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
 }
 
 def setLevel(level, duration = 0) {
@@ -106,11 +101,11 @@ def setLevel(level, duration = 0) {
         hsbkMap.duration = duration * 1000
     } else {
         hsbkMap = [
-                level     : scaleUp100(level),
-                duration  : duration * 1000,
                 hue       : scaleUp100(device.currentHue),
                 saturation: scaleUp100(device.currentSaturation),
-                kelvin    : device.currentColorTemperature
+                level     : scaleUp100(level),
+                kelvin    : device.currentColorTemperature,
+                duration  : duration * 1000,
         ]
     }
 //    logDebug "Map to be sent: $hsbkMap"
@@ -118,28 +113,48 @@ def setLevel(level, duration = 0) {
     sendEvent name: 'level', value: level, displayed: getUseActivityLog()
 }
 
+def setState(value) {
+    sendActions(parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.colorTransitionTime ?: 0))
+}
+
+private void sendActions(Map<String, List> actions) {
+    actions.commands.each {
+//        logDebug "sending lifxCommand $it"
+        lifxCommand it.cmd, it.payload
+    }
+    actions.events.each {
+        sendEvent it
+    }
+//    logDebug "CommandsAndEvents = $actions"
+}
+
+private List<Map> colorList() {
+    parent.colorList()
+}
+
 private Long scaleUp100(Number value) {
     parent.scaleUp value, 100
+}
+
+private Long scaleUp360(Number value) {
+    parent.scaleUp value, 360
 }
 
 private Float scaleDown100(Number value) {
     parent.scaleDown value, 100
 }
 
-def setColorTemperature(temperature) {
-    Map hsbkMap = parent.getCurrentHSBK device
-    hsbkMap.kelvin = temperature
-    hsbkMap.saturation = 0
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent hsbkMap
+private void sendColorMapEvent(Map hsbkMap) {
+    makeColorMapEvents(hsbkMap).each { sendEvent(it)}
 }
 
-private void sendColorMapEvent(Map hsbkMap) {
-    sendEvent name: "hue", value: scaleDown100(hsbkMap.hue), displayed: getUseActivityLogDebug()
-    sendEvent name: "saturation", value: scaleDown100(hsbkMap.saturation), displayed: getUseActivityLogDebug()
-    sendEvent name: "level", value: scaleDown100(hsbkMap.level), displayed: getUseActivityLogDebug()
-    sendEvent name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug()
-    sendEvent name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]
+List makeColorMapEvents(Map hsbkMap) {
+    [
+            [name: "hue", value: scaleDown100(hsbkMap.hue), displayed: getUseActivityLogDebug()],
+            [name: "saturation", value: scaleDown100(hsbkMap.saturation), displayed: getUseActivityLogDebug()],
+            [name: "level", value: scaleDown100(hsbkMap.level), displayed: getUseActivityLogDebug()],
+            [name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug()]
+    ]
 }
 
 private Map<String, Integer> getScaledColorMap(Map colorMap) {
@@ -173,7 +188,7 @@ private void resendUnacknowledgedCommand() {
     def expectedSequence = parent.ackWasExpected device
     if (expectedSequence) {
         List resendBuffer = parent.getBufferToResend device, expectedSequence
-        logWarn "resend buffer is $resendBuffer"
+//        logWarn "resend buffer is $resendBuffer"
         parent.clearExpectedAckFor device, expectedSequence
         sendPacket resendBuffer
     }
