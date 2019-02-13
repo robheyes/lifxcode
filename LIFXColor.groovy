@@ -119,51 +119,50 @@ def setState(value) {
 
 private void sendActions(Map<String, List> actions) {
     actions.commands.each {
-//        logDebug "sending lifxCommand $it"
         lifxCommand it.cmd, it.payload
     }
     actions.events.each {
         sendEvent it
     }
-//    logDebug "CommandsAndEvents = $actions"
 }
 
-private List<Map> colorList() {
-    parent.colorList()
-}
+//
+//private List<Map> colorList() {
+//    parent.colorList()
+//}
 
 private Long scaleUp100(Number value) {
     parent.scaleUp value, 100
 }
+//
+//private Long scaleUp360(Number value) {
+//    parent.scaleUp value, 360
+//}
+//
+//private Float scaleDown100(Number value) {
+//    parent.scaleDown value, 100
+//}
 
-private Long scaleUp360(Number value) {
-    parent.scaleUp value, 360
-}
-
-private Float scaleDown100(Number value) {
-    parent.scaleDown value, 100
-}
-
-private void sendColorMapEvent(Map hsbkMap) {
-    makeColorMapEvents(hsbkMap).each { sendEvent(it)}
-}
-
-List makeColorMapEvents(Map hsbkMap) {
-    [
-            [name: "hue", value: scaleDown100(hsbkMap.hue), displayed: getUseActivityLogDebug()],
-            [name: "saturation", value: scaleDown100(hsbkMap.saturation), displayed: getUseActivityLogDebug()],
-            [name: "level", value: scaleDown100(hsbkMap.level), displayed: getUseActivityLogDebug()],
-            [name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug()]
-    ]
-}
-
-private Map<String, Integer> getScaledColorMap(Map colorMap) {
-    [
-            hue       : scaleUp100(colorMap.hue) as Integer,
-            saturation: scaleUp100(colorMap.saturation) as Integer,
-            level     : scaleUp100(colorMap.level) as Integer,
-    ]
-}
+//private void sendColorMapEvent(Map hsbkMap) {
+//    makeColorMapEvents(hsbkMap).each { sendEvent(it)}
+//}
+//
+//List makeColorMapEvents(Map hsbkMap) {
+//    [
+//            [name: "hue", value: scaleDown100(hsbkMap.hue), displayed: getUseActivityLogDebug()],
+//            [name: "saturation", value: scaleDown100(hsbkMap.saturation), displayed: getUseActivityLogDebug()],
+//            [name: "level", value: scaleDown100(hsbkMap.level), displayed: getUseActivityLogDebug()],
+//            [name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug()]
+//    ]
+//}
+//
+//private Map<String, Integer> getScaledColorMap(Map colorMap) {
+//    [
+//            hue       : scaleUp100(colorMap.hue) as Integer,
+//            saturation: scaleUp100(colorMap.saturation) as Integer,
+//            level     : scaleUp100(colorMap.level) as Integer,
+//    ]
+//}
 
 private void lifxQuery(String deviceAndType) {
     sendCommand deviceAndType, [:], true

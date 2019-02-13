@@ -300,8 +300,7 @@ Map<String, List> deviceSetState(device, myStateMap, Boolean displayed, duration
 private Map lookupColor(String color) {
     Map myColor
     if (color == "random") {
-        def clSize = colorList().size()
-        myColor = getRandom(clSize)
+        myColor = pickRandomColor()
         log.info "Setting random color: ${myColor.name}"
     } else if (color?.startsWith('#')) {
         // convert rgb to hsv
@@ -311,6 +310,12 @@ private Map lookupColor(String color) {
         myColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
     }
     myColor
+}
+
+private static Map pickRandomColor(){
+    def colors = colorList()
+    def tempRandom = Math.abs(new Random().nextInt() % colors.size())
+    colors[tempRandom]
 }
 
 Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
@@ -747,7 +752,7 @@ Map deviceVersion(Map device) {
     }
 }
 
-List<Map> colorList() {
+private static List<Map> colorList() {
     def colorMap =
             [
                     [name: 'Alice Blue', rgb: '#F0F8FF', hue: 208, sat: 100, lvl: 97],
