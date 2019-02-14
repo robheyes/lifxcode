@@ -60,7 +60,6 @@ private static String styles() {
     $/<style>
     ul {
         list-style-type: none;
-        
     }
     
     ul.device-group {
@@ -69,7 +68,7 @@ private static String styles() {
     }
     
     ul.device {
-        background: #d9ecb1;
+        background: #D9ECB1;
     }
     
     li.device-group {
@@ -223,25 +222,22 @@ void removeChildren() {
 }
 
 // Common device commands
-Map<String, List> deviceOnOff(String value, Boolean displayed)
-{
+Map<String, List> deviceOnOff(String value, Boolean displayed) {
     def actions = makeActions()
     actions.commands << makeCommand('DEVICE.SET_POWER', [level: value == 'on' ? 65535 : 0])
     actions.events << [name: "switch", value: value, displayed: displayed, data: [syncing: "false"]]
     actions
 }
 
-Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, duration = 0)
-{
+Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, duration = 0) {
     Map hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
-    hsbkMap.duration = 1000 * duration
+    hsbkMap.duration = 1000 * (colorMap.duration ?: duration)
 
     deviceSetHSBKAndPower(duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration = 0)
-{
+Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration = 0) {
     Map hsbkMap = getCurrentHSBK device
     hsbkMap.hue = scaleUp100 hue
     hsbkMap.duration = 1000 * duration
@@ -249,8 +245,7 @@ Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration =
     deviceSetHSBKAndPower(duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetSaturation(device, Number saturation, Boolean displayed, duration = 0)
-{
+Map<String, List> deviceSetSaturation(device, Number saturation, Boolean displayed, duration = 0) {
     Map hsbkMap = getCurrentHSBK device
     hsbkMap.saturation = scaleUp100 saturation
     hsbkMap.duration = 1000 * duration
@@ -258,8 +253,7 @@ Map<String, List> deviceSetSaturation(device, Number saturation, Boolean display
     deviceSetHSBKAndPower(duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0)
-{
+Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0) {
     Map hsbkMap = getCurrentHSBK device
     hsbkMap.saturation = 0
     hsbkMap.kelvin = temperature
@@ -268,33 +262,54 @@ Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean 
     deviceSetHSBKAndPower(duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetState(device, myStateMap, Boolean displayed, duration = 0)
-{
-//    def myStateMap = stringToMap(value)
-//    logDebug "map is $myStateMap"
-    def power = myStateMap.power
-    String color = myStateMap.color
-    def brightness = myStateMap.level
-    if (brightness) {
-        brightness = scaleUp100(brightness.toInteger())
+Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, duration = 0) {
+    if ((level <= 0 || null == level) && 0 == duration) {
+        return deviceOnOff('off', displayed)
     }
-    duration = (myStateMap.duration ?: duration) * 1000
-    Map myColor = lookupColor(color)
-    def realColor
-    if (myColor) {
-        realColor = [
-                hue       : scaleUp(myColor.hue, 360),
-                saturation: scaleUp100(myColor.sat),
-                level     : scaleUp100(myColor.lvl),
-                kelvin    : device.currentColorTemperature,
-                duration  : duration
-        ]
-//        logDebug "setting color to $realColor"
+    if (level > 100) {
+        level = 100
+    }
+    Map hsbkMap = getCurrentHSBK(device)
+//    logDebug("BK Map: $hsbkMap")
+    if (hsbkMap.saturation == 0) {
+        hsbkMap.level = scaleUp100 level
+        hsbkMap.hue = 0
+        hsbkMap.saturation = 0
+        hsbkMap.duration = duration * 1000
     } else {
-        // I think this should use the code from setLevel with brightness as the level value
+        hsbkMap = [
+                hue       : scaleUp100(device.currentHue),
+                saturation: scaleUp100(device.currentSaturation),
+                level     : scaleUp100(level),
+                kelvin    : device.currentColorTemperature,
+                duration  : duration * 1000,
+        ]
     }
 
-    deviceSetHSBKAndPower(duration, realColor, displayed, power)
+    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+}
+
+Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, duration = 0) {
+    def power = myStateMap.power
+    String color = myStateMap.color
+    duration = (myStateMap.duration ?: duration)
+    Map myColor = lookupColor(color)
+    if (myColor) {
+        def realColor = [
+                hue       : scaleUp(myColor.hue, 360),
+                saturation: scaleUp100(myColor.sat),
+                level     : scaleUp100(myStateMap.level ?: myColor.lvl),
+                kelvin    : device.currentColorTemperature,
+                duration  : duration * 1000
+        ]
+        deviceSetHSBKAndPower(duration, realColor, displayed, power)
+    } else if (myStateMap.level) {
+        deviceSetLevel(device, myStateMap.level, displayed, duration)
+        // I think this should use the code from setLevel with brightness as the level value
+    } else {
+        [:] // do nothing
+    }
+
 }
 
 private Map lookupColor(String color) {
@@ -312,7 +327,7 @@ private Map lookupColor(String color) {
     myColor
 }
 
-private static Map pickRandomColor(){
+private static Map pickRandomColor() {
     def colors = colorList()
     def tempRandom = Math.abs(new Random().nextInt() % colors.size())
     colors[tempRandom]
@@ -322,16 +337,16 @@ Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, b
     def actions = makeActions()
 
     if (null != power) {
-        logDebug "power change required $power"
+//        logDebug "power change required $power"
         def powerLevel = 'on' == power ? 65535 : 0
         actions.commands << makeCommand('LIGHT.SET_POWER', [level: powerLevel, duration: duration])
         actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
     }
 
     if (hsbkMap) {
-        logDebug "color change required"
+//        logDebug "color change required"
         actions.commands << makeCommand('LIGHT.SET_COLOR', hsbkMap)
-        actions.events + makeColorMapEvents(hsbkMap, displayed)
+        actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
     actions
@@ -354,8 +369,7 @@ private Map<String, Integer> getScaledColorMap(Map colorMap) {
     ]
 }
 
-private static Map makeCommand(String command, Map payload)
-{
+private static Map makeCommand(String command, Map payload) {
     [cmd: command, payload: payload]
 }
 
@@ -380,13 +394,70 @@ Map<String, Number> getCurrentBK(theDevice) {
     ]
 }
 
-Float scaleDown100(value)
-{
+
+List<Map> parseForDevice(device, String description, Boolean displayed) {
+    Map header = parseHeaderFromDescription description
+    switch (header.type) {
+        case messageTypes().DEVICE.STATE_VERSION.type:
+            log.warn("STATE_VERSION type ignored")
+            return []
+        case messageTypes().DEVICE.STATE_LABEL.type:
+            def data = parsePayload 'DEVICE.STATE_LABEL', header
+            String label = data.label
+            device.setLabel(label.trim())
+            return []
+        case messageTypes().DEVICE.STATE_GROUP.type:
+            def data = parsePayload 'DEVICE.STATE_GROUP', header
+            String group = data.label
+            return [[name: 'Group', value: group]]
+        case messageTypes().DEVICE.STATE_LOCATION.type:
+            def data = parsePayload 'DEVICE.STATE_LOCATION', header
+            String location = data.label
+            return [[name: 'Location', value: location]]
+        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+            def data = parsePayload 'DEVICE.STATE_WIFI_INFO', header
+            break
+        case messageTypes().DEVICE.STATE_INFO.type:
+            def data = parsePayload 'DEVICE.STATE_INFO', header
+            break
+        case messageTypes().LIGHT.STATE.type:
+            def data = parsePayload 'LIGHT.STATE', header
+            device.setLabel data.label.trim()
+            return [
+                    [name: "hue", value: scaleDown(data.hue, 100), displayed: displayed],
+                    [name: "saturation", value: scaleDown(data.saturation, 100), displayed: displayed],
+                    [name: "level", value: scaleDown(data.level, 100), displayed: displayed],
+                    [name: "colorTemperature", value: data.kelvin as Integer, displayed: displayed],
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
+            ]
+        case messageTypes().DEVICE.STATE_POWER.type:
+            Map data = parsePayload 'DEVICE.STATE_POWER', header
+            return [
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
+                    [name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
+            ]
+        case messageTypes().LIGHT.STATE_POWER.type:
+            Map data = parsePayload 'LIGHT.STATE_POWER', header
+            logDebug "Data returned is $data"
+            return [
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
+                    [name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
+            ]
+        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
+            Byte sequence = header.sequence
+            clearExpectedAckFor device, sequence
+            return []
+        default:
+            logDebug "Unhandled response for ${header.type}"
+            return []
+    }
+}
+
+Float scaleDown100(value) {
     scaleDown(value, 100)
 }
 
-Long scaleUp100(value)
-{
+Long scaleUp100(value) {
     scaleUp(value, 100)
 }
 
