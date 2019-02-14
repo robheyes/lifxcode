@@ -69,44 +69,15 @@ private void sendCommand(String ipAddress, int messageType, List payload = [], b
 }
 
 def parse(String description) {
-    Map deviceParams = parent.parseDeviceParameters description
-    String ip = parent.convertIpLong(deviceParams.ip as String)
-    Map parsed = parent.parseHeader deviceParams
-    final String mac = deviceParams.mac
-    switch (parsed.type) {
-        case messageTypes().DEVICE.STATE_VERSION.type:
-            def existing = parent.getDeviceDefinition mac
-            if (!existing) {
-                parent.createDeviceDefinition parsed, ip, mac
-                sendCommand ip, messageTypes().DEVICE.GET_GROUP.type as int
-            }
-            break
-        case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parent.parsePayload 'DEVICE.STATE_LABEL', parsed
-            parent.updateDeviceDefinition mac, [label: data.label]
-            break
-        case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parent.parsePayload 'DEVICE.STATE_GROUP', parsed
-            parent.updateDeviceDefinition mac, [group: data.label]
-            sendCommand ip, messageTypes().DEVICE.GET_LOCATION.type as int
-            break
-        case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parent.parsePayload 'DEVICE.STATE_LOCATION', parsed
-            parent.updateDeviceDefinition mac, [location: data.label]
-            sendCommand ip, messageTypes().DEVICE.GET_LABEL.type as int
-            break
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            break
-        case messageTypes().DEVICE.STATE_INFO.type:
-            break
-    }
+    Map command = parent.discoveryParse(description)
+    command != null ? sendCommand(command.ip as String, command.type as int): null
 }
 
 Map<String, Map<String, Map>> messageTypes() {
     parent.messageTypes()
 }
 
-def sendPacket(String ipAddress, String bytes, boolean wantLog = false) {
+private void sendPacket(String ipAddress, String bytes, boolean wantLog = false) {
     if (wantLog) {
         logDebug "sending bytes: ${stringBytes} to ${ipAddress}"
     }

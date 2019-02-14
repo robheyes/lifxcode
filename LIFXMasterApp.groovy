@@ -38,6 +38,7 @@ def mainPage() {
         section('Discovery') {
             paragraph(styles())
             input 'discoverBtn', 'button', title: 'Discover devices'
+            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
             paragraph(
                     null == atomicState.scanPass ?
@@ -99,7 +100,8 @@ private String discoveryTextKnownDevices() {
 }
 
 private String describeDevices() {
-    def grouped = getKnownIps().groupBy { it.value.group }
+    def sorted = getKnownIps().sort { a, b -> (a.value.label as String).compareToIgnoreCase(b.value.label as String)}
+    def grouped = sorted.groupBy { it.value.group }
 //    logDebug("Devices in groups = $grouped")
 
 
@@ -312,89 +314,6 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
 
 }
 
-private Map lookupColor(String color) {
-    Map myColor
-    if (color == "random") {
-        myColor = pickRandomColor()
-        log.info "Setting random color: ${myColor.name}"
-    } else if (color?.startsWith('#')) {
-        // convert rgb to hsv
-        Map rgb = hexToColor color
-        myColor = rgbToHSV rgb.r, rgb.g, rgb.b, 'high'
-    } else {
-        myColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
-    }
-    myColor
-}
-
-private static Map pickRandomColor() {
-    def colors = colorList()
-    def tempRandom = Math.abs(new Random().nextInt() % colors.size())
-    colors[tempRandom]
-}
-
-Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
-    def actions = makeActions()
-
-    if (null != power) {
-//        logDebug "power change required $power"
-        def powerLevel = 'on' == power ? 65535 : 0
-        actions.commands << makeCommand('LIGHT.SET_POWER', [level: powerLevel, duration: duration])
-        actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
-    }
-
-    if (hsbkMap) {
-//        logDebug "color change required"
-        actions.commands << makeCommand('LIGHT.SET_COLOR', hsbkMap)
-        actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
-    }
-
-    actions
-}
-
-List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
-    [
-            [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed],
-            [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed],
-            [name: 'level', value: scaleDown100(hsbkMap.level), displayed: displayed],
-            [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
-    ]
-}
-
-private Map<String, Integer> getScaledColorMap(Map colorMap) {
-    [
-            hue       : scaleUp100(colorMap.hue) as Integer,
-            saturation: scaleUp100(colorMap.saturation) as Integer,
-            level     : scaleUp100(colorMap.level) as Integer,
-    ]
-}
-
-private static Map makeCommand(String command, Map payload) {
-    [cmd: command, payload: payload]
-}
-
-private static Map<String, List> makeActions() {
-    [commands: [], events: []]
-}
-
-
-Map<String, Number> getCurrentHSBK(theDevice) {
-    [
-            hue       : scaleUp(theDevice.currentHue, 100),
-            saturation: scaleUp(theDevice.currentSaturation, 100),
-            level     : scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin    : theDevice.currentValue('colorTemperature')
-    ]
-}
-
-Map<String, Number> getCurrentBK(theDevice) {
-    [
-            level : scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin: theDevice.currentValue('colorTemperature')
-    ]
-}
-
-
 List<Map> parseForDevice(device, String description, Boolean displayed) {
     Map header = parseHeaderFromDescription description
     switch (header.type) {
@@ -423,13 +342,20 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
         case messageTypes().LIGHT.STATE.type:
             def data = parsePayload 'LIGHT.STATE', header
             device.setLabel data.label.trim()
-            return [
-                    [name: "hue", value: scaleDown(data.hue, 100), displayed: displayed],
-                    [name: "saturation", value: scaleDown(data.saturation, 100), displayed: displayed],
+            List<Map> result = [
                     [name: "level", value: scaleDown(data.level, 100), displayed: displayed],
-                    [name: "colorTemperature", value: data.kelvin as Integer, displayed: displayed],
-                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]]
             ]
+            if (device.hasCapability('Color Control')) {
+                result.add([name: "hue", value: scaleDown(data.hue, 100), displayed: displayed])
+                result.add([name: "saturation", value: scaleDown(data.saturation, 100), displayed: displayed])
+            }
+            if (device.hasCapability('Color Temperature')) {
+                result.add([name: "colorTemperature", value: data.kelvin as Integer, displayed: displayed])
+            }
+
+
+            return result
         case messageTypes().DEVICE.STATE_POWER.type:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
             return [
@@ -453,27 +379,110 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
     }
 }
 
-Float scaleDown100(value) {
+private Map lookupColor(String color) {
+    Map myColor
+    if (color == "random") {
+        myColor = pickRandomColor()
+        log.info "Setting random color: ${myColor.name}"
+    } else if (color?.startsWith('#')) {
+        // convert rgb to hsv
+        Map rgb = hexToColor color
+        myColor = rgbToHSV rgb.r, rgb.g, rgb.b, 'high'
+    } else {
+        myColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
+    }
+    myColor
+}
+
+private static Map pickRandomColor() {
+    def colors = colorList()
+    def tempRandom = Math.abs(new Random().nextInt() % colors.size())
+    colors[tempRandom]
+}
+
+private Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
+    def actions = makeActions()
+
+    if (null != power) {
+//        logDebug "power change required $power"
+        def powerLevel = 'on' == power ? 65535 : 0
+        actions.commands << makeCommand('LIGHT.SET_POWER', [level: powerLevel, duration: duration])
+        actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
+    }
+
+    if (hsbkMap) {
+//        logDebug "color change required"
+        actions.commands << makeCommand('LIGHT.SET_COLOR', hsbkMap)
+        actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
+    }
+
+    actions
+}
+
+private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
+    [
+            [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed],
+            [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed],
+            [name: 'level', value: scaleDown100(hsbkMap.level), displayed: displayed],
+            [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
+    ]
+}
+
+private Map<String, Integer> getScaledColorMap(Map colorMap) {
+    [
+            hue       : scaleUp100(colorMap.hue) as Integer,
+            saturation: scaleUp100(colorMap.saturation) as Integer,
+            level     : scaleUp100(colorMap.level) as Integer,
+    ]
+}
+
+private static Map makeCommand(String command, Map payload) {
+    [cmd: command, payload: payload]
+}
+
+
+private static Map<String, List> makeActions() {
+    [commands: [], events: []]
+}
+
+//Map<String, Number> getCurrentBK(theDevice) {
+//    [
+//            level : scaleUp(theDevice.currentValue('level') as Long, 100),
+//            kelvin: theDevice.currentValue('colorTemperature')
+//    ]
+//}
+
+
+private Map<String, Number> getCurrentHSBK(theDevice) {
+    [
+            hue       : scaleUp(theDevice.currentHue, 100),
+            saturation: scaleUp(theDevice.currentSaturation, 100),
+            level     : scaleUp(theDevice.currentValue('level') as Long, 100),
+            kelvin    : theDevice.currentValue('colorTemperature')
+    ]
+}
+
+private Float scaleDown100(value) {
     scaleDown(value, 100)
 }
 
-Long scaleUp100(value) {
+private Long scaleUp100(value) {
     scaleUp(value, 100)
 }
 
-Float scaleDown(value, maxValue) {
+private Float scaleDown(value, maxValue) {
     (value * maxValue) / 65535
 }
 
-Long scaleUp(value, maxValue) {
+private Long scaleUp(value, maxValue) {
     (value * 65535) / maxValue
 }
 
-Map lookupDeviceAndType(String device, String type) {
+private Map lookupDeviceAndType(String device, String type) {
     messageTypes()[device][type]
 }
 
-String lookupDescriptorForDeviceAndType(String device, String type) {
+private String lookupDescriptorForDeviceAndType(String device, String type) {
     lookupDeviceAndType(device, type).descriptor
 }
 
@@ -499,6 +508,43 @@ Map getDeviceDefinition(String mac) {
     devices[mac]
 }
 
+Map discoveryParse(String description) {
+    Map deviceParams = parseDeviceParameters description
+    String ip = convertIpLong(deviceParams.ip as String)
+    Map parsed = parseHeader deviceParams
+    final String mac = deviceParams.mac
+    switch (parsed.type) {
+        case messageTypes().DEVICE.STATE_VERSION.type:
+            def existing = getDeviceDefinition mac
+            if (!existing) {
+                createDeviceDefinition parsed, ip, mac
+                return [ip: ip, type: messageTypes().DEVICE.GET_GROUP.type as int]
+//                sendCommand ip, messageTypes().DEVICE.GET_GROUP.type as int
+            }
+            break
+        case messageTypes().DEVICE.STATE_LABEL.type:
+            def data = parsePayload 'DEVICE.STATE_LABEL', parsed
+            updateDeviceDefinition mac, [label: data.label]
+            break
+        case messageTypes().DEVICE.STATE_GROUP.type:
+            def data = parsePayload 'DEVICE.STATE_GROUP', parsed
+            updateDeviceDefinition mac, [group: data.label]
+//            sendCommand ip, messageTypes().DEVICE.GET_LOCATION.type as int
+            return [ip: ip, type: messageTypes().DEVICE.GET_LOCATION.type as int]
+            break
+        case messageTypes().DEVICE.STATE_LOCATION.type:
+            def data = parsePayload 'DEVICE.STATE_LOCATION', parsed
+            updateDeviceDefinition mac, [location: data.label]
+            return [ip: ip, type: messageTypes().DEVICE.GET_LABEL.type as int]
+//            sendCommand ip, messageTypes().DEVICE.GET_LABEL.type as int
+            break
+        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+            break
+        case messageTypes().DEVICE.STATE_INFO.type:
+            break
+    }
+}
+
 private void clearDeviceDefinitions() {
     atomicState.devices = [:]
 }
@@ -513,16 +559,22 @@ private void saveDeviceDefinitions(Map devices) {
 
 void updateDeviceDefinition(String mac, Map properties) {
     Map device = getDeviceDefinition mac
-    if (device) {
-        properties.each { key, val -> (device[key] = val) }
-//        logDebug("Device being updated is $device")
-        if (!isDeviceComplete(device)) {
-            saveDeviceDefinition device
-            return
-        }
-
-        makeRealDevice(device)
+    if (!device) {
+        return
     }
+    properties.each { key, val -> (device[key] = val) }
+//        logDebug("Device being updated is $device")
+    if (!isDeviceComplete(device)) {
+        saveDeviceDefinition device
+        return
+    }
+
+    makeRealDevice(device)
+}
+
+List knownDeviceLabels() {
+    def knownDevices = getKnownIps()
+    knownDevices.values().each { it.label }.asList()
 }
 
 private void makeRealDevice(Map device) {
@@ -549,18 +601,18 @@ private void addToKnownIps(Map device) {
     atomicState.knownIps = knownIps
 }
 
-private Map<String, Map> getKnownIps() {
-    atomicState.knownIps ?: [:]
-}
-
 Boolean isKnownIp(String ip) {
     def knownIps = getKnownIps()
     null != knownIps[ip]
 }
 
-List knownDeviceLabels() {
-    def knownDevices = getKnownIps()
-    knownDevices.values().each { it.label }.asList()
+private void clearKnownIps()
+{
+    atomicState.knownIps = [:]
+}
+
+private Map<String, Map> getKnownIps() {
+    atomicState.knownIps ?: [:]
 }
 
 private static Boolean isDeviceComplete(Map device) {
@@ -630,10 +682,24 @@ String convertIpLong(String ip) {
     sprintf '%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip)
 }
 
+private String applySubscript(String descriptor, Number subscript) {
+    descriptor.replace('!', subscript.toString())
+}
+
+private String makeHSBKDescriptorList(int start, int end) {
+    final def subscriptedColor = 'hue_!:2l;saturation_!;level_!:2l;kelvin_!:2l'
+    def temp = []
+    start.upto(end) {
+        temp << applySubscript(subscriptedColor, it)
+    }
+    temp.join(';')
+}
+
 Map<String, Map<String, Map>> messageTypes() {
     final def color = 'hue:2l,saturation:2l,level:2l,kelvin:2l'
+
     final def types = [
-            DEVICE: [
+            DEVICE   : [
                     GET_SERVICE        : [type: 2, descriptor: ''],
                     STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
                     GET_HOST_INFO      : [type: 12, descriptor: ''],
@@ -664,7 +730,7 @@ Map<String, Map<String, Map>> messageTypes() {
                     ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
                     ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
             ],
-            LIGHT : [
+            LIGHT    : [
                     GET_STATE            : [type: 101, descriptor: ''],
                     SET_COLOR            : [type: 102, descriptor: "reservedColor:1;${color};duration:4l"],
                     SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;${color};period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
@@ -676,6 +742,12 @@ Map<String, Map<String, Map>> messageTypes() {
                     GET_INFRARED         : [type: 120, descriptor: ''],
                     STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
                     SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
+            ],
+            MULTIZONE: [
+                    SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:1;endIndex:1;${color};duration:4l;apply:1"],
+                    GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:1;endIndex:1'],
+                    STATE_ZONE     : [type: 503, descriptor: "count:1;index:1;${color}"],
+                    STATE_MULTIZONE: [type: 506, descriptor: "count:1;index:1;${makeHSBKDescriptorList(0, 7)}"]
             ]
     ]
     return types
@@ -756,13 +828,13 @@ Map deviceVersion(Map device) {
         case 31:
             return [
                     name      : 'LIFX Z',
-                    deviceName: 'LIFX Z',
+                    deviceName: 'LIFX Multizone',
                     features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 32:
             return [
                     name      : 'LIFX Z 2',
-                    deviceName: 'LIFX Z',
+                    deviceName: 'LIFX Multizone',
                     features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 36:
@@ -776,8 +848,8 @@ Map deviceVersion(Map device) {
         case 56:
             return [
                     name      : 'LIFX Beam',
-                    deviceName: 'LIFX Beam',
-                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: true]
+                    deviceName: 'LIFX Multizone',
+                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 49:
             return [
@@ -790,7 +862,7 @@ Map deviceVersion(Map device) {
             return [
                     name      : 'LIFX Mini Day and Dusk',
                     deviceName: 'LIFX Day and Dusk',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: true]
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: false]
             ]
         case 51:
         case 61:
@@ -816,7 +888,7 @@ Map deviceVersion(Map device) {
             return [
                     name      : 'LIFX Mini Color',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
