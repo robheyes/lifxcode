@@ -29,6 +29,7 @@ metadata {
         attribute "IrLevel", 'number'
 
         // need a command to set the ir level
+        command 'setInfraredLevel', ['number', 'number']
     }
 
     preferences {
@@ -59,92 +60,46 @@ def poll() {
     lifxQuery 'LIGHT.GET_STATE'
 }
 
+
 def on() {
-    lifxCommand 'DEVICE.SET_POWER', [level: 65535]
-    sendEvent name: "switch", value: "on", displayed: getUseActivityLog(), data: [syncing: "false"]
+    sendActions parent.deviceOnOff('on', getUseActivityLog())
 }
 
 def off() {
-    lifxCommand 'DEVICE.SET_POWER', [level: 0]
-    sendEvent name: "switch", value: "off", displayed: getUseActivityLog(), data: [syncing: "false"]
+    sendActions parent.deviceOnOff('off', getUseActivityLog())
 }
 
-
 def setColor(Map colorMap) {
-    Map hsbkMap = parent.getCurrentHSBK device
-    hsbkMap << getScaledColorMap(colorMap)
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent hsbkMap
+    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.colorTransitionTime ?: 0)
 }
 
 def setHue(hue) {
-    Map hsbkMap = parent.getCurrentHSBK device
-    hsbkMap.hue = parent.scaleUp(hue, 100)
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'hue', value: hue, displayed: getUseActivityLog()
+    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.colorTransitionTime ?: 0)
 }
 
 def setSaturation(saturation) {
-    Map hsbkMap = parent.getCurrentHSBK device
-    hsbkMap.saturation = parent.scaleUp(saturation, 100)
-    hsbkMap.duration = 1000 * (state.colorTransitionTime ?: 0)
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'saturation', value: saturation, displayed: getUseActivityLog()
-}
-
-def setLevel(level, duration = 0) {
-    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
-    if (level > 100) {
-        level = 100
-    } else if ((level <= 0 || level == null) && duration == 0) {
-        return off()
-    }
-    Map hsbkMap = parent.getCurrentHSBK(device)
-//    logDebug("BK Map: $hsbkMap")
-    if (hsbkMap.saturation == 0) {
-        hsbkMap.level = parent.scaleUp(level as Long, 100)
-        hsbkMap.hue = 0
-        hsbkMap.saturation = 0
-        hsbkMap.duration = duration * 1000
-    } else {
-        hsbkMap = [
-                level     : parent.scaleUp(level as Long, 100),
-                duration  : duration * 1000,
-                hue       : parent.scaleUp(device.currentHue as Float, 100),
-                saturation: parent.scaleUp(device.currentSaturation as Float, 100),
-                kelvin    : device.currentColorTemperature
-        ]
-    }
-//    logDebug "Map to be sent: $hsbkMap"
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'level', value: level, displayed: getUseActivityLog()
+    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.colorTransitionTime ?: 0)
 }
 
 def setColorTemperature(temperature) {
-    Map hsbkMap = parent.getCurrentHSBK(device)
-    hsbkMap.kelvin = temperature
-    hsbkMap.saturation = 0
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendColorMapEvent hsbkMap
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
+}
+
+def setLevel(level, duration = 0) {
+    sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
+}
+
+def setState(value) {
+    sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.colorTransitionTime ?: 0)
+}
+
+def setInfraredLevel(level, duration=0) {
 
 }
 
-private void sendColorMapEvent(Map hsbkMap) {
-    sendEvent name: "hue", value: parent.scaleDown(hsbkMap.hue, 100), displayed: getUseActivityLogDebug()
-    sendEvent name: "saturation", value: parent.scaleDown(hsbkMap.saturation, 100), displayed: getUseActivityLogDebug()
-    sendEvent name: "level", value: parent.scaleDown(hsbkMap.level, 100), displayed: getUseActivityLogDebug()
-    sendEvent name: "colorTemperature", value: hsbkMap.kelvin as Integer, displayed: getUseActivityLogDebug()
-    sendEvent name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]
-}
-
-private Map<String, Integer> getScaledColorMap(Map colorMap) {
-    [
-            hue       : parent.scaleUp(colorMap.hue, 100) as Integer,
-            saturation: parent.scaleUp(colorMap.saturation, 100) as Integer,
-            level     : parent.scaleUp(colorMap.level, 100) as Integer,
-    ]
+private void sendActions(Map<String, List> actions) {
+    actions.commands?.each { lifxCommand it.cmd, it.payload }
+    actions.events?.each { sendEvent it }
 }
 
 private void lifxQuery(String deviceAndType) {
@@ -161,7 +116,6 @@ private void sendCommand(String deviceAndType, Map payload = [:], boolean respon
     def buffer = []
     byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired
     if (ackRequired) {
-//        logDebug "Sending packet with sequence $sequence"
         parent.expectAckFor device, sequence, buffer
     }
     sendPacket buffer
@@ -171,7 +125,6 @@ private void resendUnacknowledgedCommand() {
     def expectedSequence = parent.ackWasExpected device
     if (expectedSequence) {
         def resendBuffer = parent.getBufferToResend device, expectedSequence
-        logWarn("resend buffer is $resendBuffer")
         parent.clearExpectedAckFor device, expectedSequence
         sendPacket resendBuffer
     }
@@ -181,60 +134,12 @@ def requestInfo() {
     lifxQuery('LIGHT.GET_STATE')
 }
 
+
 def parse(String description) {
-    Map header = parent.parseHeaderFromDescription description
-    switch (header.type) {
-        case messageTypes().DEVICE.STATE_VERSION.type:
-            log.warn("STATE_VERSION type ignored")
-            break
-        case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parent.parsePayload 'DEVICE.STATE_LABEL', header
-            String label = data.label
-            device.setLabel label.trim()
-            break
-        case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parent.parsePayload 'DEVICE.STATE_GROUP', header
-            String group = data.label
-            return createEvent(name: 'Group', value: group)
-        case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parent.parsePayload 'DEVICE.STATE_LOCATION', header
-            String location = data.label
-            return createEvent(name: 'Location', value: location)
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            def data = parent.parsePayload 'DEVICE.STATE_WIFI_INFO', header
-            break
-        case messageTypes().DEVICE.STATE_INFO.type:
-            def data = parent.parsePayload 'DEVICE.STATE_INFO', header
-            break
-        case messageTypes().LIGHT.STATE.type:
-            def data = parent.parsePayload 'LIGHT.STATE', header
-            device.setLabel data.label.trim()
-            return [
-                    createEvent(name: "hue", value: parent.scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "saturation", value: parent.scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "level", value: parent.scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "colorTemperature", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
-                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-            ]
-        case messageTypes().DEVICE.STATE_POWER.type:
-            Map data = parent.parsePayload 'DEVICE.STATE_POWER', header
-            return [
-                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
-            ]
-        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
-            Byte sequence = header.sequence
-            parent.clearExpectedAckFor device, sequence
-            break
-        default:
-            logDebug "Unhandled response for ${header.type}"
-    }
+    List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
+    events.collect { createEvent(it) }
 }
 
-
-private Map<String, Map<String, Map>> messageTypes() {
-    parent.messageTypes()
-}
 
 private def myIp() {
     device.getDeviceNetworkId()

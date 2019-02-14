@@ -59,44 +59,52 @@ def poll() {
 }
 
 def on() {
-    lifxCommand 'DEVICE.SET_POWER', [level: 65535]
-    sendEvent name: "switch", value: "on", displayed: getUseActivityLog(), data: [syncing: "false"]
+    sendActions parent.deviceOnOff('on', getUseActivityLog())
 }
 
 def off() {
-    lifxCommand 'DEVICE.SET_POWER', [level: 0]
-    sendEvent name: "switch", value: "off", displayed: getUseActivityLog(), data: [syncing: "false"]
+    sendActions parent.deviceOnOff('off', getUseActivityLog())
 }
+
 
 def setLevel(level, duration = 0) {
-    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
-    if (level > 100) {
-        level = 100
-    } else if ((level <= 0 || level == null) && duration == 0) {
-        return off()
-    }
-//    Map hsbkMap = parent.getCurrentBK(device)
-//    logDebug("BK Map: $hsbkMap")
-    hsbkMap = [
-            level     : parent.scaleUp(level as Long, 100),
-            duration  : duration * 1000,
-            hue       : 0,
-            saturation: 0,
-            kelvin    : device.currentColorTemperature
-    ]
-    logDebug "Map to be sent: $hsbkMap"
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'level', value: level, displayed: getUseActivityLog()
+    sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
 }
+
+// DND YET
+
+//def setLevel(level, duration = 0) {
+//    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
+//    if (level > 100) {
+//        level = 100
+//    } else if ((level <= 0 || level == null) && duration == 0) {
+//        return off()
+//    }
+////    Map hsbkMap = parent.getCurrentBK(device)
+////    logDebug("BK Map: $hsbkMap")
+//    hsbkMap = [
+//            level     : parent.scaleUp(level as Long, 100),
+//            duration  : duration * 1000,
+//            hue       : 0,
+//            saturation: 0,
+//            kelvin    : device.currentColorTemperature
+//    ]
+//    logDebug "Map to be sent: $hsbkMap"
+//    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
+//    sendEvent name: 'level', value: level, displayed: getUseActivityLog()
+//}
+
+//def setColorTemperature(temperature) {
+//    Map hsbkMap = parent.getCurrentBK device
+//    hsbkMap.kelvin = temperature
+////    hsbkMap.saturation = 0
+//    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
+//    sendEvent name: 'colorTemperature', value: temperature
+//}
 
 def setColorTemperature(temperature) {
-    Map hsbkMap = parent.getCurrentBK device
-    hsbkMap.kelvin = temperature
-//    hsbkMap.saturation = 0
-    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-    sendEvent name: 'colorTemperature', value: temperature
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
 }
-
 
 private void lifxQuery(String deviceAndType) {
     sendCommand deviceAndType, [:], true
@@ -104,6 +112,11 @@ private void lifxQuery(String deviceAndType) {
 
 private void lifxCommand(String deviceAndType, Map payload) {
     sendCommand deviceAndType, payload, false, true
+}
+
+private void sendActions(Map<String, List> actions) {
+    actions.commands?.each { lifxCommand it.cmd, it.payload }
+    actions.events?.each { sendEvent it }
 }
 
 private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false) {
@@ -133,64 +146,69 @@ def requestInfo() {
 }
 
 def parse(String description) {
-    Map header = parent.parseHeaderFromDescription(description)
-    switch (header.type) {
-        case messageTypes().DEVICE.STATE_VERSION.type:
-            log.warn "STATE_VERSION type ignored"
-            break
-        case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parent.parsePayload 'DEVICE.STATE_LABEL', header
-            String label = data.label
-            device.setLabel label.trim()
-            break
-        case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parent.parsePayload 'DEVICE.STATE_GROUP', header
-            String group = data.label
-            return createEvent(name: 'Group', value: group)
-        case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parent.parsePayload 'DEVICE.STATE_LOCATION', header
-            String location = data.label
-            return createEvent(name: 'Location', value: location)
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            def data = parent.parsePayload 'DEVICE.STATE_WIFI_INFO', header
-            break
-        case messageTypes().DEVICE.STATE_INFO.type:
-            def data = parent.parsePayload 'DEVICE.STATE_INFO', header
-            break
-        case messageTypes().LIGHT.STATE.type:
-            def data = parent.parsePayload 'LIGHT.STATE', header
-            device.setLabel data.label.trim()
-            return [
-                    createEvent(name: "level", value: parent.scaleDown((data.level as Long) & 0xFFFFFFFF, 100), displayed: getUseActivityLogDebug()),
-                    createEvent(name: "colorTemperature", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
-                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-            ]
-        case messageTypes().DEVICE.STATE_POWER.type:
-            Map data = parent.parsePayload 'DEVICE.STATE_POWER', header
-            return [
-                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
-            ]
-        case messageTypes().LIGHT.STATE_POWER.type:
-            Map data = parent.parsePayload 'LIGHT.STATE_POWER', header
-            logDebug "Data returned is $data"
-            return [
-                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
-            ]
-        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
-            Byte sequence = header.sequence
-            parent.clearExpectedAckFor device, sequence
-            break
-        default:
-            logDebug "Unhandled response for ${header.type}"
-    }
+    List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
+    events.collect { createEvent(it) }
 }
 
-
-private Map<String, Map<String, Map>> messageTypes() {
-    parent.messageTypes()
-}
+//def parse(String description) {
+//    Map header = parent.parseHeaderFromDescription(description)
+//    switch (header.type) {
+//        case messageTypes().DEVICE.STATE_VERSION.type:
+//            log.warn "STATE_VERSION type ignored"
+//            break
+//        case messageTypes().DEVICE.STATE_LABEL.type:
+//            def data = parent.parsePayload 'DEVICE.STATE_LABEL', header
+//            String label = data.label
+//            device.setLabel label.trim()
+//            break
+//        case messageTypes().DEVICE.STATE_GROUP.type:
+//            def data = parent.parsePayload 'DEVICE.STATE_GROUP', header
+//            String group = data.label
+//            return createEvent(name: 'Group', value: group)
+//        case messageTypes().DEVICE.STATE_LOCATION.type:
+//            def data = parent.parsePayload 'DEVICE.STATE_LOCATION', header
+//            String location = data.label
+//            return createEvent(name: 'Location', value: location)
+//        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+//            def data = parent.parsePayload 'DEVICE.STATE_WIFI_INFO', header
+//            break
+//        case messageTypes().DEVICE.STATE_INFO.type:
+//            def data = parent.parsePayload 'DEVICE.STATE_INFO', header
+//            break
+//        case messageTypes().LIGHT.STATE.type:
+//            def data = parent.parsePayload 'LIGHT.STATE', header
+//            device.setLabel data.label.trim()
+//            return [
+//                    createEvent(name: "level", value: parent.scaleDown((data.level as Long) & 0xFFFFFFFF, 100), displayed: getUseActivityLogDebug()),
+//                    createEvent(name: "colorTemperature", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
+//                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
+//            ]
+//        case messageTypes().DEVICE.STATE_POWER.type:
+//            Map data = parent.parsePayload 'DEVICE.STATE_POWER', header
+//            return [
+//                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
+//                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
+//            ]
+//        case messageTypes().LIGHT.STATE_POWER.type:
+//            Map data = parent.parsePayload 'LIGHT.STATE_POWER', header
+//            logDebug "Data returned is $data"
+//            return [
+//                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
+//                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
+//            ]
+//        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
+//            Byte sequence = header.sequence
+//            parent.clearExpectedAckFor device, sequence
+//            break
+//        default:
+//            logDebug "Unhandled response for ${header.type}"
+//    }
+//}
+//
+//
+//private Map<String, Map<String, Map>> messageTypes() {
+//    parent.messageTypes()
+//}
 
 private def myIp() {
     device.getDeviceNetworkId()

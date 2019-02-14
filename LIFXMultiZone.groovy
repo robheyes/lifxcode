@@ -1,43 +1,31 @@
 /**
  *
- *  Copyright 2019 Robert Heyes. All Rights Reserved
+ * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
  *
- *  This software is free for Private Use. You may use and modify the software without distributing it.
- *  If you make a fork, and add new code, then you should create a pull request to add value, there is no
- *  guarantee that your pull request will be merged.
- *
- *  You may not grant a sublicense to modify and distribute this software to third parties without permission
- *  from the copyright holder
+ *  This software if free for Private Use. You may use and modify the software without distributing it.
+ *  You may not grant a sublicense to modify and distribute this software to third parties.
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
-
-metadata {
-    definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
-        capability "Bulb"
-        capability "Color Temperature"
-        capability "HealthCheck"
-        capability "Polling"
-        capability "Switch"
-        capability "Switch Level"
-        capability "Initialize"
-        capability "Color Control"
-        // capability "LightEffect"
-
-        attribute "Label", "string"
-        attribute "Group", "string"
-        attribute "Location", "string"
-        attribute "colorName", "string"
-        attribute "lightStatus", "string"
-
-        command "setState", ["MAP"]
-    }
-
-    preferences {
-        input "logEnable", "bool", title: "Enable debug logging", required: false
-        input "defaultTransition", "decimal", title: "Color map level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
-    }
+definition(name: 'LIFX Multizone', namespace: 'robheyes', author: 'Robert Alan Heyes') {
+	capability 'Light'
+//	capability "LightEffect"
+    capability 'ColorControl'
+    capability 'ColorTemperature'
+    capability 'HealthCheck'
+    capability 'Polling'
+    capability 'Initialize'
+    capability 'Switch'
+    attribute 'Label', 'string'
+    attribute 'Group', 'string'
+    attribute 'Location', 'string'
 }
+
+
+preferences {
+    input 'logEnable', 'bool', title: 'Enable debug logging', required: false
+}
+
 
 def installed() {
     initialize()
@@ -48,7 +36,6 @@ def updated() {
 }
 
 def initialize() {
-    state.colorTransitionTime = defaultTransition
     requestInfo()
     runEvery1Minute poll
 }
@@ -61,6 +48,7 @@ def poll() {
     lifxQuery 'LIGHT.GET_STATE'
 }
 
+
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog())
 }
@@ -70,28 +58,21 @@ def off() {
 }
 
 def setColor(Map colorMap) {
-    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.colorTransitionTime ?: 0)
+
 }
 
-def setHue(hue) {
-    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.colorTransitionTime ?: 0)
+def setHue(number) {
+
 }
 
-def setSaturation(saturation) {
-    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.colorTransitionTime ?: 0)
+def setSaturation(number) {
+
 }
 
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
+
 }
 
-def setLevel(level, duration = 0) {
-    sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
-}
-
-def setState(value) {
-    sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.colorTransitionTime ?: 0)
-}
 
 private void sendActions(Map<String, List> actions) {
     actions.commands?.each { lifxCommand it.cmd, it.payload }
@@ -187,3 +168,4 @@ void logInfo(msg) {
 void logWarn(String msg) {
     log.warn msg
 }
+

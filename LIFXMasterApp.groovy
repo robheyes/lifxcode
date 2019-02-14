@@ -38,6 +38,7 @@ def mainPage() {
         section('Discovery') {
             paragraph(styles())
             input 'discoverBtn', 'button', title: 'Discover devices'
+            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
             paragraph(
                     null == atomicState.scanPass ?
@@ -60,7 +61,6 @@ private static String styles() {
     $/<style>
     ul {
         list-style-type: none;
-        
     }
     
     ul.device-group {
@@ -69,7 +69,7 @@ private static String styles() {
     }
     
     ul.device {
-        background: #d9ecb1;
+        background: #D9ECB1;
     }
     
     li.device-group {
@@ -100,7 +100,8 @@ private String discoveryTextKnownDevices() {
 }
 
 private String describeDevices() {
-    def grouped = getKnownIps().groupBy { it.value.group }
+    def sorted = getKnownIps().sort { a, b -> (a.value.label as String).compareToIgnoreCase(b.value.label as String)}
+    def grouped = sorted.groupBy { it.value.group }
 //    logDebug("Devices in groups = $grouped")
 
 
@@ -222,7 +223,237 @@ void removeChildren() {
     updateKnownDevices()
 }
 
-Map<String, Number> getCurrentHSBK(theDevice) {
+// Common device commands
+Map<String, List> deviceOnOff(String value, Boolean displayed) {
+    def actions = makeActions()
+    actions.commands << makeCommand('DEVICE.SET_POWER', [level: value == 'on' ? 65535 : 0])
+    actions.events << [name: "switch", value: value, displayed: displayed, data: [syncing: "false"]]
+    actions
+}
+
+Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, duration = 0) {
+    Map hsbkMap = getCurrentHSBK device
+    hsbkMap << getScaledColorMap(colorMap)
+    hsbkMap.duration = 1000 * (colorMap.duration ?: duration)
+
+    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+}
+
+Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration = 0) {
+    Map hsbkMap = getCurrentHSBK device
+    hsbkMap.hue = scaleUp100 hue
+    hsbkMap.duration = 1000 * duration
+
+    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+}
+
+Map<String, List> deviceSetSaturation(device, Number saturation, Boolean displayed, duration = 0) {
+    Map hsbkMap = getCurrentHSBK device
+    hsbkMap.saturation = scaleUp100 saturation
+    hsbkMap.duration = 1000 * duration
+
+    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+}
+
+Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0) {
+    Map hsbkMap = getCurrentHSBK device
+    hsbkMap.saturation = 0
+    hsbkMap.kelvin = temperature
+    hsbkMap.duration = 1000 * duration
+
+    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+}
+
+Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, duration = 0) {
+    if ((level <= 0 || null == level) && 0 == duration) {
+        return deviceOnOff('off', displayed)
+    }
+    if (level > 100) {
+        level = 100
+    }
+    Map hsbkMap = getCurrentHSBK(device)
+//    logDebug("BK Map: $hsbkMap")
+    if (hsbkMap.saturation == 0) {
+        hsbkMap.level = scaleUp100 level
+        hsbkMap.hue = 0
+        hsbkMap.saturation = 0
+        hsbkMap.duration = duration * 1000
+    } else {
+        hsbkMap = [
+                hue       : scaleUp100(device.currentHue),
+                saturation: scaleUp100(device.currentSaturation),
+                level     : scaleUp100(level),
+                kelvin    : device.currentColorTemperature,
+                duration  : duration * 1000,
+        ]
+    }
+
+    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+}
+
+Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, duration = 0) {
+    def power = myStateMap.power
+    String color = myStateMap.color
+    duration = (myStateMap.duration ?: duration)
+    Map myColor = lookupColor(color)
+    if (myColor) {
+        def realColor = [
+                hue       : scaleUp(myColor.hue, 360),
+                saturation: scaleUp100(myColor.sat),
+                level     : scaleUp100(myStateMap.level ?: myColor.lvl),
+                kelvin    : device.currentColorTemperature,
+                duration  : duration * 1000
+        ]
+        deviceSetHSBKAndPower(duration, realColor, displayed, power)
+    } else if (myStateMap.level) {
+        deviceSetLevel(device, myStateMap.level, displayed, duration)
+        // I think this should use the code from setLevel with brightness as the level value
+    } else {
+        [:] // do nothing
+    }
+
+}
+
+List<Map> parseForDevice(device, String description, Boolean displayed) {
+    Map header = parseHeaderFromDescription description
+    switch (header.type) {
+        case messageTypes().DEVICE.STATE_VERSION.type:
+            log.warn("STATE_VERSION type ignored")
+            return []
+        case messageTypes().DEVICE.STATE_LABEL.type:
+            def data = parsePayload 'DEVICE.STATE_LABEL', header
+            String label = data.label
+            device.setLabel(label.trim())
+            return []
+        case messageTypes().DEVICE.STATE_GROUP.type:
+            def data = parsePayload 'DEVICE.STATE_GROUP', header
+            String group = data.label
+            return [[name: 'Group', value: group]]
+        case messageTypes().DEVICE.STATE_LOCATION.type:
+            def data = parsePayload 'DEVICE.STATE_LOCATION', header
+            String location = data.label
+            return [[name: 'Location', value: location]]
+        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+            def data = parsePayload 'DEVICE.STATE_WIFI_INFO', header
+            break
+        case messageTypes().DEVICE.STATE_INFO.type:
+            def data = parsePayload 'DEVICE.STATE_INFO', header
+            break
+        case messageTypes().LIGHT.STATE.type:
+            def data = parsePayload 'LIGHT.STATE', header
+            device.setLabel data.label.trim()
+            List<Map> result = [
+                    [name: "level", value: scaleDown(data.level, 100), displayed: displayed],
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]]
+            ]
+            if (device.hasCapability('Color Control')) {
+                result.add([name: "hue", value: scaleDown(data.hue, 100), displayed: displayed])
+                result.add([name: "saturation", value: scaleDown(data.saturation, 100), displayed: displayed])
+            }
+            if (device.hasCapability('Color Temperature')) {
+                result.add([name: "colorTemperature", value: data.kelvin as Integer, displayed: displayed])
+            }
+
+
+            return result
+        case messageTypes().DEVICE.STATE_POWER.type:
+            Map data = parsePayload 'DEVICE.STATE_POWER', header
+            return [
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
+                    [name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
+            ]
+        case messageTypes().LIGHT.STATE_POWER.type:
+            Map data = parsePayload 'LIGHT.STATE_POWER', header
+            logDebug "Data returned is $data"
+            return [
+                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
+                    [name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
+            ]
+        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
+            Byte sequence = header.sequence
+            clearExpectedAckFor device, sequence
+            return []
+        default:
+            logDebug "Unhandled response for ${header.type}"
+            return []
+    }
+}
+
+private Map lookupColor(String color) {
+    Map myColor
+    if (color == "random") {
+        myColor = pickRandomColor()
+        log.info "Setting random color: ${myColor.name}"
+    } else if (color?.startsWith('#')) {
+        // convert rgb to hsv
+        Map rgb = hexToColor color
+        myColor = rgbToHSV rgb.r, rgb.g, rgb.b, 'high'
+    } else {
+        myColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
+    }
+    myColor
+}
+
+private static Map pickRandomColor() {
+    def colors = colorList()
+    def tempRandom = Math.abs(new Random().nextInt() % colors.size())
+    colors[tempRandom]
+}
+
+private Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
+    def actions = makeActions()
+
+    if (null != power) {
+//        logDebug "power change required $power"
+        def powerLevel = 'on' == power ? 65535 : 0
+        actions.commands << makeCommand('LIGHT.SET_POWER', [level: powerLevel, duration: duration])
+        actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
+    }
+
+    if (hsbkMap) {
+//        logDebug "color change required"
+        actions.commands << makeCommand('LIGHT.SET_COLOR', hsbkMap)
+        actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
+    }
+
+    actions
+}
+
+private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
+    [
+            [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed],
+            [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed],
+            [name: 'level', value: scaleDown100(hsbkMap.level), displayed: displayed],
+            [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
+    ]
+}
+
+private Map<String, Integer> getScaledColorMap(Map colorMap) {
+    [
+            hue       : scaleUp100(colorMap.hue) as Integer,
+            saturation: scaleUp100(colorMap.saturation) as Integer,
+            level     : scaleUp100(colorMap.level) as Integer,
+    ]
+}
+
+private static Map makeCommand(String command, Map payload) {
+    [cmd: command, payload: payload]
+}
+
+
+private static Map<String, List> makeActions() {
+    [commands: [], events: []]
+}
+
+//Map<String, Number> getCurrentBK(theDevice) {
+//    [
+//            level : scaleUp(theDevice.currentValue('level') as Long, 100),
+//            kelvin: theDevice.currentValue('colorTemperature')
+//    ]
+//}
+
+
+private Map<String, Number> getCurrentHSBK(theDevice) {
     [
             hue       : scaleUp(theDevice.currentHue, 100),
             saturation: scaleUp(theDevice.currentSaturation, 100),
@@ -231,26 +462,27 @@ Map<String, Number> getCurrentHSBK(theDevice) {
     ]
 }
 
-Map<String, Number> getCurrentBK(theDevice) {
-    [
-            level : scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin: theDevice.currentValue('colorTemperature')
-    ]
+private Float scaleDown100(value) {
+    scaleDown(value, 100)
 }
 
-Float scaleDown(value, maxValue) {
+private Long scaleUp100(value) {
+    scaleUp(value, 100)
+}
+
+private Float scaleDown(value, maxValue) {
     (value * maxValue) / 65535
 }
 
-Long scaleUp(value, maxValue) {
+private Long scaleUp(value, maxValue) {
     (value * 65535) / maxValue
 }
 
-Map lookupDeviceAndType(String device, String type) {
+private Map lookupDeviceAndType(String device, String type) {
     messageTypes()[device][type]
 }
 
-String lookupDescriptorForDeviceAndType(String device, String type) {
+private String lookupDescriptorForDeviceAndType(String device, String type) {
     lookupDeviceAndType(device, type).descriptor
 }
 
@@ -276,6 +508,43 @@ Map getDeviceDefinition(String mac) {
     devices[mac]
 }
 
+Map discoveryParse(String description) {
+    Map deviceParams = parseDeviceParameters description
+    String ip = convertIpLong(deviceParams.ip as String)
+    Map parsed = parseHeader deviceParams
+    final String mac = deviceParams.mac
+    switch (parsed.type) {
+        case messageTypes().DEVICE.STATE_VERSION.type:
+            def existing = getDeviceDefinition mac
+            if (!existing) {
+                createDeviceDefinition parsed, ip, mac
+                return [ip: ip, type: messageTypes().DEVICE.GET_GROUP.type as int]
+//                sendCommand ip, messageTypes().DEVICE.GET_GROUP.type as int
+            }
+            break
+        case messageTypes().DEVICE.STATE_LABEL.type:
+            def data = parsePayload 'DEVICE.STATE_LABEL', parsed
+            updateDeviceDefinition mac, [label: data.label]
+            break
+        case messageTypes().DEVICE.STATE_GROUP.type:
+            def data = parsePayload 'DEVICE.STATE_GROUP', parsed
+            updateDeviceDefinition mac, [group: data.label]
+//            sendCommand ip, messageTypes().DEVICE.GET_LOCATION.type as int
+            return [ip: ip, type: messageTypes().DEVICE.GET_LOCATION.type as int]
+            break
+        case messageTypes().DEVICE.STATE_LOCATION.type:
+            def data = parsePayload 'DEVICE.STATE_LOCATION', parsed
+            updateDeviceDefinition mac, [location: data.label]
+            return [ip: ip, type: messageTypes().DEVICE.GET_LABEL.type as int]
+//            sendCommand ip, messageTypes().DEVICE.GET_LABEL.type as int
+            break
+        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+            break
+        case messageTypes().DEVICE.STATE_INFO.type:
+            break
+    }
+}
+
 private void clearDeviceDefinitions() {
     atomicState.devices = [:]
 }
@@ -290,16 +559,22 @@ private void saveDeviceDefinitions(Map devices) {
 
 void updateDeviceDefinition(String mac, Map properties) {
     Map device = getDeviceDefinition mac
-    if (device) {
-        properties.each { key, val -> (device[key] = val) }
-//        logDebug("Device being updated is $device")
-        if (!isDeviceComplete(device)) {
-            saveDeviceDefinition device
-            return
-        }
-
-        makeRealDevice(device)
+    if (!device) {
+        return
     }
+    properties.each { key, val -> (device[key] = val) }
+//        logDebug("Device being updated is $device")
+    if (!isDeviceComplete(device)) {
+        saveDeviceDefinition device
+        return
+    }
+
+    makeRealDevice(device)
+}
+
+List knownDeviceLabels() {
+    def knownDevices = getKnownIps()
+    knownDevices.values().each { it.label }.asList()
 }
 
 private void makeRealDevice(Map device) {
@@ -326,18 +601,18 @@ private void addToKnownIps(Map device) {
     atomicState.knownIps = knownIps
 }
 
-private Map<String, Map> getKnownIps() {
-    atomicState.knownIps ?: [:]
-}
-
 Boolean isKnownIp(String ip) {
     def knownIps = getKnownIps()
     null != knownIps[ip]
 }
 
-List knownDeviceLabels() {
-    def knownDevices = getKnownIps()
-    knownDevices.values().each { it.label }.asList()
+private void clearKnownIps()
+{
+    atomicState.knownIps = [:]
+}
+
+private Map<String, Map> getKnownIps() {
+    atomicState.knownIps ?: [:]
 }
 
 private static Boolean isDeviceComplete(Map device) {
@@ -407,10 +682,24 @@ String convertIpLong(String ip) {
     sprintf '%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip)
 }
 
+private String applySubscript(String descriptor, Number subscript) {
+    descriptor.replace('!', subscript.toString())
+}
+
+private String makeHSBKDescriptorList(int start, int end) {
+    final def subscriptedColor = 'hue_!:2l;saturation_!;level_!:2l;kelvin_!:2l'
+    def temp = []
+    start.upto(end) {
+        temp << applySubscript(subscriptedColor, it)
+    }
+    temp.join(';')
+}
+
 Map<String, Map<String, Map>> messageTypes() {
     final def color = 'hue:2l,saturation:2l,level:2l,kelvin:2l'
+
     final def types = [
-            DEVICE: [
+            DEVICE   : [
                     GET_SERVICE        : [type: 2, descriptor: ''],
                     STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
                     GET_HOST_INFO      : [type: 12, descriptor: ''],
@@ -441,7 +730,7 @@ Map<String, Map<String, Map>> messageTypes() {
                     ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
                     ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
             ],
-            LIGHT : [
+            LIGHT    : [
                     GET_STATE            : [type: 101, descriptor: ''],
                     SET_COLOR            : [type: 102, descriptor: "reservedColor:1;${color};duration:4l"],
                     SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;${color};period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
@@ -453,6 +742,12 @@ Map<String, Map<String, Map>> messageTypes() {
                     GET_INFRARED         : [type: 120, descriptor: ''],
                     STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
                     SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
+            ],
+            MULTIZONE: [
+                    SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:1;endIndex:1;${color};duration:4l;apply:1"],
+                    GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:1;endIndex:1'],
+                    STATE_ZONE     : [type: 503, descriptor: "count:1;index:1;${color}"],
+                    STATE_MULTIZONE: [type: 506, descriptor: "count:1;index:1;${makeHSBKDescriptorList(0, 7)}"]
             ]
     ]
     return types
@@ -533,13 +828,13 @@ Map deviceVersion(Map device) {
         case 31:
             return [
                     name      : 'LIFX Z',
-                    deviceName: 'LIFX Z',
+                    deviceName: 'LIFX Multizone',
                     features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 32:
             return [
                     name      : 'LIFX Z 2',
-                    deviceName: 'LIFX Z',
+                    deviceName: 'LIFX Multizone',
                     features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 36:
@@ -553,8 +848,8 @@ Map deviceVersion(Map device) {
         case 56:
             return [
                     name      : 'LIFX Beam',
-                    deviceName: 'LIFX Beam',
-                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: true]
+                    deviceName: 'LIFX Multizone',
+                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         case 49:
             return [
@@ -567,7 +862,7 @@ Map deviceVersion(Map device) {
             return [
                     name      : 'LIFX Mini Day and Dusk',
                     deviceName: 'LIFX Day and Dusk',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: true]
+                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: false]
             ]
         case 51:
         case 61:
@@ -593,13 +888,219 @@ Map deviceVersion(Map device) {
             return [
                     name      : 'LIFX Mini Color',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
+                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
             ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
     }
 }
 
+private static List<Map> colorList() {
+    def colorMap =
+            [
+                    [name: 'Alice Blue', rgb: '#F0F8FF', hue: 208, sat: 100, lvl: 97],
+                    [name: 'Antique White', rgb: '#FAEBD7', hue: 34, sat: 78, lvl: 91],
+                    [name: 'Aqua', rgb: '#00FFFF', hue: 180, sat: 100, lvl: 50],
+                    [name: 'Aquamarine', rgb: '#7FFFD4', hue: 160, sat: 100, lvl: 75],
+                    [name: 'Azure', rgb: '#F0FFFF', hue: 180, sat: 100, lvl: 97],
+                    [name: 'Beige', rgb: '#F5F5DC', hue: 60, sat: 56, lvl: 91],
+                    [name: 'Bisque', rgb: '#FFE4C4', hue: 33, sat: 100, lvl: 88],
+                    [name: 'Blanched Almond', rgb: '#FFEBCD', hue: 36, sat: 100, lvl: 90],
+                    [name: 'Blue', rgb: '#0000FF', hue: 240, sat: 100, lvl: 50],
+                    [name: 'Blue Violet', rgb: '#8A2BE2', hue: 271, sat: 76, lvl: 53],
+                    [name: 'Brown', rgb: '#A52A2A', hue: 0, sat: 59, lvl: 41],
+                    [name: 'Burly Wood', rgb: '#DEB887', hue: 34, sat: 57, lvl: 70],
+                    [name: 'Cadet Blue', rgb: '#5F9EA0', hue: 182, sat: 25, lvl: 50],
+                    [name: 'Chartreuse', rgb: '#7FFF00', hue: 90, sat: 100, lvl: 50],
+                    [name: 'Chocolate', rgb: '#D2691E', hue: 25, sat: 75, lvl: 47],
+                    [name: 'Cool White', rgb: '#F3F6F7', hue: 187, sat: 19, lvl: 96],
+                    [name: 'Coral', rgb: '#FF7F50', hue: 16, sat: 100, lvl: 66],
+                    [name: 'Corn Flower Blue', rgb: '#6495ED', hue: 219, sat: 79, lvl: 66],
+                    [name: 'Corn Silk', rgb: '#FFF8DC', hue: 48, sat: 100, lvl: 93],
+                    [name: 'Crimson', rgb: '#DC143C', hue: 348, sat: 83, lvl: 58],
+                    [name: 'Cyan', rgb: '#00FFFF', hue: 180, sat: 100, lvl: 50],
+                    [name: 'Dark Blue', rgb: '#00008B', hue: 240, sat: 100, lvl: 27],
+                    [name: 'Dark Cyan', rgb: '#008B8B', hue: 180, sat: 100, lvl: 27],
+                    [name: 'Dark Golden Rod', rgb: '#B8860B', hue: 43, sat: 89, lvl: 38],
+                    [name: 'Dark Gray', rgb: '#A9A9A9', hue: 0, sat: 0, lvl: 66],
+                    [name: 'Dark Green', rgb: '#006400', hue: 120, sat: 100, lvl: 20],
+                    [name: 'Dark Khaki', rgb: '#BDB76B', hue: 56, sat: 38, lvl: 58],
+                    [name: 'Dark Magenta', rgb: '#8B008B', hue: 300, sat: 100, lvl: 27],
+                    [name: 'Dark Olive Green', rgb: '#556B2F', hue: 82, sat: 39, lvl: 30],
+                    [name: 'Dark Orange', rgb: '#FF8C00', hue: 33, sat: 100, lvl: 50],
+                    [name: 'Dark Orchid', rgb: '#9932CC', hue: 280, sat: 61, lvl: 50],
+                    [name: 'Dark Red', rgb: '#8B0000', hue: 0, sat: 100, lvl: 27],
+                    [name: 'Dark Salmon', rgb: '#E9967A', hue: 15, sat: 72, lvl: 70],
+                    [name: 'Dark Sea Green', rgb: '#8FBC8F', hue: 120, sat: 25, lvl: 65],
+                    [name: 'Dark Slate Blue', rgb: '#483D8B', hue: 248, sat: 39, lvl: 39],
+                    [name: 'Dark Slate Gray', rgb: '#2F4F4F', hue: 180, sat: 25, lvl: 25],
+                    [name: 'Dark Turquoise', rgb: '#00CED1', hue: 181, sat: 100, lvl: 41],
+                    [name: 'Dark Violet', rgb: '#9400D3', hue: 282, sat: 100, lvl: 41],
+                    [name: 'Daylight White', rgb: '#CEF4FD', hue: 191, sat: 9, lvl: 90],
+                    [name: 'Deep Pink', rgb: '#FF1493', hue: 328, sat: 100, lvl: 54],
+                    [name: 'Deep Sky Blue', rgb: '#00BFFF', hue: 195, sat: 100, lvl: 50],
+                    [name: 'Dim Gray', rgb: '#696969', hue: 0, sat: 0, lvl: 41],
+                    [name: 'Dodger Blue', rgb: '#1E90FF', hue: 210, sat: 100, lvl: 56],
+                    [name: 'Fire Brick', rgb: '#B22222', hue: 0, sat: 68, lvl: 42],
+                    [name: 'Floral White', rgb: '#FFFAF0', hue: 40, sat: 100, lvl: 97],
+                    [name: 'Forest Green', rgb: '#228B22', hue: 120, sat: 61, lvl: 34],
+                    [name: 'Fuchsia', rgb: '#FF00FF', hue: 300, sat: 100, lvl: 50],
+                    [name: 'Gainsboro', rgb: '#DCDCDC', hue: 0, sat: 0, lvl: 86],
+                    [name: 'Ghost White', rgb: '#F8F8FF', hue: 240, sat: 100, lvl: 99],
+                    [name: 'Gold', rgb: '#FFD700', hue: 51, sat: 100, lvl: 50],
+                    [name: 'Golden Rod', rgb: '#DAA520', hue: 43, sat: 74, lvl: 49],
+                    [name: 'Gray', rgb: '#808080', hue: 0, sat: 0, lvl: 50],
+                    [name: 'Green', rgb: '#008000', hue: 120, sat: 100, lvl: 25],
+                    [name: 'Green Yellow', rgb: '#ADFF2F', hue: 84, sat: 100, lvl: 59],
+                    [name: 'Honeydew', rgb: '#F0FFF0', hue: 120, sat: 100, lvl: 97],
+                    [name: 'Hot Pink', rgb: '#FF69B4', hue: 330, sat: 100, lvl: 71],
+                    [name: 'Indian Red', rgb: '#CD5C5C', hue: 0, sat: 53, lvl: 58],
+                    [name: 'Indigo', rgb: '#4B0082', hue: 275, sat: 100, lvl: 25],
+                    [name: 'Ivory', rgb: '#FFFFF0', hue: 60, sat: 100, lvl: 97],
+                    [name: 'Khaki', rgb: '#F0E68C', hue: 54, sat: 77, lvl: 75],
+                    [name: 'Lavender', rgb: '#E6E6FA', hue: 240, sat: 67, lvl: 94],
+                    [name: 'Lavender Blush', rgb: '#FFF0F5', hue: 340, sat: 100, lvl: 97],
+                    [name: 'Lawn Green', rgb: '#7CFC00', hue: 90, sat: 100, lvl: 49],
+                    [name: 'Lemon Chiffon', rgb: '#FFFACD', hue: 54, sat: 100, lvl: 90],
+                    [name: 'Light Blue', rgb: '#ADD8E6', hue: 195, sat: 53, lvl: 79],
+                    [name: 'Light Coral', rgb: '#F08080', hue: 0, sat: 79, lvl: 72],
+                    [name: 'Light Cyan', rgb: '#E0FFFF', hue: 180, sat: 100, lvl: 94],
+                    [name: 'Light Golden Rod Yellow', rgb: '#FAFAD2', hue: 60, sat: 80, lvl: 90],
+                    [name: 'Light Gray', rgb: '#D3D3D3', hue: 0, sat: 0, lvl: 83],
+                    [name: 'Light Green', rgb: '#90EE90', hue: 120, sat: 73, lvl: 75],
+                    [name: 'Light Pink', rgb: '#FFB6C1', hue: 351, sat: 100, lvl: 86],
+                    [name: 'Light Salmon', rgb: '#FFA07A', hue: 17, sat: 100, lvl: 74],
+                    [name: 'Light Sea Green', rgb: '#20B2AA', hue: 177, sat: 70, lvl: 41],
+                    [name: 'Light Sky Blue', rgb: '#87CEFA', hue: 203, sat: 92, lvl: 75],
+                    [name: 'Light Slate Gray', rgb: '#778899', hue: 210, sat: 14, lvl: 53],
+                    [name: 'Light Steel Blue', rgb: '#B0C4DE', hue: 214, sat: 41, lvl: 78],
+                    [name: 'Light Yellow', rgb: '#FFFFE0', hue: 60, sat: 100, lvl: 94],
+                    [name: 'Lime', rgb: '#00FF00', hue: 120, sat: 100, lvl: 50],
+                    [name: 'Lime Green', rgb: '#32CD32', hue: 120, sat: 61, lvl: 50],
+                    [name: 'Linen', rgb: '#FAF0E6', hue: 30, sat: 67, lvl: 94],
+                    [name: 'Maroon', rgb: '#800000', hue: 0, sat: 100, lvl: 25],
+                    [name: 'Medium Aquamarine', rgb: '#66CDAA', hue: 160, sat: 51, lvl: 60],
+                    [name: 'Medium Blue', rgb: '#0000CD', hue: 240, sat: 100, lvl: 40],
+                    [name: 'Medium Orchid', rgb: '#BA55D3', hue: 288, sat: 59, lvl: 58],
+                    [name: 'Medium Purple', rgb: '#9370DB', hue: 260, sat: 60, lvl: 65],
+                    [name: 'Medium Sea Green', rgb: '#3CB371', hue: 147, sat: 50, lvl: 47],
+                    [name: 'Medium Slate Blue', rgb: '#7B68EE', hue: 249, sat: 80, lvl: 67],
+                    [name: 'Medium Spring Green', rgb: '#00FA9A', hue: 157, sat: 100, lvl: 49],
+                    [name: 'Medium Turquoise', rgb: '#48D1CC', hue: 178, sat: 60, lvl: 55],
+                    [name: 'Medium Violet Red', rgb: '#C71585', hue: 322, sat: 81, lvl: 43],
+                    [name: 'Midnight Blue', rgb: '#191970', hue: 240, sat: 64, lvl: 27],
+                    [name: 'Mint Cream', rgb: '#F5FFFA', hue: 150, sat: 100, lvl: 98],
+                    [name: 'Misty Rose', rgb: '#FFE4E1', hue: 6, sat: 100, lvl: 94],
+                    [name: 'Moccasin', rgb: '#FFE4B5', hue: 38, sat: 100, lvl: 85],
+                    [name: 'Navajo White', rgb: '#FFDEAD', hue: 36, sat: 100, lvl: 84],
+                    [name: 'Navy', rgb: '#000080', hue: 240, sat: 100, lvl: 25],
+                    [name: 'Old Lace', rgb: '#FDF5E6', hue: 39, sat: 85, lvl: 95],
+                    [name: 'Olive', rgb: '#808000', hue: 60, sat: 100, lvl: 25],
+                    [name: 'Olive Drab', rgb: '#6B8E23', hue: 80, sat: 60, lvl: 35],
+                    [name: 'Orange', rgb: '#FFA500', hue: 39, sat: 100, lvl: 50],
+                    [name: 'Orange Red', rgb: '#FF4500', hue: 16, sat: 100, lvl: 50],
+                    [name: 'Orchid', rgb: '#DA70D6', hue: 302, sat: 59, lvl: 65],
+                    [name: 'Pale Golden Rod', rgb: '#EEE8AA', hue: 55, sat: 67, lvl: 80],
+                    [name: 'Pale Green', rgb: '#98FB98', hue: 120, sat: 93, lvl: 79],
+                    [name: 'Pale Turquoise', rgb: '#AFEEEE', hue: 180, sat: 65, lvl: 81],
+                    [name: 'Pale Violet Red', rgb: '#DB7093', hue: 340, sat: 60, lvl: 65],
+                    [name: 'Papaya Whip', rgb: '#FFEFD5', hue: 37, sat: 100, lvl: 92],
+                    [name: 'Peach Puff', rgb: '#FFDAB9', hue: 28, sat: 100, lvl: 86],
+                    [name: 'Peru', rgb: '#CD853F', hue: 30, sat: 59, lvl: 53],
+                    [name: 'Pink', rgb: '#FFC0CB', hue: 350, sat: 100, lvl: 88],
+                    [name: 'Plum', rgb: '#DDA0DD', hue: 300, sat: 47, lvl: 75],
+                    [name: 'Powder Blue', rgb: '#B0E0E6', hue: 187, sat: 52, lvl: 80],
+                    [name: 'Purple', rgb: '#800080', hue: 300, sat: 100, lvl: 25],
+                    [name: 'Red', rgb: '#FF0000', hue: 0, sat: 100, lvl: 50],
+                    [name: 'Rosy Brown', rgb: '#BC8F8F', hue: 0, sat: 25, lvl: 65],
+                    [name: 'Royal Blue', rgb: '#4169E1', hue: 225, sat: 73, lvl: 57],
+                    [name: 'Saddle Brown', rgb: '#8B4513', hue: 25, sat: 76, lvl: 31],
+                    [name: 'Salmon', rgb: '#FA8072', hue: 6, sat: 93, lvl: 71],
+                    [name: 'Sandy Brown', rgb: '#F4A460', hue: 28, sat: 87, lvl: 67],
+                    [name: 'Sea Green', rgb: '#2E8B57', hue: 146, sat: 50, lvl: 36],
+                    [name: 'Sea Shell', rgb: '#FFF5EE', hue: 25, sat: 100, lvl: 97],
+                    [name: 'Sienna', rgb: '#A0522D', hue: 19, sat: 56, lvl: 40],
+                    [name: 'Silver', rgb: '#C0C0C0', hue: 0, sat: 0, lvl: 75],
+                    [name: 'Sky Blue', rgb: '#87CEEB', hue: 197, sat: 71, lvl: 73],
+                    [name: 'Slate Blue', rgb: '#6A5ACD', hue: 248, sat: 53, lvl: 58],
+                    [name: 'Slate Gray', rgb: '#708090', hue: 210, sat: 13, lvl: 50],
+                    [name: 'Snow', rgb: '#FFFAFA', hue: 0, sat: 100, lvl: 99],
+                    [name: 'Soft White', rgb: '#B6DA7C', hue: 83, sat: 44, lvl: 67],
+                    [name: 'Spring Green', rgb: '#00FF7F', hue: 150, sat: 100, lvl: 50],
+                    [name: 'Steel Blue', rgb: '#4682B4', hue: 207, sat: 44, lvl: 49],
+                    [name: 'Tan', rgb: '#D2B48C', hue: 34, sat: 44, lvl: 69],
+                    [name: 'Teal', rgb: '#008080', hue: 180, sat: 100, lvl: 25],
+                    [name: 'Thistle', rgb: '#D8BFD8', hue: 300, sat: 24, lvl: 80],
+                    [name: 'Tomato', rgb: '#FF6347', hue: 9, sat: 100, lvl: 64],
+                    [name: 'Turquoise', rgb: '#40E0D0', hue: 174, sat: 72, lvl: 56],
+                    [name: 'Violet', rgb: '#EE82EE', hue: 300, sat: 76, lvl: 72],
+                    [name: 'Warm White', rgb: '#DAF17E', hue: 72, sat: 20, lvl: 72],
+                    [name: 'Wheat', rgb: '#F5DEB3', hue: 39, sat: 77, lvl: 83],
+                    [name: 'White', rgb: '#FFFFFF', hue: 0, sat: 0, lvl: 100],
+                    [name: 'White Smoke', rgb: '#F5F5F5', hue: 0, sat: 0, lvl: 96],
+                    [name: 'Yellow', rgb: '#FFFF00', hue: 60, sat: 100, lvl: 50],
+                    [name: 'Yellow Green', rgb: '#9ACD32', hue: 80, sat: 61, lvl: 50],
+            ]
+
+    return colorMap
+}
+
+def rgbToHSV(r = 255, g = 255, b = 255, resolution = "low") {
+    // Takes RGB (0-255) and returns HSV in 0-360, 0-100, 0-100
+    // resolution ("low", "high") will return a hue between 0-100, or 0-360, respectively.
+
+    r /= 255
+    g /= 255
+    b /= 255
+
+    float h
+    float s
+
+    float max = Math.max(Math.max(r, g), b)
+    float min = Math.min(Math.min(r, g), b)
+    float delta = (max - min)
+    float v = (max * 100.0)
+
+    max != 0.0 ? (s = delta / max * 100.0) : (s = 0)
+
+    if (s == 0.0) {
+        h = 0.0
+    } else {
+        if (r == max) {
+            h = ((g - b) / delta)
+        } else if (g == max) {
+            h = (2 + (b - r) / delta)
+        } else if (b == max) {
+            h = (4 + (r - g) / delta)
+        }
+    }
+
+    h *= 60.0
+    h < 0 ? (h += 360) : null
+
+    resolution == "low" ? h /= 3.6 : null
+    return [hue: h, sat: s, lvl: v]
+}
+
+Map hexToColor(String hex) {
+    hex = hex.replace("#", "");
+    switch (hex.length()) {
+        case 6:
+            return [
+                    r: Integer.valueOf(hex.substring(0, 2), 16),
+                    g: Integer.valueOf(hex.substring(2, 4), 16),
+                    b: Integer.valueOf(hex.substring(4, 6), 16)
+            ]
+        case 8:
+            return [
+                    r: Integer.valueOf(hex.substring(0, 2), 16),
+                    g: Integer.valueOf(hex.substring(2, 4), 16),
+                    b: Integer.valueOf(hex.substring(4, 6), 16),
+                    a: Integer.valueOf(hex.substring(6, 8), 16)
+            ]
+    }
+    return null;
+}
 
 Map parseDeviceParameters(String description) {
     def deviceParams = [:]
@@ -624,7 +1125,7 @@ Map parsePayload(String deviceAndType, Map header) {
 
 Map parseBytes(String descriptor, List<Long> bytes) {
 //    logDebug("Looking for descriptor for ${descriptor}")
-    parseBytes getDescriptor(descriptor) , bytes
+    parseBytes getDescriptor(descriptor), bytes
 }
 
 Map parseBytes(List<Map> descriptor, List<Long> bytes) {
