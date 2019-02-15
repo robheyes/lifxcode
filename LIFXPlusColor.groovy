@@ -22,7 +22,7 @@ metadata {
         capability "Switch Level"
         capability "Initialize"
         capability "Color Control"
-        // capability "LightEffect"
+
         attribute "Group", "string"
         attribute "Label", "string"
         attribute "Location", "string"
@@ -57,9 +57,9 @@ def refresh() {
 }
 
 def poll() {
+    lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
 }
-
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog())

@@ -30,9 +30,9 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
         section('Options') {
-            input 'interCommandPause', 'number', defaultValue: 70, title: 'Time between commands for first pass (milliseconds) - will increase by 10 ms for each pass'
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands for first pass (milliseconds) - will increase by 10 ms for each pass'
             input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 600
-            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 5
+            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         section('Discovery') {
@@ -100,7 +100,7 @@ private String discoveryTextKnownDevices() {
 }
 
 private String describeDevices() {
-    def sorted = getKnownIps().sort { a, b -> (a.value.label as String).compareToIgnoreCase(b.value.label as String)}
+    def sorted = getKnownIps().sort { a, b -> (a.value.label as String).compareToIgnoreCase(b.value.label as String) }
     def grouped = sorted.groupBy { it.value.group }
 //    logDebug("Devices in groups = $grouped")
 
@@ -304,6 +304,9 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
                 kelvin    : device.currentColorTemperature,
                 duration  : duration * 1000
         ]
+        if (myColor.name) {
+            realColor.name = myColor.name
+        }
         deviceSetHSBKAndPower(duration, realColor, displayed, power)
     } else if (myStateMap.level) {
         deviceSetLevel(device, myStateMap.level, displayed, duration)
@@ -342,10 +345,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
         case messageTypes().LIGHT.STATE.type:
             def data = parsePayload 'LIGHT.STATE', header
             device.setLabel data.label.trim()
-            List<Map> result = [
-                    [name: "level", value: scaleDown(data.level, 100), displayed: displayed],
-                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]]
-            ]
+            List<Map> result = [[name: "level", value: scaleDown(data.level, 100), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
                 result.add([name: "hue", value: scaleDown(data.hue, 100), displayed: displayed])
                 result.add([name: "saturation", value: scaleDown(data.saturation, 100), displayed: displayed])
@@ -353,15 +353,13 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             if (device.hasCapability('Color Temperature')) {
                 result.add([name: "colorTemperature", value: data.kelvin as Integer, displayed: displayed])
             }
-
-
+            if (device.hasCapability('Switch')) {
+                result.add([name: 'switch', value: (data.power == 65535) ? 'on' : 'off', displayed: displayed])
+            }
             return result
         case messageTypes().DEVICE.STATE_POWER.type:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
-            return [
-                    [name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
-                    [name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
-            ]
+            return [[name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],]
         case messageTypes().LIGHT.STATE_POWER.type:
             Map data = parsePayload 'LIGHT.STATE_POWER', header
             logDebug "Data returned is $data"
@@ -391,6 +389,7 @@ private Map lookupColor(String color) {
     } else {
         myColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
     }
+    myColor.name = color
     myColor
 }
 
@@ -419,16 +418,20 @@ private Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hs
     actions
 }
 
-private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
-    [
+private static List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
+    List<Map> colorMap = [
             [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed],
             [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed],
             [name: 'level', value: scaleDown100(hsbkMap.level), displayed: displayed],
             [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
     ]
+    if (hsbkMap.name) {
+        colorMap.add([name: 'colorName', value: hsbkMap.name, displayed: displayed])
+    }
+    colorMap
 }
 
-private Map<String, Integer> getScaledColorMap(Map colorMap) {
+private static Map<String, Integer> getScaledColorMap(Map colorMap) {
     [
             hue       : scaleUp100(colorMap.hue) as Integer,
             saturation: scaleUp100(colorMap.saturation) as Integer,
@@ -445,15 +448,7 @@ private static Map<String, List> makeActions() {
     [commands: [], events: []]
 }
 
-//Map<String, Number> getCurrentBK(theDevice) {
-//    [
-//            level : scaleUp(theDevice.currentValue('level') as Long, 100),
-//            kelvin: theDevice.currentValue('colorTemperature')
-//    ]
-//}
-
-
-private Map<String, Number> getCurrentHSBK(theDevice) {
+private static Map<String, Number> getCurrentHSBK(theDevice) {
     [
             hue       : scaleUp(theDevice.currentHue, 100),
             saturation: scaleUp(theDevice.currentSaturation, 100),
@@ -462,19 +457,19 @@ private Map<String, Number> getCurrentHSBK(theDevice) {
     ]
 }
 
-private Float scaleDown100(value) {
+private static Float scaleDown100(value) {
     scaleDown(value, 100)
 }
 
-private Long scaleUp100(value) {
+private static Long scaleUp100(value) {
     scaleUp(value, 100)
 }
 
-private Float scaleDown(value, maxValue) {
+private static Float scaleDown(value, maxValue) {
     (value * maxValue) / 65535
 }
 
-private Long scaleUp(value, maxValue) {
+private static Long scaleUp(value, maxValue) {
     (value * 65535) / maxValue
 }
 
@@ -519,7 +514,6 @@ Map discoveryParse(String description) {
             if (!existing) {
                 createDeviceDefinition parsed, ip, mac
                 return [ip: ip, type: messageTypes().DEVICE.GET_GROUP.type as int]
-//                sendCommand ip, messageTypes().DEVICE.GET_GROUP.type as int
             }
             break
         case messageTypes().DEVICE.STATE_LABEL.type:
@@ -529,14 +523,12 @@ Map discoveryParse(String description) {
         case messageTypes().DEVICE.STATE_GROUP.type:
             def data = parsePayload 'DEVICE.STATE_GROUP', parsed
             updateDeviceDefinition mac, [group: data.label]
-//            sendCommand ip, messageTypes().DEVICE.GET_LOCATION.type as int
             return [ip: ip, type: messageTypes().DEVICE.GET_LOCATION.type as int]
             break
         case messageTypes().DEVICE.STATE_LOCATION.type:
             def data = parsePayload 'DEVICE.STATE_LOCATION', parsed
             updateDeviceDefinition mac, [location: data.label]
             return [ip: ip, type: messageTypes().DEVICE.GET_LABEL.type as int]
-//            sendCommand ip, messageTypes().DEVICE.GET_LABEL.type as int
             break
         case messageTypes().DEVICE.STATE_WIFI_INFO.type:
             break
@@ -606,8 +598,7 @@ Boolean isKnownIp(String ip) {
     null != knownIps[ip]
 }
 
-private void clearKnownIps()
-{
+private void clearKnownIps() {
     atomicState.knownIps = [:]
 }
 
@@ -682,11 +673,11 @@ String convertIpLong(String ip) {
     sprintf '%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip)
 }
 
-private String applySubscript(String descriptor, Number subscript) {
+private static String applySubscript(String descriptor, Number subscript) {
     descriptor.replace('!', subscript.toString())
 }
 
-private String makeHSBKDescriptorList(int start, int end) {
+private static String makeHSBKDescriptorList(int start, int end) {
     final def subscriptedColor = 'hue_!:2l;saturation_!;level_!:2l;kelvin_!:2l'
     def temp = []
     start.upto(end) {
@@ -1183,7 +1174,6 @@ List makePayload(String device, String type, Map payload) {
             //TODO possibly extend this to the other types A,S & B
             switch (item.bytes as int) {
                 case 1:
-//                    logDebug('length 1')
                     add result, value as byte
                     break
                 case 2:
@@ -1252,22 +1242,16 @@ String getHubIP() {
 
     hub.localIP
 }
-//
-//byte makePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = []) {
-//    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload)
-//}
 
-byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false) {
-//    logDebug("Map payload is $payload")
+byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
     def listPayload = makePayload(device, type, payload)
     int messageType = lookupDeviceAndType(device, type).type
-//    logDebug("List payload is $listPayload")
-    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload)
+    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload, sequence)
 }
 
 // fills the buffer with the LIFX packet and returns the sequence number
-byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = []) {
-    def lastSequence = sequenceNumber()
+byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = [], Byte sequence = null) {
+    def lastSequence = sequence ?: sequenceNumber()
     createFrame buffer, targetAddress.every { it == 0 }
     createFrameAddress buffer, targetAddress, ackRequired, responseRequired, lastSequence
     createProtocolHeader buffer, messageType as short
@@ -1282,7 +1266,7 @@ byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }
 
-byte sequenceNumber() {
+Byte sequenceNumber() {
     atomicState.sequence = ((atomicState.sequence ?: 0) + 1) % 128
 }
 
@@ -1299,12 +1283,12 @@ private static int lifxSource() {
     0x48454C44 // = HELD: Hubitat Elevation LIFX Device :)
 }
 
-private static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, byte sequenceNumber) {
+private static def createFrameAddress(List buffer, byte[] target, boolean ackRequired, boolean responseRequired, Byte sequenceNumber) {
     add buffer, target
     add buffer, 0 as short
     fill buffer, 0 as byte, 6
     add buffer, ((ackRequired ? 0x02 : 0) | (responseRequired ? 0x01 : 0)) as byte
-    add buffer, sequenceNumber
+    add buffer, sequenceNumber as byte
 }
 
 private static def createProtocolHeader(List buffer, short messageType) {

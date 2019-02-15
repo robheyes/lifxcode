@@ -7,25 +7,26 @@
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
-definition(name: 'LIFX Multizone', namespace: 'robheyes', author: 'Robert Alan Heyes') {
-	capability 'Light'
-//	capability "LightEffect"
-    capability 'ColorControl'
-    capability 'ColorTemperature'
-    capability 'HealthCheck'
-    capability 'Polling'
-    capability 'Initialize'
-    capability 'Switch'
-    attribute 'Label', 'string'
-    attribute 'Group', 'string'
-    attribute 'Location', 'string'
+metadata {
+    definition(name: 'LIFX Multizone', namespace: 'robheyes', author: 'Robert Alan Heyes') {
+        capability 'Light'
+        capability 'ColorControl'
+        capability 'ColorTemperature'
+        capability 'HealthCheck'
+        capability 'Polling'
+        capability 'Initialize'
+        capability 'Switch'
+
+        attribute 'Label', 'string'
+        attribute 'Group', 'string'
+        attribute 'Location', 'string'
+    }
+
+
+    preferences {
+        input 'logEnable', 'bool', title: 'Enable debug logging', required: false
+    }
 }
-
-
-preferences {
-    input 'logEnable', 'bool', title: 'Enable debug logging', required: false
-}
-
 
 def installed() {
     initialize()
@@ -45,9 +46,9 @@ def refresh() {
 }
 
 def poll() {
+    lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
 }
-
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog())
