@@ -91,29 +91,29 @@ def setLevel(level, duration = 0) {
 
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.each { lifxCommand it.cmd, it.payload }
+    actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
     actions.events?.each { sendEvent it }
 }
 
 private void lifxQuery(String deviceAndType) {
-    sendCommand deviceAndType, [:], true
+    sendCommand deviceAndType, [:], true, false, 0 as Byte
 }
 
-private void lifxCommand(String deviceAndType, Map payload) {
-    sendCommand deviceAndType, payload, false, true
+private void lifxCommand(String deviceAndType, Map payload, Byte index = 0) {
+    sendCommand deviceAndType, payload, false, true, index
 }
 
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false) {
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
     resendUnacknowledgedCommand()
     def parts = deviceAndType.split(/\./)
     def buffer = []
-    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired
+    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
     if (ackRequired) {
-//        logDebug "Sending packet with sequence $sequence"
         parent.expectAckFor device, sequence, buffer
     }
     sendPacket buffer
 }
+
 
 private void resendUnacknowledgedCommand() {
     def expectedSequence = parent.ackWasExpected device
@@ -124,6 +124,7 @@ private void resendUnacknowledgedCommand() {
         sendPacket resendBuffer
     }
 }
+
 def requestInfo() {
     lifxQuery 'LIGHT.GET_STATE'
 }
@@ -132,7 +133,6 @@ def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     events.collect { createEvent(it) }
 }
-
 
 private def myIp() {
     device.getDeviceNetworkId()

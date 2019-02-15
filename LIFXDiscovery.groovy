@@ -54,7 +54,7 @@ private scanNetwork(String subnet, int pass) {
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
-            1.upto(pass+2) {
+            1.upto(pass+3) {
 //                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass, it % 128 as Byte
                 sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, 1, it % 128 as Byte
             }

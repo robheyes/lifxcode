@@ -30,7 +30,7 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
         section('Options') {
-            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands for first pass (milliseconds) - will increase by 10 ms for each pass'
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)'
             input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 600
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
