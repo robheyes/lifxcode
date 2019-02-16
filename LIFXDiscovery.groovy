@@ -15,6 +15,9 @@
 metadata {
     definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
         capability "Refresh"
+
+        attribute 'lifxdiscovery', 'string'
+        attribute 'progress', 'number'
     }
 
     preferences {
@@ -40,6 +43,7 @@ def refresh() {
     if (!subnet) {
         return
     }
+    parent.clearCachedDescriptors()
     def scanPasses = parent.maxScanPasses()
     1.upto(scanPasses) {
         logDebug "Scanning pass $it of $scanPasses"
@@ -48,6 +52,7 @@ def refresh() {
         logDebug "Pass $it complete"
     }
     parent.setScanPass 'DONE'
+    sendEvent name: 'lifxdiscovery', value: 'complete'
 }
 
 private scanNetwork(String subnet, int pass) {
@@ -55,10 +60,10 @@ private scanNetwork(String subnet, int pass) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
             1.upto(pass+3) {
-//                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass, it % 128 as Byte
                 sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, 1, it % 128 as Byte
             }
         }
+//        sendEvent name: 'progress', value: ((100 * it) / 255).toString()
     }
 }
 
