@@ -211,6 +211,7 @@ private void discovery() {
 }
 
 def progress(evt) {
+    // no idea why this doesn't work when the subscribe is enabled
     logDebug "Event $evt"
     def percent = evt.getFloatValue()
     logDebug "%age $percent"
@@ -394,6 +395,40 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
     }
 }
 
+Map discoveryParse(String description) {
+    Map deviceParams = parseDeviceParameters description
+    String ip = convertIpLong(deviceParams.ip as String)
+    Map parsed = parseHeader deviceParams
+    final String mac = deviceParams.mac
+    switch (parsed.type) {
+        case messageTypes().DEVICE.STATE_VERSION.type:
+            def existing = getDeviceDefinition mac
+            if (!existing) {
+                createDeviceDefinition parsed, ip, mac
+                return [ip: ip, type: messageTypes().DEVICE.GET_GROUP.type as int]
+            }
+            break
+        case messageTypes().DEVICE.STATE_LABEL.type:
+            def data = parsePayload 'DEVICE.STATE_LABEL', parsed
+            updateDeviceDefinition mac, [label: data.label]
+            break
+        case messageTypes().DEVICE.STATE_GROUP.type:
+            def data = parsePayload 'DEVICE.STATE_GROUP', parsed
+            updateDeviceDefinition mac, [group: data.label]
+            return [ip: ip, type: messageTypes().DEVICE.GET_LOCATION.type as int]
+            break
+        case messageTypes().DEVICE.STATE_LOCATION.type:
+            def data = parsePayload 'DEVICE.STATE_LOCATION', parsed
+            updateDeviceDefinition mac, [location: data.label]
+            return [ip: ip, type: messageTypes().DEVICE.GET_LABEL.type as int]
+            break
+        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
+            break
+        case messageTypes().DEVICE.STATE_INFO.type:
+            break
+    }
+}
+
 private Map lookupColor(String color) {
     Map myColor
     if (color == "random") {
@@ -460,10 +495,10 @@ private static Map<String, Integer> getScaledColorMap(Map colorMap) {
     ]
 }
 
+
 private static Map makeCommand(String command, Map payload) {
     [cmd: command, payload: payload]
 }
-
 
 private static Map<String, List> makeActions() {
     [commands: [], events: []]
@@ -522,40 +557,6 @@ Map getDeviceDefinition(String mac) {
     Map devices = getDeviceDefinitions()
 
     devices[mac]
-}
-
-Map discoveryParse(String description) {
-    Map deviceParams = parseDeviceParameters description
-    String ip = convertIpLong(deviceParams.ip as String)
-    Map parsed = parseHeader deviceParams
-    final String mac = deviceParams.mac
-    switch (parsed.type) {
-        case messageTypes().DEVICE.STATE_VERSION.type:
-            def existing = getDeviceDefinition mac
-            if (!existing) {
-                createDeviceDefinition parsed, ip, mac
-                return [ip: ip, type: messageTypes().DEVICE.GET_GROUP.type as int]
-            }
-            break
-        case messageTypes().DEVICE.STATE_LABEL.type:
-            def data = parsePayload 'DEVICE.STATE_LABEL', parsed
-            updateDeviceDefinition mac, [label: data.label]
-            break
-        case messageTypes().DEVICE.STATE_GROUP.type:
-            def data = parsePayload 'DEVICE.STATE_GROUP', parsed
-            updateDeviceDefinition mac, [group: data.label]
-            return [ip: ip, type: messageTypes().DEVICE.GET_LOCATION.type as int]
-            break
-        case messageTypes().DEVICE.STATE_LOCATION.type:
-            def data = parsePayload 'DEVICE.STATE_LOCATION', parsed
-            updateDeviceDefinition mac, [location: data.label]
-            return [ip: ip, type: messageTypes().DEVICE.GET_LABEL.type as int]
-            break
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            break
-        case messageTypes().DEVICE.STATE_INFO.type:
-            break
-    }
 }
 
 private void clearDeviceDefinitions() {

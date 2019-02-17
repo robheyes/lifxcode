@@ -13,9 +13,8 @@
  */
 
 metadata {
-    definition(name: "LIFX White", namespace: "robheyes", author: "Robert Alan Heyes") {
+    definition(name: "LIFX White Mono", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
-        capability "ColorTemperature"
         capability "HealthCheck"
         capability "Polling"
         capability "Switch"
@@ -90,10 +89,6 @@ def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
 }
 
-
-def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
-}
 
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
