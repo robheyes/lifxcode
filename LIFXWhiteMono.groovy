@@ -13,23 +13,17 @@
  */
 
 metadata {
-    definition(name: "LIFXPlus Color", namespace: "robheyes", author: "Robert Alan Heyes") {
+    definition(name: "LIFX White Mono", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
-        capability "Color Temperature"
         capability "HealthCheck"
         capability "Polling"
         capability "Switch"
         capability "Switch Level"
         capability "Initialize"
-        capability "Color Control"
 
-        attribute "Group", "string"
         attribute "Label", "string"
+        attribute "Group", "string"
         attribute "Location", "string"
-        attribute "IrLevel", 'number'
-
-        // need a command to set the ir level
-        command 'setInfraredLevel', ['number', 'number']
     }
 
     preferences {
@@ -57,9 +51,9 @@ def refresh() {
 }
 
 def poll() {
-    lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
 }
+
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog())
@@ -69,33 +63,32 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog())
 }
 
-def setColor(Map colorMap) {
-    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.colorTransitionTime ?: 0)
-}
+// DND Yet!!!
 
-def setHue(hue) {
-    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.colorTransitionTime ?: 0)
-}
+//def setLevel(level, duration = 0) {
+////    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
+//    if (level > 100) {
+//        level = 100
+//    } else if ((level <= 0 || level == null) && duration == 0) {
+//        return off()
+//    }
+//    Map hsbkMap = parent.getCurrentBK device
+//    hsbkMap.level = parent.scaleUp(level, 100)
+//    hsbkMap.duration = duration * 1000
+//    lifxCommand'LIGHT.SET_COLOR', hsbkMap
+//    sendLevelAndSwitchEvents(hsbkMap)
+//}
 
-def setSaturation(saturation) {
-    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.colorTransitionTime ?: 0)
-}
+//private void sendLevelAndSwitchEvents(Map hsbkMap) {
+//    sendEvent(name: "level", value: parent.scaleDown(hsbkMap.level, 100), displayed: getUseActivityLogDebug())
+//    sendEvent(name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"])
+//}
 
-def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
-}
 
 def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
 }
 
-def setState(value) {
-    sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.colorTransitionTime ?: 0)
-}
-
-def setInfraredLevel(level, duration=0) {
-
-}
 
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
@@ -121,32 +114,33 @@ private void sendCommand(String deviceAndType, Map payload = [:], boolean respon
     sendPacket buffer
 }
 
+
 private void resendUnacknowledgedCommand() {
     def expectedSequence = parent.ackWasExpected device
     if (expectedSequence) {
-        def resendBuffer = parent.getBufferToResend device, expectedSequence
+        List resendBuffer = parent.getBufferToResend device, expectedSequence
+        logWarn "resend buffer is $resendBuffer"
         parent.clearExpectedAckFor device, expectedSequence
         sendPacket resendBuffer
     }
 }
 
 def requestInfo() {
-    lifxQuery('LIGHT.GET_STATE')
+    lifxQuery 'LIGHT.GET_STATE'
 }
-
 
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     events.collect { createEvent(it) }
 }
 
-
 private def myIp() {
     device.getDeviceNetworkId()
 }
 
 private def sendPacket(List buffer) {
-    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
+    def rawBytes = parent.asByteArray(buffer)
+    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
     sendHubCommand(
             new hubitat.device.HubAction(
                     stringBytes,

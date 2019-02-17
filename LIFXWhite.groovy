@@ -13,15 +13,16 @@
  */
 
 metadata {
-    definition(name: "LIFX White Mono", namespace: "robheyes", author: "Robert Alan Heyes") {
+    definition(name: "LIFX White", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
+        capability "ColorTemperature"
         capability "HealthCheck"
         capability "Polling"
         capability "Switch"
         capability "Switch Level"
         capability "Initialize"
+
         attribute "Label", "string"
-        // capability "LightEffect"
         attribute "Group", "string"
         attribute "Location", "string"
     }
@@ -63,6 +64,7 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog())
 }
 
+// DND Yet!!!
 
 //def setLevel(level, duration = 0) {
 ////    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
@@ -89,30 +91,34 @@ def setLevel(level, duration = 0) {
 }
 
 
+def setColorTemperature(temperature) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
+}
+
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.each { lifxCommand it.cmd, it.payload }
+    actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
     actions.events?.each { sendEvent it }
 }
 
 private void lifxQuery(String deviceAndType) {
-    sendCommand deviceAndType, [:], true
+    sendCommand deviceAndType, [:], true, false, 0 as Byte
 }
 
-private void lifxCommand(String deviceAndType, Map payload) {
-    sendCommand deviceAndType, payload, false, true
+private void lifxCommand(String deviceAndType, Map payload, Byte index = 0) {
+    sendCommand deviceAndType, payload, false, true, index
 }
 
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false) {
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
     resendUnacknowledgedCommand()
     def parts = deviceAndType.split(/\./)
     def buffer = []
-    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired
+    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
     if (ackRequired) {
-//        logDebug "Sending packet with sequence $sequence"
         parent.expectAckFor device, sequence, buffer
     }
     sendPacket buffer
 }
+
 
 private void resendUnacknowledgedCommand() {
     def expectedSequence = parent.ackWasExpected device
@@ -123,6 +129,7 @@ private void resendUnacknowledgedCommand() {
         sendPacket resendBuffer
     }
 }
+
 def requestInfo() {
     lifxQuery 'LIGHT.GET_STATE'
 }
@@ -131,62 +138,6 @@ def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     events.collect { createEvent(it) }
 }
-
-//
-//def parse(String description) {
-//    Map header = parent.parseHeaderFromDescription description
-//    switch (header.type) {
-//        case messageTypes().DEVICE.STATE_VERSION.type:
-//            log.warn("STATE_VERSION type ignored")
-//            break
-//        case messageTypes().DEVICE.STATE_LABEL.type:
-//            def data = parent.parsePayload 'DEVICE.STATE_LABEL', header
-//            String label = data.label
-//            device.setLabel label.trim()
-//            break
-//        case messageTypes().DEVICE.STATE_GROUP.type:
-//            def data = parent.parsePayload 'DEVICE.STATE_GROUP', header
-//            String group = data.label
-//            return createEvent(name: 'Group', value: group)
-//        case messageTypes().DEVICE.STATE_LOCATION.type:
-//            def data = parent.parsePayload 'DEVICE.STATE_LOCATION', header
-//            String location = data.label
-//            return createEvent(name: 'Location', value: location)
-//        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-//            def data = parent.parsePayload 'DEVICE.STATE_WIFI_INFO', header
-//            break
-//        case messageTypes().DEVICE.STATE_INFO.type:
-//            def data = parent.parsePayload 'DEVICE.STATE_INFO', header
-//            break
-//        case messageTypes().LIGHT.STATE.type:
-//            def data = parent.parsePayload 'LIGHT.STATE', header
-//            device.setLabel data.label.trim()
-//            return [
-//                    createEvent(name: "hue", value: parent.scaleDown(data.hue, 100), displayed: getUseActivityLogDebug()),
-//                    createEvent(name: "saturation", value: parent.scaleDown(data.saturation, 100), displayed: getUseActivityLogDebug()),
-//                    createEvent(name: "level", value: parent.scaleDown(data.level, 100), displayed: getUseActivityLogDebug()),
-//                    createEvent(name: "kelvin", value: data.kelvin as Integer, displayed: getUseActivityLogDebug()),
-//                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-//            ]
-//        case messageTypes().DEVICE.STATE_POWER.type:
-//            Map data = parent.parsePayload 'DEVICE.STATE_POWER', header
-//            return [
-//                    createEvent(name: "switch", value: (data.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"]),
-//                    createEvent(name: "level", value: (data.level as Integer == 0 ? 0 : 100), displayed: getUseActivityLog(), data: [syncing: "false"])
-//            ]
-//        case messageTypes().DEVICE.ACKNOWLEDGEMENT.type:
-//            Byte sequence = header.sequence
-//            parent.clearExpectedAckFor device, sequence
-//            break
-//        default:
-//            logDebug "Unhandled response for ${header.type}"
-//    }
-//}
-
-//
-//private Map<String, Map<String, Map>> messageTypes() {
-//    parent.messageTypes()
-//}
 
 private def myIp() {
     device.getDeviceNetworkId()

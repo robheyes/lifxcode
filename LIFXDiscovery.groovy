@@ -15,6 +15,9 @@
 metadata {
     definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
         capability "Refresh"
+
+        attribute 'lifxdiscovery', 'string'
+        attribute 'progress', 'number'
     }
 
     preferences {
@@ -40,6 +43,7 @@ def refresh() {
     if (!subnet) {
         return
     }
+    parent.clearCachedDescriptors()
     def scanPasses = parent.maxScanPasses()
     1.upto(scanPasses) {
         logDebug "Scanning pass $it of $scanPasses"
@@ -48,20 +52,24 @@ def refresh() {
         logDebug "Pass $it complete"
     }
     parent.setScanPass 'DONE'
+    sendEvent name: 'lifxdiscovery', value: 'complete'
 }
 
 private scanNetwork(String subnet, int pass) {
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
-            sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, pass
+            1.upto(pass+3) {
+                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, 1, it % 128 as Byte
+            }
         }
+//        sendEvent name: 'progress', value: ((100 * it) / 255).toString()
     }
 }
 
-private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true, int pass = 1) {
+private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true, int pass = 1, Byte sequence = 0) {
     def buffer = []
-    parent.makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload
+    parent.makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload, sequence
     def rawBytes = parent.asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString rawBytes
     sendPacket ipAddress, stringBytes

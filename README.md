@@ -10,9 +10,8 @@ There are several components
   * LIFXPlus Color (does not currently include support for Infrared/Night Vision) 
   * LIFX White
   * LIFX Day and Dusk
-  * LIFX Tile - dummy driver
-  * LIFX Beam - not yet included
-  * LIFX Strip - not yet included
+  * LIFX Tile - dummy driver, only supports on/off
+  * LIFX Multizone - for Beam and Strip, currently only supports on/off
   
 ## Installation
 ### LIFX Master App
@@ -24,18 +23,22 @@ On the Devices Code page, press the **New Driver** button
 
 Paste the code for LIFXDiscovery.groovy and save
 
-Repeat this process for each of the device handlers you want to install
+Repeat this process for each of the device handlers you want to install. It's probably best
+to add all of them
 
 ### Create the app
 On the Apps page press the **Add User App** button then click on **LIFX Master** in the list of available apps.
+
+####IMPORTANT: don't forget to press the __Done__ button to make sure the the **LIFX Master** app sticks around.
 
 ### Device discovery
 First of all, make sure that all your LIFX devices are powered on, obviously discovery won't find any device that doesn't 
 have power.
 
-Open the **LIFX Master** app and press the **Discover devices** button.  Check the logs to see discovery in progress.
-You may notice the LIFX Discovery device in your list of devices, but this should disappear after about 
-5 minutes from starting the scan.
+Again __IMPORTANT__ if you didn't press the __Done__ button when you created the **LIFX Master** app then do it now.
+
+Open the **LIFX Master** app and press the **Discover devices** button. 
+You may notice the LIFX Discovery device in your list of devices, but this should disappear at the end of the scan. 
 
 #### Implementation information
 The LIFX Lan Protocol uses UDP messages, it seems that sometimes these can be missed or lost, so the discovery process 
@@ -55,9 +58,6 @@ If you find that some devices aren't discovered then you could try altering some
 My first recommendation would be increasing the value of __`Time between commands for first pass (milliseconds)`__.  Try increasing it by 10 at a time.
 
 You can also increase `Maximum number of passes` to give discovery a better chance of reaching all the devices in your network.
-
-If you have a lot of devices, or change either of the other two parameters then you may need to increase `Max scan time (seconds)` from
-the default of 600 seconds.
 
 ### Errors in the log
 Let me know if you see any errors in the log, and I'll do my best to fix the issue as soon as possible
