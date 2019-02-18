@@ -42,6 +42,7 @@ def updated() {
 }
 
 def initialize() {
+    logDebug('Initialised')
     state.colorTransitionTime = defaultTransition
     requestInfo()
     runEvery1Minute poll
@@ -53,6 +54,7 @@ def refresh() {
 
 def poll() {
     lifxQuery 'LIGHT.GET_STATE'
+//    lifxQuery 'DEVICE.GET_WIFI_INFO'
 }
 
 
