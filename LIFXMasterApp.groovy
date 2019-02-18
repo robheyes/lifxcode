@@ -32,9 +32,9 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
         section('Options') {
-            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)'
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)', submitOnChange: true
 //            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 600
-            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2
+            input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2, submitOnChange: true
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         section('Discovery') {
@@ -131,7 +131,7 @@ Integer interCommandPauseMilliseconds(int pass = 1) {
 
 Integer maxScanTimeSeconds() {
     def overhead = 10
-    def pause = (interCommandPauseMilliseconds() +10) * 4 * 256
+    def pause = (interCommandPauseMilliseconds() + 10) * 4 * 256
 
 //    settings.scanTimeLimit ?: 600
     (pause * maxScanPasses()) / 1000 + 20
@@ -250,7 +250,7 @@ Map<String, List> deviceOnOff(String value, Boolean displayed) {
 }
 
 Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, duration = 0) {
-    Map hsbkMap = getCurrentHSBK device
+    def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
     hsbkMap.duration = 1000 * (colorMap.duration ?: duration)
 
@@ -258,7 +258,7 @@ Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, durati
 }
 
 Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration = 0) {
-    Map hsbkMap = getCurrentHSBK device
+    def hsbkMap = getCurrentHSBK device
     hsbkMap.hue = scaleUp100 hue
     hsbkMap.duration = 1000 * duration
 
@@ -266,7 +266,7 @@ Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration =
 }
 
 Map<String, List> deviceSetSaturation(device, Number saturation, Boolean displayed, duration = 0) {
-    Map hsbkMap = getCurrentHSBK device
+    def hsbkMap = getCurrentHSBK device
     hsbkMap.saturation = scaleUp100 saturation
     hsbkMap.duration = 1000 * duration
 
@@ -274,7 +274,7 @@ Map<String, List> deviceSetSaturation(device, Number saturation, Boolean display
 }
 
 Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0) {
-    Map hsbkMap = getCurrentHSBK device
+    def hsbkMap = getCurrentHSBK device
     hsbkMap.saturation = 0
     hsbkMap.kelvin = temperature
     hsbkMap.duration = 1000 * duration
@@ -289,7 +289,7 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
     if (level > 100) {
         level = 100
     }
-    Map hsbkMap = getCurrentHSBK(device)
+    def hsbkMap = getCurrentHSBK(device)
 //    logDebug("BK Map: $hsbkMap")
     if (hsbkMap.saturation == 0) {
         hsbkMap.level = scaleUp100 level
@@ -356,20 +356,22 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             return [[name: 'Location', value: location]]
         case messageTypes().DEVICE.STATE_WIFI_INFO.type:
             def data = parsePayload 'DEVICE.STATE_WIFI_INFO', header
+//            logDebug("Wifi data $data")
             break
         case messageTypes().DEVICE.STATE_INFO.type:
             def data = parsePayload 'DEVICE.STATE_INFO', header
             break
         case messageTypes().LIGHT.STATE.type:
             def data = parsePayload 'LIGHT.STATE', header
+//            logDebug "State: $data"
             device.setLabel data.label.trim()
-            List<Map> result = [[name: "level", value: scaleDown(data.level, 100), displayed: displayed]]
+            List<Map> result = [[name: "level", value: scaleDown(data.color.level, 100), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
-                result.add([name: "hue", value: scaleDown(data.hue, 100), displayed: displayed])
-                result.add([name: "saturation", value: scaleDown(data.saturation, 100), displayed: displayed])
+                result.add([name: "hue", value: scaleDown(data.color.hue, 100), displayed: displayed])
+                result.add([name: "saturation", value: scaleDown(data.color.saturation, 100), displayed: displayed])
             }
             if (device.hasCapability('Color Temperature')) {
-                result.add([name: "colorTemperature", value: data.kelvin as Integer, displayed: displayed])
+                result.add([name: "colorTemperature", value: data.color.kelvin as Integer, displayed: displayed])
             }
             if (device.hasCapability('Switch')) {
                 result.add([name: 'switch', value: (data.power == 65535) ? 'on' : 'off', displayed: displayed])
@@ -393,6 +395,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             logDebug "Unhandled response for ${header.type}"
             return []
     }
+    return []
 }
 
 Map discoveryParse(String description) {
@@ -487,11 +490,12 @@ private static List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
     colorMap
 }
 
-private static Map<String, Integer> getScaledColorMap(Map colorMap) {
+private static Map<String, Number> getScaledColorMap(Map colorMap) {
     [
             hue       : scaleUp100(colorMap.hue) as Integer,
             saturation: scaleUp100(colorMap.saturation) as Integer,
             level     : scaleUp100(colorMap.level) as Integer,
+            kelvin    : colorMap.kelvin
     ]
 }
 
@@ -571,6 +575,23 @@ private void saveDeviceDefinitions(Map devices) {
     atomicState.devices = devices
 }
 
+void saveDeviceDefinition(Map device) {
+//    logDebug("Saving device $device")
+    Map devices = getDeviceDefinitions()
+
+    devices[device.mac] = device
+
+    saveDeviceDefinitions devices
+}
+
+void deleteDeviceDefinition(Map device) {
+    Map devices = getDeviceDefinitions()
+
+    devices.remove device.mac
+
+    saveDeviceDefinitions devices
+}
+
 void updateDeviceDefinition(String mac, Map properties) {
     Map device = getDeviceDefinition mac
     if (!device) {
@@ -578,12 +599,14 @@ void updateDeviceDefinition(String mac, Map properties) {
     }
     properties.each { key, val -> (device[key] = val) }
 //        logDebug("Device being updated is $device")
-    if (!isDeviceComplete(device)) {
-        saveDeviceDefinition device
-        return
-    }
-
-    makeRealDevice(device)
+//    if (!isDeviceComplete(device)) {
+//        saveDeviceDefinition device
+//        return
+//    }
+//
+//    makeRealDevice(device)
+//
+    isDeviceComplete(device) ? makeRealDevice(device) : saveDeviceDefinition(device)
 }
 
 List knownDeviceLabels() {
@@ -643,22 +666,6 @@ private static List matchKeys(Map device, List<String> expected) {
     result
 }
 
-void saveDeviceDefinition(Map device) {
-//    logDebug("Saving device $device")
-    Map devices = getDeviceDefinitions()
-
-    devices[device.mac] = device
-
-    saveDeviceDefinitions devices
-}
-
-void deleteDeviceDefinition(Map device) {
-    Map devices = getDeviceDefinitions()
-
-    devices.remove device.mac
-
-    saveDeviceDefinitions devices
-}
 
 void expectAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence, List buffer) {
     def expected = atomicState.expectedAckFor ?: [:]
@@ -943,15 +950,16 @@ private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     int offset = 0
     descriptor.each { item ->
         if ('H' == item.kind) {
-            // special case for HSBK
-            // equivalent to 'hue:2l,saturation:2l,level:2l,kelvin:2l'
-            def names = ['hue', 'saturation', 'level', 'kelvin']
-            names.each {
-                int nextOffset = offset + 2
-                List<Long> data = bytes.subList offset, nextOffset
-                storeValue result, data, 2, it
-                offset = nextOffset
-            }
+            int nextOffset = offset + 8
+            List<Long> data = bytes.subList offset, nextOffset
+            assert (data.size() == item.bytes as int)
+            offset = nextOffset
+            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
+            result.put 'hue', color.hue
+            result.put 'saturation', color.saturation
+            result.put 'level', color.level
+            result.put 'kelvin', color.kelvin
+            result.put item.name, color
             return result
         }
 
@@ -970,10 +978,18 @@ private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
             result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
             return result
         }
-
+        if ('F' == item.kind) {
+            data = data.reverse()
+            BigInteger value = 0
+            data.each { value = (value * 256) + it }
+            def theFloat = Float.intBitsToFloat(value)
+            result.put(item.name, theFloat)
+            return result
+        }
         if ('B' != item.kind) {
             data = data.reverse()
         }
+
 
         storeValue(result, data, item.bytes, item.name)
     }
@@ -983,22 +999,24 @@ private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     return result
 }
 
-private static void storeValue(Map result, List<Long> data, numBytes, name) {
+private void storeValue(Map result, List<Long> data, numBytes, String name, boolean trace = false) {
     BigInteger value = 0
     data.each { value = (value * 256) + it }
+    def theValue
     switch (numBytes) {
         case 1:
-            result.put name, (value & 0xFF) as long
+            theValue = (value & 0xFF) as long
             break
         case 2:
-            result.put name, (value & 0xFFFF) as long
+            theValue = (value & 0xFFFF) as long
             break
         case 3: case 4:
-            result.put name, (value & 0xFFFFFFFF) as long
+            theValue = (value & 0xFFFFFFFF) as long
             break
         default: // this should complain if longer than 8 bytes
-            result.put name, (value & 0xFFFFFFFFFFFFFFFF) as long
+            theValue = (value & 0xFFFFFFFFFFFFFFFF) as long
     }
+    result.put name, theValue
 }
 
 List makePayload(String device, String type, Map payload) {
@@ -1051,7 +1069,7 @@ private List<Map> getDescriptor(String desc) {
 }
 
 private static List<Map> makeDescriptor(String desc) {
-    desc.findAll(~/(\w+):(\d+)([aAbBlLsShH]?)/) {
+    desc.findAll(~/(\w+):(\d+)([aAbBlLsShHfF]?)/) {
         full ->
             [
                     kind : full[3].toUpperCase(),
@@ -1202,58 +1220,6 @@ void logWarn(String msg) {
     log.warn msg
 }
 
-@Field Map msgTypes = [
-        DEVICE   : [
-                GET_SERVICE        : [type: 2, descriptor: ''],
-                STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
-                GET_HOST_INFO      : [type: 12, descriptor: ''],
-                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:4l;tx:4l;rx:4l,reservedHost:2l'],
-                GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
-                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
-                GET_WIFI_INFO      : [type: 16, descriptor: ''],
-                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:4l;tx:4l;rx:4l,reservedWifi:2l'],
-                GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
-                STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
-                GET_POWER          : [type: 20, descriptor: ''],
-                SET_POWER          : [type: 21, descriptor: 'level:2l'],
-                STATE_POWER        : [type: 22, descriptor: 'level:2l'],
-                GET_LABEL          : [type: 23, descriptor: ''],
-                SET_LABEL          : [type: 24, descriptor: 'label:32s'],
-                STATE_LABEL        : [type: 25, descriptor: 'label:32s'],
-                GET_VERSION        : [type: 32, descriptor: ''],
-                STATE_VERSION      : [type: 33, descriptor: 'vendor:4l;product:4l;version:4l'],
-                GET_INFO           : [type: 34, descriptor: ''],
-                STATE_INFO         : [type: 35, descriptor: 'time:8l;uptime:8l;downtime:8l'],
-                ACKNOWLEDGEMENT    : [type: 45, descriptor: ''],
-                GET_LOCATION       : [type: 48, descriptor: ''],
-                SET_LOCATION       : [type: 49, descriptor: 'location:16a;label:32s;updated_at:8l'],
-                STATE_LOCATION     : [type: 50, descriptor: 'location:16a;label:32s;updated_at:8l'],
-                GET_GROUP          : [type: 51, descriptor: ''],
-                SET_GROUP          : [type: 52, descriptor: 'group:16a;label:32s;updated_at:8l'],
-                STATE_GROUP        : [type: 53, descriptor: 'group:16a;label:32s;updated_at:8l'],
-                ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
-                ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
-        ],
-        LIGHT    : [
-                GET_STATE            : [type: 101, descriptor: ''],
-                SET_COLOR            : [type: 102, descriptor: "reservedColor:1;color:8h;duration:4l"],
-                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
-                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1;set_hue:1;set_saturation:1;set_brightness:1;set_kelvin:1"],
-                STATE                : [type: 107, descriptor: "color:8h;reserved1State:2l;power:2l;label:32s;reserved2state:8l"],
-                GET_POWER            : [type: 116, descriptor: ''],
-                SET_POWER            : [type: 117, descriptor: 'level:2l;duration:4l'],
-                STATE_POWER          : [type: 118, descriptor: 'level:2l'],
-                GET_INFRARED         : [type: 120, descriptor: ''],
-                STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
-                SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
-        ],
-        MULTIZONE: [
-                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:1;endIndex:1;color:8h;duration:4l;apply:1"],
-                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:1;endIndex:1'],
-                STATE_ZONE     : [type: 503, descriptor: "count:1;index:1;color:8h"],
-//                    STATE_MULTIZONE: [type: 506, descriptor: "count:1;index:1;${makeHSBKDescriptorList(0, 7)}"]
-        ]
-]
 
 @Field List<Map> colorMap =
         [
@@ -1400,3 +1366,56 @@ void logWarn(String msg) {
                 [name: 'Yellow', rgb: '#FFFF00', hue: 60, sat: 100, lvl: 50],
                 [name: 'Yellow Green', rgb: '#9ACD32', hue: 80, sat: 61, lvl: 50],
         ]
+
+@Field Map msgTypes = [
+        DEVICE   : [
+                GET_SERVICE        : [type: 2, descriptor: ''],
+                STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
+                GET_HOST_INFO      : [type: 12, descriptor: ''],
+                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:4l;tx:4l;rx:4l,reservedHost:2l'],
+                GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
+                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                GET_WIFI_INFO      : [type: 16, descriptor: ''],
+                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:4l;tx:4l;rx:4l,reservedWifi:2l'],
+                GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
+                STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                GET_POWER          : [type: 20, descriptor: ''],
+                SET_POWER          : [type: 21, descriptor: 'level:2l'],
+                STATE_POWER        : [type: 22, descriptor: 'level:2l'],
+                GET_LABEL          : [type: 23, descriptor: ''],
+                SET_LABEL          : [type: 24, descriptor: 'label:32s'],
+                STATE_LABEL        : [type: 25, descriptor: 'label:32s'],
+                GET_VERSION        : [type: 32, descriptor: ''],
+                STATE_VERSION      : [type: 33, descriptor: 'vendor:4l;product:4l;version:4l'],
+                GET_INFO           : [type: 34, descriptor: ''],
+                STATE_INFO         : [type: 35, descriptor: 'time:8l;uptime:8l;downtime:8l'],
+                ACKNOWLEDGEMENT    : [type: 45, descriptor: ''],
+                GET_LOCATION       : [type: 48, descriptor: ''],
+                SET_LOCATION       : [type: 49, descriptor: 'location:16a;label:32s;updated_at:8l'],
+                STATE_LOCATION     : [type: 50, descriptor: 'location:16a;label:32s;updated_at:8l'],
+                GET_GROUP          : [type: 51, descriptor: ''],
+                SET_GROUP          : [type: 52, descriptor: 'group:16a;label:32s;updated_at:8l'],
+                STATE_GROUP        : [type: 53, descriptor: 'group:16a;label:32s;updated_at:8l'],
+                ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
+                ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
+        ],
+        LIGHT    : [
+                GET_STATE            : [type: 101, descriptor: ''],
+                SET_COLOR            : [type: 102, descriptor: "reservedColor:1;color:8h;duration:4l"],
+                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
+                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1;set_hue:1;set_saturation:1;set_brightness:1;set_kelvin:1"],
+                STATE                : [type: 107, descriptor: "color:8h;reserved1State:2l;power:2l;label:32s;reserved2state:8l"],
+                GET_POWER            : [type: 116, descriptor: ''],
+                SET_POWER            : [type: 117, descriptor: 'level:2l;duration:4l'],
+                STATE_POWER          : [type: 118, descriptor: 'level:2l'],
+                GET_INFRARED         : [type: 120, descriptor: ''],
+                STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
+                SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
+        ],
+        MULTIZONE: [
+                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:1;endIndex:1;color:8h;duration:4l;apply:1"],
+                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:1;endIndex:1'],
+                STATE_ZONE     : [type: 503, descriptor: "count:1;index:1;color:8h"],
+//                    STATE_MULTIZONE: [type: 506, descriptor: "count:1;index:1;${makeHSBKDescriptorList(0, 7)}"]
+        ]
+]

@@ -28,6 +28,7 @@ metadata {
         attribute "Location", "string"
         attribute "colorName", "string"
         attribute "lightStatus", "string"
+        attribute "wifiStatus", "map"
 
         command "setState", ["MAP"]
     }
@@ -47,6 +48,7 @@ def updated() {
 }
 
 def initialize() {
+//    logDebug('Initialised')
     state.colorTransitionTime = defaultTransition
     requestInfo()
     runEvery1Minute poll
@@ -59,6 +61,7 @@ def refresh() {
 def poll() {
 //    lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
+//    lifxQuery 'DEVICE.GET_WIFI_INFO'
 }
 
 def on() {
