@@ -354,9 +354,9 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             def data = parsePayload 'DEVICE.STATE_LOCATION', header
             String location = data.label
             return [[name: 'Location', value: location]]
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            def data = parsePayload 'DEVICE.STATE_WIFI_INFO', header
-//            logDebug("Wifi data $data")
+        case messageTypes().DEVICE.STATE_HOST_INFO.type:
+            def data = parsePayload 'DEVICE.STATE_HOST_INFO', header
+            logDebug("Wifi data $data")
             break
         case messageTypes().DEVICE.STATE_INFO.type:
             def data = parsePayload 'DEVICE.STATE_INFO', header
@@ -945,59 +945,168 @@ private Map parseBytes(String descriptor, List<Long> bytes) {
     parseBytes getDescriptor(descriptor), bytes
 }
 
+private void processSegment(Map result, List<Long> data, Map item, name) {
+    switch (kind) {
+        case 'B':
+        case 'W':
+        case 'I':
+        case 'L':
+            data.reverse()
+            storeValue result, data, item.size, name
+            break
+        case 'F':
+            data = data.reverse()
+            Long value = 0
+            data.each { value = (value * 256) + it }
+            def theFloat = Float.intBitsToFloat(value)
+            result.put name, theFloat
+            break
+        case 'T':
+            result.put name, new String((data.findAll { it != 0 }) as byte[])
+            break
+        case 'H':
+            Map color = parseBytes 'hue:w;saturation:w;level:w,kelvin:w', data
+            result.put name, color
+            break
+        default:
+            throw new RuntimeException("Unexpected item kind '$kind'")
+    }
+}
+
 private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
     Map result = new HashMap()
     int offset = 0
-    descriptor.each { item ->
-        if ('H' == item.kind) {
-            int nextOffset = offset + 8
-            List<Long> data = bytes.subList offset, nextOffset
-            assert (data.size() == item.bytes as int)
-            offset = nextOffset
-            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
-            result.put 'hue', color.hue
-            result.put 'saturation', color.saturation
-            result.put 'level', color.level
-            result.put 'kelvin', color.kelvin
-            result.put item.name, color
-            return result
-        }
-
-        int nextOffset = offset + (item.bytes as int)
-
+    for (item in descriptor) {
+        String kind = item.kind
+        // partition the data
+        int totalLength = item.size * item.count
+        int nextOffset = offset + totalLength
         List<Long> data = bytes.subList offset, nextOffset
         assert (data.size() == item.bytes as int)
         offset = nextOffset
-        // assume big kind
-        //for now
-        if ('A' == item.kind) {
-            result.put(item.name, data)
-            return result
-        }
-        if ('S' == item.kind) {
-            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
-            return result
-        }
-        if ('F' == item.kind) {
-            data = data.reverse()
-            BigInteger value = 0
-            data.each { value = (value * 256) + it }
-            def theFloat = Float.intBitsToFloat(value)
-            result.put(item.name, theFloat)
-            return result
-        }
-        if ('B' != item.kind) {
-            data = data.reverse()
-        }
 
-
-        storeValue(result, data, item.bytes, item.name)
+        if (item.isArray) {
+            def subMap = [:]
+            for (int i = 0; i < item.count; i++) {
+                processSegment subMap, data, item.kind, item.size, i
+            }
+            result.put item.name, subMap
+        } else {
+            processSegment result, data, item.kind, item.size, item.name
+        }
+//        if ('H' == kind) {
+//            int nextOffset = offset + 8
+//            List<Long> data = bytes.subList offset, nextOffset
+//            assert (data.size() == item.bytes as int)
+//            offset = nextOffset
+//            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
+//            result.put 'hue', color.hue
+//            result.put 'saturation', color.saturation
+//            result.put 'level', color.level
+//            result.put 'kelvin', color.kelvin
+//            result.put item.name, color
+//            return result
+//        }
+//
+//        int nextOffset = offset + (item.bytes as int)
+//
+//        List<Long> data = bytes.subList offset, nextOffset
+//        assert (data.size() == item.bytes as int)
+//        offset = nextOffset
+//        // assume big kind
+//        //for now
+//
+//        if ('A' == kind) {
+//            result.put(item.name, data)
+//            return result
+//        }
+//        if (kind.startsWith('A')) {
+//            def realKind = kind[1]
+//
+//        }
+//        if ('S' == kind) {
+//            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
+//            return result
+//        }
+//        if ('F' == kind) {
+//            data = data.reverse()
+//            BigInteger value = 0
+//            data.each { value = (value * 256) + it }
+//            def theFloat = Float.intBitsToFloat(value)
+//            result.put(item.name, theFloat)
+//            return result
+//        }
+//        if ('B' != kind) {
+//            data = data.reverse()
+//        }
+//
+//        storeValue(result, data, item.bytes, item.name)
     }
     if (offset < bytes.size()) {
         result.put 'remainder', bytes[offset..-1]
     }
     return result
 }
+//
+//private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
+//    Map result = new HashMap()
+//    int offset = 0
+//    descriptor.each { item ->
+//        String kind = item.kind
+//        Int length
+//        if ('H' == kind) {
+//            int nextOffset = offset + 8
+//            List<Long> data = bytes.subList offset, nextOffset
+//            assert (data.size() == item.bytes as int)
+//            offset = nextOffset
+//            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
+//            result.put 'hue', color.hue
+//            result.put 'saturation', color.saturation
+//            result.put 'level', color.level
+//            result.put 'kelvin', color.kelvin
+//            result.put item.name, color
+//            return result
+//        }
+//
+//        int nextOffset = offset + (item.bytes as int)
+//
+//        List<Long> data = bytes.subList offset, nextOffset
+//        assert (data.size() == item.bytes as int)
+//        offset = nextOffset
+//        // assume big kind
+//        //for now
+//
+//        if ('A' == kind) {
+//            result.put(item.name, data)
+//            return result
+//        }
+//        if (kind.startsWith('A')) {
+//            def realKind = kind[1]
+//
+//        }
+//        if ('S' == kind) {
+//            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
+//            return result
+//        }
+//        if ('F' == kind) {
+//            data = data.reverse()
+//            BigInteger value = 0
+//            data.each { value = (value * 256) + it }
+//            def theFloat = Float.intBitsToFloat(value)
+//            result.put(item.name, theFloat)
+//            return result
+//        }
+//        if ('B' != kind) {
+//            data = data.reverse()
+//        }
+//
+//        storeValue(result, data, item.bytes, item.name)
+//    }
+//    if (offset < bytes.size()) {
+//        result.put 'remainder', bytes[offset..-1]
+//    }
+//    return result
+//}
 
 private void storeValue(Map result, List<Long> data, numBytes, String name, boolean trace = false) {
     BigInteger value = 0
@@ -1068,13 +1177,32 @@ private List<Map> getDescriptor(String desc) {
     candidate
 }
 
+private static Number itemLength(String kind) {
+    switch (kind) {
+        case 'B': return 1
+        case 'W': return 2
+        case 'I': return 4
+        case 'L': return 8
+        case 'H': return 8
+        case 'F': return 4
+        case 'T': return 1 // length of character
+        default:
+            throw new RuntimeException("Unexpected item kind '$kind'")
+    }
+}
+
 private static List<Map> makeDescriptor(String desc) {
-    desc.findAll(~/(\w+):(\d+)([aAbBlLsShHfF]?)/) {
+    desc.findAll(~/(\w+):([bBwWiIlLhHfFtT][aA]?)(\d+)?/) {
         full ->
+            def theKind = full[2].toUpperCase()
+            def baseKind = theKind[0]
+            def isArray = theKind.length() > 1 && theKind[1] == 'A'
             [
-                    kind : full[3].toUpperCase(),
-                    bytes: full[2].toInteger(),
-                    name : full[1],
+                    name   : full[1],
+                    kind   : baseKind,
+                    isArray: isArray,
+                    count  : full[3]?.toInteger() ?: 1,
+                    size   : itemLength(baseKind)
             ]
     }
 }
@@ -1370,52 +1498,52 @@ void logWarn(String msg) {
 @Field Map msgTypes = [
         DEVICE   : [
                 GET_SERVICE        : [type: 2, descriptor: ''],
-                STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
+                STATE_SERVICE      : [type: 3, descriptor: 'service:b;port:i'],
                 GET_HOST_INFO      : [type: 12, descriptor: ''],
-                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:4l;tx:4l;rx:4l,reservedHost:2l'],
+                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:i;tx:i;rx:i,reservedHost:w'],
                 GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
-                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_WIFI_INFO      : [type: 16, descriptor: ''],
-                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:4l;tx:4l;rx:4l,reservedWifi:2l'],
+                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:i;tx:i;rx:i,reservedWifi:w'],
                 GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
-                STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_POWER          : [type: 20, descriptor: ''],
-                SET_POWER          : [type: 21, descriptor: 'level:2l'],
-                STATE_POWER        : [type: 22, descriptor: 'level:2l'],
+                SET_POWER          : [type: 21, descriptor: 'level:w'],
+                STATE_POWER        : [type: 22, descriptor: 'level:w'],
                 GET_LABEL          : [type: 23, descriptor: ''],
-                SET_LABEL          : [type: 24, descriptor: 'label:32s'],
-                STATE_LABEL        : [type: 25, descriptor: 'label:32s'],
+                SET_LABEL          : [type: 24, descriptor: 'label:t32'],
+                STATE_LABEL        : [type: 25, descriptor: 'label:t32'],
                 GET_VERSION        : [type: 32, descriptor: ''],
-                STATE_VERSION      : [type: 33, descriptor: 'vendor:4l;product:4l;version:4l'],
+                STATE_VERSION      : [type: 33, descriptor: 'vendor:i;product:i;version:i'],
                 GET_INFO           : [type: 34, descriptor: ''],
-                STATE_INFO         : [type: 35, descriptor: 'time:8l;uptime:8l;downtime:8l'],
+                STATE_INFO         : [type: 35, descriptor: 'time:l;uptime:l;downtime:l'],
                 ACKNOWLEDGEMENT    : [type: 45, descriptor: ''],
                 GET_LOCATION       : [type: 48, descriptor: ''],
-                SET_LOCATION       : [type: 49, descriptor: 'location:16a;label:32s;updated_at:8l'],
-                STATE_LOCATION     : [type: 50, descriptor: 'location:16a;label:32s;updated_at:8l'],
+                SET_LOCATION       : [type: 49, descriptor: 'location:ba16;label:t32;updated_at:l'],
+                STATE_LOCATION     : [type: 50, descriptor: 'location:ba16;label:t32;updated_at:l'],
                 GET_GROUP          : [type: 51, descriptor: ''],
-                SET_GROUP          : [type: 52, descriptor: 'group:16a;label:32s;updated_at:8l'],
-                STATE_GROUP        : [type: 53, descriptor: 'group:16a;label:32s;updated_at:8l'],
-                ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
-                ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
+                SET_GROUP          : [type: 52, descriptor: 'group:ba16;label:t32;updated_at:l'],
+                STATE_GROUP        : [type: 53, descriptor: 'group:ba16;label:t32;updated_at:l'],
+                ECHO_REQUEST       : [type: 58, descriptor: 'payload:ba64'],
+                ECHO_RESPONSE      : [type: 59, descriptor: 'payload:ba64'],
         ],
         LIGHT    : [
                 GET_STATE            : [type: 101, descriptor: ''],
-                SET_COLOR            : [type: 102, descriptor: "reservedColor:1;color:8h;duration:4l"],
-                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
-                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1;set_hue:1;set_saturation:1;set_brightness:1;set_kelvin:1"],
-                STATE                : [type: 107, descriptor: "color:8h;reserved1State:2l;power:2l;label:32s;reserved2state:8l"],
+                SET_COLOR            : [type: 102, descriptor: "reservedColor:b;color:h;duration:i"],
+                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b"],
+                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b;setColor:h"],
+                STATE                : [type: 107, descriptor: "color:h;reserved1State:w;power:w;label:t32;reserved2state:l"],
                 GET_POWER            : [type: 116, descriptor: ''],
-                SET_POWER            : [type: 117, descriptor: 'level:2l;duration:4l'],
-                STATE_POWER          : [type: 118, descriptor: 'level:2l'],
+                SET_POWER            : [type: 117, descriptor: 'level:w;duration:i'],
+                STATE_POWER          : [type: 118, descriptor: 'level:w'],
                 GET_INFRARED         : [type: 120, descriptor: ''],
-                STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
-                SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
+                STATE_INFRARED       : [type: 121, descriptor: 'brightness:w'],
+                SET_INFRARED         : [type: 122, descriptor: 'brightness:w'],
         ],
         MULTIZONE: [
-                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:1;endIndex:1;color:8h;duration:4l;apply:1"],
-                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:1;endIndex:1'],
-                STATE_ZONE     : [type: 503, descriptor: "count:1;index:1;color:8h"],
-//                    STATE_MULTIZONE: [type: 506, descriptor: "count:1;index:1;${makeHSBKDescriptorList(0, 7)}"]
+                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
+                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:b;endIndex:b'],
+                STATE_ZONE     : [type: 503, descriptor: "count:b;index:b;color:h"],
+                STATE_MULTIZONE: [type: 506, descriptor: "count:b;index:b;colors:ha8"]
         ]
 ]
