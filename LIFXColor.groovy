@@ -61,7 +61,7 @@ def refresh() {
 def poll() {
 //    lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
-//    lifxQuery 'DEVICE.GET_WIFI_INFO'
+    lifxQuery 'DEVICE.GET_HOST_INFO'
 }
 
 def on() {

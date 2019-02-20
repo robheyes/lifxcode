@@ -402,6 +402,7 @@ Map discoveryParse(String description) {
     Map deviceParams = parseDeviceParameters description
     String ip = convertIpLong(deviceParams.ip as String)
     Map parsed = parseHeader deviceParams
+
     final String mac = deviceParams.mac
     switch (parsed.type) {
         case messageTypes().DEVICE.STATE_VERSION.type:
@@ -470,7 +471,7 @@ private static Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Num
 
     if (hsbkMap) {
 //        logDebug "color change required"
-        actions.commands << makeCommand('LIGHT.SET_COLOR', hsbkMap)
+        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
@@ -542,14 +543,14 @@ private String lookupDescriptorForDeviceAndType(String device, String type) {
 }
 
 Map parseHeader(Map deviceParams) {
-    List<Map> headerDescriptor = getDescriptor 'size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2'
+    List<Map> headerDescriptor = getDescriptor 'size:w,misc:w,source:i,target:ba8,frame_reserved:ba6,flags:b,sequence:b,protocol_reserved:ba8,type:w,protocol_reserved2:w'
     parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
         it & 0xff
     })
 }
 
 void createDeviceDefinition(Map parsed, String ip, String mac) {
-    List<Map> stateVersionDescriptor = getDescriptor 'vendor:4l,product:4l,version:4l'
+    List<Map> stateVersionDescriptor = getDescriptor 'vendor:i,product:i,version:i'
     def version = parseBytes stateVersionDescriptor, parsed.remainder as List<Long>
     def device = deviceVersion version
     device['ip'] = ip
@@ -704,15 +705,6 @@ String convertIpLong(String ip) {
 
 private static String applySubscript(String descriptor, Number subscript) {
     descriptor.replace('!', subscript.toString())
-}
-
-private static String makeHSBKDescriptorList(int start, int end) {
-    final def subscriptedColor = 'hue_!:2l;saturation_!;level_!:2l;kelvin_!:2l'
-    def temp = []
-    start.upto(end) {
-        temp << applySubscript(subscriptedColor, it)
-    }
-    temp.join(';')
 }
 
 Map<String, Map<String, Map>> messageTypes() {
@@ -945,13 +937,53 @@ private Map parseBytes(String descriptor, List<Long> bytes) {
     parseBytes getDescriptor(descriptor), bytes
 }
 
+private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
+//    logDebug "Descriptor: $descriptor"
+//    logDebug "Data is $bytes"
+    Map result = new HashMap()
+    int offset = 0
+    for (item in descriptor) {
+//        logDebug "Item is $item"
+        String kind = item.kind
+        // partition the data
+        int totalLength = item.size * item.count
+//        logDebug "Length is $totalLength"
+        int nextOffset = offset + totalLength
+        List<Long> data = bytes.subList offset, nextOffset
+//        logDebug "extracted data $data"
+        assert (data.size() == totalLength)
+        offset = nextOffset
+
+
+//        logDebug "Result before: $result"
+
+        if (item.isArray) {
+//            logDebug "It's an array"
+            def subMap = [:]
+            for (int i = 0; i < item.count; i++) {
+                processSegment subMap, data, item, i
+            }
+            result.put item.name, subMap
+        } else {
+            processSegment result, data, item, item.name
+        }
+    }
+    if (offset < bytes.size()) {
+        result.put 'remainder', bytes[offset..-1]
+    }
+//    logDebug "Result after: $result"
+    return result
+}
+
 private void processSegment(Map result, List<Long> data, Map item, name) {
-    switch (kind) {
+//    logDebug "Item is $item"
+    switch (item.kind) {
         case 'B':
         case 'W':
         case 'I':
         case 'L':
-            data.reverse()
+//            logDebug "It's a number"
+            data = data.reverse()
             storeValue result, data, item.size, name
             break
         case 'F':
@@ -966,6 +998,7 @@ private void processSegment(Map result, List<Long> data, Map item, name) {
             break
         case 'H':
             Map color = parseBytes 'hue:w;saturation:w;level:w,kelvin:w', data
+//            logDebug "Colour: $color"
             result.put name, color
             break
         default:
@@ -973,142 +1006,7 @@ private void processSegment(Map result, List<Long> data, Map item, name) {
     }
 }
 
-private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
-    Map result = new HashMap()
-    int offset = 0
-    for (item in descriptor) {
-        String kind = item.kind
-        // partition the data
-        int totalLength = item.size * item.count
-        int nextOffset = offset + totalLength
-        List<Long> data = bytes.subList offset, nextOffset
-        assert (data.size() == item.bytes as int)
-        offset = nextOffset
-
-        if (item.isArray) {
-            def subMap = [:]
-            for (int i = 0; i < item.count; i++) {
-                processSegment subMap, data, item.kind, item.size, i
-            }
-            result.put item.name, subMap
-        } else {
-            processSegment result, data, item.kind, item.size, item.name
-        }
-//        if ('H' == kind) {
-//            int nextOffset = offset + 8
-//            List<Long> data = bytes.subList offset, nextOffset
-//            assert (data.size() == item.bytes as int)
-//            offset = nextOffset
-//            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
-//            result.put 'hue', color.hue
-//            result.put 'saturation', color.saturation
-//            result.put 'level', color.level
-//            result.put 'kelvin', color.kelvin
-//            result.put item.name, color
-//            return result
-//        }
-//
-//        int nextOffset = offset + (item.bytes as int)
-//
-//        List<Long> data = bytes.subList offset, nextOffset
-//        assert (data.size() == item.bytes as int)
-//        offset = nextOffset
-//        // assume big kind
-//        //for now
-//
-//        if ('A' == kind) {
-//            result.put(item.name, data)
-//            return result
-//        }
-//        if (kind.startsWith('A')) {
-//            def realKind = kind[1]
-//
-//        }
-//        if ('S' == kind) {
-//            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
-//            return result
-//        }
-//        if ('F' == kind) {
-//            data = data.reverse()
-//            BigInteger value = 0
-//            data.each { value = (value * 256) + it }
-//            def theFloat = Float.intBitsToFloat(value)
-//            result.put(item.name, theFloat)
-//            return result
-//        }
-//        if ('B' != kind) {
-//            data = data.reverse()
-//        }
-//
-//        storeValue(result, data, item.bytes, item.name)
-    }
-    if (offset < bytes.size()) {
-        result.put 'remainder', bytes[offset..-1]
-    }
-    return result
-}
-//
-//private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
-//    Map result = new HashMap()
-//    int offset = 0
-//    descriptor.each { item ->
-//        String kind = item.kind
-//        Int length
-//        if ('H' == kind) {
-//            int nextOffset = offset + 8
-//            List<Long> data = bytes.subList offset, nextOffset
-//            assert (data.size() == item.bytes as int)
-//            offset = nextOffset
-//            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
-//            result.put 'hue', color.hue
-//            result.put 'saturation', color.saturation
-//            result.put 'level', color.level
-//            result.put 'kelvin', color.kelvin
-//            result.put item.name, color
-//            return result
-//        }
-//
-//        int nextOffset = offset + (item.bytes as int)
-//
-//        List<Long> data = bytes.subList offset, nextOffset
-//        assert (data.size() == item.bytes as int)
-//        offset = nextOffset
-//        // assume big kind
-//        //for now
-//
-//        if ('A' == kind) {
-//            result.put(item.name, data)
-//            return result
-//        }
-//        if (kind.startsWith('A')) {
-//            def realKind = kind[1]
-//
-//        }
-//        if ('S' == kind) {
-//            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
-//            return result
-//        }
-//        if ('F' == kind) {
-//            data = data.reverse()
-//            BigInteger value = 0
-//            data.each { value = (value * 256) + it }
-//            def theFloat = Float.intBitsToFloat(value)
-//            result.put(item.name, theFloat)
-//            return result
-//        }
-//        if ('B' != kind) {
-//            data = data.reverse()
-//        }
-//
-//        storeValue(result, data, item.bytes, item.name)
-//    }
-//    if (offset < bytes.size()) {
-//        result.put 'remainder', bytes[offset..-1]
-//    }
-//    return result
-//}
-
-private void storeValue(Map result, List<Long> data, numBytes, String name, boolean trace = false) {
+private void storeValue(Map result, List<Long> data, numBytes, index, boolean trace = false) {
     BigInteger value = 0
     data.each { value = (value * 256) + it }
     def theValue
@@ -1125,24 +1023,29 @@ private void storeValue(Map result, List<Long> data, numBytes, String name, bool
         default: // this should complain if longer than 8 bytes
             theValue = (value & 0xFFFFFFFFFFFFFFFF) as long
     }
-    result.put name, theValue
+//    logDebug "Storing value of $theValue in $index, of size $numBytes, taken from $data"
+
+    result.put index, theValue
 }
 
 List makePayload(String device, String type, Map payload) {
     def descriptor = getDescriptor lookupDescriptorForDeviceAndType(device, type)
     def result = []
+//    logDebug "Payload is $payload"
     descriptor.each {
         Map item ->
+//            logDebug "Item is $item"
             if ('H' == item.kind) {
-                add result, (payload['hue'] ?: 0) as short
-                add result, (payload['saturation'] ?: 0) as short
-                add result, (payload['level'] ?: 0) as short
-                add result, (payload['kelvin'] ?: 0) as short
+//                logDebug "Color : $payload"
+                add result, (payload.color['hue'] ?: 0) as short
+                add result, (payload.color['saturation'] ?: 0) as short
+                add result, (payload.color['level'] ?: 0) as short
+                add result, (payload.color['kelvin'] ?: 0) as short
                 return
             }
             def value = payload[item.name] ?: 0
             //TODO possibly extend this to the other types A,S & B
-            switch (item.bytes as int) {
+            switch (item.size as int) {
                 case 1:
                     add result, value as byte
                     break
@@ -1217,10 +1120,6 @@ String getSubnet() {
     return m.group(1)
 }
 
-//def /* Hub */ getHub() {
-//    location.hubs[0]
-//}
-
 static Integer getTypeFor(String dev, String act) {
     def deviceAndType = lookupDeviceAndType dev, act
     deviceAndType.type as Integer
@@ -1233,13 +1132,16 @@ String getHubIP() {
 }
 
 byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
+//    logDebug "makePacket: payload $payload"
     def listPayload = makePayload(device, type, payload)
+//    logDebug "listPayload: $listPayload"
     int messageType = lookupDeviceAndType(device, type).type
     makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload, sequence)
 }
 
 // fills the buffer with the LIFX packet and returns the sequence number
 byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = [], Byte sequence = null) {
+
     def lastSequence = sequence ?: sequenceNumber()
     createFrame buffer, targetAddress.every { it == 0 }
     createFrameAddress buffer, targetAddress, ackRequired, responseRequired, lastSequence
