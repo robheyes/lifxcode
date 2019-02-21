@@ -280,6 +280,13 @@ Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean 
     deviceSetHSBKAndPower(duration, hsbkMap, displayed)
 }
 
+Map<String, List> deviceSetIRLevel(device, Number level, Boolean displayed, duration = 0) {
+    def actions = makeActions()
+    actions.commands << makeCommand('LIGHT.SET_INFRARED', [irLevel: value == scaleUp100(level)])
+    actions.events << [name: "IRLevel", value: level, displayed: displayed, data: [syncing: "false"]]
+    actions
+}
+
 Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, duration = 0) {
     if ((level <= 0 || null == level) && 0 == duration) {
         return deviceOnOff('off', displayed)
@@ -297,7 +304,7 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
         hsbkMap = [
                 hue       : scaleUp100(device.currentHue),
                 saturation: scaleUp100(device.currentSaturation),
-                brightness     : scaleUp100(level),
+                brightness: scaleUp100(level),
                 kelvin    : device.currentColorTemperature,
                 duration  : duration * 1000,
         ]
@@ -362,10 +369,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             def data = parsePayload 'LIGHT.STATE', header
 //            logDebug "State: $data"
             device.setLabel data.label.trim()
-            List<Map> result = [[name: "level", value: scaleDown(data.color.brightness, 100), displayed: displayed]]
+            List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
-                result.add([name: "hue", value: scaleDown(data.color.hue, 100), displayed: displayed])
-                result.add([name: "saturation", value: scaleDown(data.color.saturation, 100), displayed: displayed])
+                result.add([name: "hue", value: scaleDown100(data.color.hue), displayed: displayed])
+                result.add([name: "saturation", value: scaleDown100(data.color.saturation), displayed: displayed])
             }
             if (device.hasCapability('Color Temperature')) {
                 result.add([name: "colorTemperature", value: data.color.kelvin as Integer, displayed: displayed])
@@ -374,6 +381,9 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
                 result.add([name: 'switch', value: (data.power == 65535) ? 'on' : 'off', displayed: displayed])
             }
             return result
+        case messageTypes().LIGHT.STATE_INFRARED.type:
+            def data = parsePayload 'LIGHT.STATE_INFRARED', header
+            return [[name: 'IRLevel', value: scaleDown100(data.irLevel), displayed: displayed]]
         case messageTypes().DEVICE.STATE_POWER.type:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
             return [[name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],]
@@ -417,12 +427,10 @@ Map discoveryParse(String description) {
             def data = parsePayload 'DEVICE.STATE_GROUP', parsed
             updateDeviceDefinition mac, [group: data.label]
             return [ip: ip, type: messageTypes().DEVICE.GET_LOCATION.type as int]
-            break
         case messageTypes().DEVICE.STATE_LOCATION.type:
             def data = parsePayload 'DEVICE.STATE_LOCATION', parsed
             updateDeviceDefinition mac, [location: data.label]
             return [ip: ip, type: messageTypes().DEVICE.GET_LABEL.type as int]
-            break
         case messageTypes().DEVICE.STATE_WIFI_INFO.type:
             break
         case messageTypes().DEVICE.STATE_INFO.type:
@@ -718,136 +726,275 @@ private static Map deviceVersion(Map device) {
             return [
                     name      : 'Original 1000',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 3:
             return [
                     name      : 'Color 650',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 10:
             return [
                     name      : 'White 800 (Low Voltage)',
                     deviceName: 'LIFX White',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2700, max: 6500],
+                            chain            : false
+                    ]
             ]
         case 11:
             return [
                     name      : 'White 800 (High Voltage)',
                     deviceName: 'LIFX White',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2700, max: 6500],
+                            chain            : false
+                    ]
             ]
         case 18:
             return [
                     name      : 'White 900 BR30 (Low Voltage)',
                     deviceName: 'LIFX White',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 6500], chain: false]
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2700, max: 6500],
+                            chain            : false
+                    ]
             ]
         case 20:
             return [
                     name      : 'Color 1000 BR30',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 22:
             return [
                     name      : 'Color 1000',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 27:
         case 43:
             return [
                     name      : 'LIFX A19',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 28:
         case 44:
             return [
                     name      : 'LIFX BR30',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 29:
         case 45:
             return [
                     name      : 'LIFX+ A19',
                     deviceName: 'LIFXPlus Color',
-                    features  : [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : true,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 30:
         case 46:
             return [
                     name      : 'LIFX+ BR30',
                     deviceName: 'LIFXPlus Color',
-                    features  : [color: true, infrared: true, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : true,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 31:
             return [
                     name      : 'LIFX Z',
                     deviceName: 'LIFX Multizone',
-                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : true,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 32:
             return [
                     name      : 'LIFX Z 2',
                     deviceName: 'LIFX Multizone',
-                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color              : true,
+                            infrared           : false,
+                            multizone          : true,
+                            temperature_range  : [min: 2500, max: 9000],
+                            chain              : false,
+                            min_ext_mz_firmware: 1532997580
+                    ]
             ]
         case 36:
         case 37:
             return [
                     name      : 'LIFX Downlight',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 38:
-        case 56:
             return [
                     name      : 'LIFX Beam',
                     deviceName: 'LIFX Multizone',
-                    features  : [color: true, infrared: false, multizone: true, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : true,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false,
+                            min_ext_mz_firmware: 1532997580
+                    ]
             ]
+
         case 49:
             return [
                     name      : 'LIFX Mini',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
             ]
         case 50:
         case 60:
             return [
                     name      : 'LIFX Mini Day and Dusk',
                     deviceName: 'LIFX Day and Dusk',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 1500, max: 4000], chain: false]
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 1500, max: 4000],
+                            chain            : false
+                    ]
             ]
         case 51:
         case 61:
             return [
                     name      : 'LIFX Mini White',
                     deviceName: 'LIFX White Mono',
-                    features  : [color: false, infrared: false, multizone: false, temperature_range: [min: 2700, max: 2700], chain: false]
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2700, max: 2700],
+                            chain            : false
+                    ]
             ]
         case 52:
             return [
                     name      : 'LIFX GU10',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color: true,
+                            infrared: false,
+                            multizone: false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain: false
+                    ]
             ]
         case 55:
             return [
                     name      : 'LIFX Tile',
                     deviceName: 'LIFX Tile',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: true]
+                    features  : [
+                            color: true,
+                            infrared: false,
+                            multizone: false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain: true
+                    ]
             ]
-
+        case 56:
+            return [
+                    name      : 'LIFX Beam',
+                    deviceName: 'LIFX Multizone',
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : true,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain            : false,
+                    ]
+            ]
         case 59:
             return [
                     name      : 'LIFX Mini Color',
                     deviceName: 'LIFX Color',
-                    features  : [color: true, infrared: false, multizone: false, temperature_range: [min: 2500, max: 9000], chain: false]
+                    features  : [
+                            color: true,
+                            infrared: false,
+                            multizone: false,
+                            temperature_range: [min: 2500, max: 9000],
+                            chain: false
+                    ]
             ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
@@ -1424,9 +1571,12 @@ void logWarn(String msg) {
                 SET_INFRARED         : [type: 122, descriptor: 'irLevel:w'],
         ],
         MULTIZONE: [
-                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
-                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:b;endIndex:b'],
-                STATE_ZONE     : [type: 503, descriptor: "count:b;index:b;color:h"],
-                STATE_MULTIZONE: [type: 506, descriptor: "count:b;index:b;colors:ha8"]
+                SET_COLOR_ZONES           : [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
+                GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
+                STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
+                STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
+                SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colorsCount:b;colors:ha82'],
+                GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
+                STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'index:w;count:w;colors_count:b;colors:ha82'],
         ]
 ]

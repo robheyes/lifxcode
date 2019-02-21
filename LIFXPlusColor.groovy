@@ -59,6 +59,7 @@ def refresh() {
 def poll() {
     lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
+    lifxQuery 'LIGHT.GET_INFRARED'
 }
 
 def on() {
@@ -94,7 +95,7 @@ def setState(value) {
 }
 
 def setInfraredLevel(level, duration=0) {
-
+    sendActions parent.deviceSetIRLevel(device, level, getUseActivityLog(), duration)
 }
 
 private void sendActions(Map<String, List> actions) {
