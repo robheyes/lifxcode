@@ -30,7 +30,7 @@ preferences {
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
+    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 15) {
         section('Options') {
             input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)', submitOnChange: true
 //            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 600
@@ -40,8 +40,9 @@ def mainPage() {
         section('Discovery') {
             paragraph(styles())
             input 'discoverBtn', 'button', title: 'Discover devices'
-            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
+            input 'clearCachesBtn', 'button', title: 'Clear caches'
+            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button above'
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
@@ -61,6 +62,11 @@ def mainPage() {
 
 private static String styles() {
     $/<style>
+    h4.pre {
+        background: #81BC00;
+        font-size: larger
+    }
+    
     ul {
         list-style-type: none;
     }
@@ -171,11 +177,14 @@ private void updateKnownDevices() {
 
 def appButtonHandler(btn) {
     log.debug "appButtonHandler called with ${btn}"
-    state.btnCall = btn
-    if (state.btnCall == "discoverBtn") {
+//    state.btnCall = btn
+    if (btn == "discoverBtn") {
         refresh()
-    } else if (state.btnCall == 'discoverNewBtn') {
+    } else if (btn == 'discoverNewBtn') {
         discoverNew()
+    } else if (btn == 'clearCachesBtn') {
+        clearCachedDescriptors()
+        clearDeviceDefinitions()
     }
 }
 
@@ -354,9 +363,9 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             def data = parsePayload 'DEVICE.STATE_LOCATION', header
             String location = data.label
             return [[name: 'Location', value: location]]
-        case messageTypes().DEVICE.STATE_WIFI_INFO.type:
-            def data = parsePayload 'DEVICE.STATE_WIFI_INFO', header
-//            logDebug("Wifi data $data")
+        case messageTypes().DEVICE.STATE_HOST_INFO.type:
+            def data = parsePayload 'DEVICE.STATE_HOST_INFO', header
+            logDebug("Wifi data $data")
             break
         case messageTypes().DEVICE.STATE_INFO.type:
             def data = parsePayload 'DEVICE.STATE_INFO', header
@@ -402,6 +411,7 @@ Map discoveryParse(String description) {
     Map deviceParams = parseDeviceParameters description
     String ip = convertIpLong(deviceParams.ip as String)
     Map parsed = parseHeader deviceParams
+
     final String mac = deviceParams.mac
     switch (parsed.type) {
         case messageTypes().DEVICE.STATE_VERSION.type:
@@ -470,7 +480,7 @@ private static Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Num
 
     if (hsbkMap) {
 //        logDebug "color change required"
-        actions.commands << makeCommand('LIGHT.SET_COLOR', hsbkMap)
+        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
@@ -542,14 +552,14 @@ private String lookupDescriptorForDeviceAndType(String device, String type) {
 }
 
 Map parseHeader(Map deviceParams) {
-    List<Map> headerDescriptor = getDescriptor 'size:2l,misc:2l,source:4l,target:8a,frame_reserved:6a,flags:1,sequence:1,protocol_reserved:8a,type:2l,protocol_reserved2:2'
+    List<Map> headerDescriptor = getDescriptor 'size:w,misc:w,source:i,target:ba8,frame_reserved:ba6,flags:b,sequence:b,protocol_reserved:ba8,type:w,protocol_reserved2:w'
     parseBytes(headerDescriptor, (hubitat.helper.HexUtils.hexStringToIntArray(deviceParams.payload) as List<Long>).each {
         it & 0xff
     })
 }
 
 void createDeviceDefinition(Map parsed, String ip, String mac) {
-    List<Map> stateVersionDescriptor = getDescriptor 'vendor:4l,product:4l,version:4l'
+    List<Map> stateVersionDescriptor = getDescriptor 'vendor:i,product:i,version:i'
     def version = parseBytes stateVersionDescriptor, parsed.remainder as List<Long>
     def device = deviceVersion version
     device['ip'] = ip
@@ -704,15 +714,6 @@ String convertIpLong(String ip) {
 
 private static String applySubscript(String descriptor, Number subscript) {
     descriptor.replace('!', subscript.toString())
-}
-
-private static String makeHSBKDescriptorList(int start, int end) {
-    final def subscriptedColor = 'hue_!:2l;saturation_!;level_!:2l;kelvin_!:2l'
-    def temp = []
-    start.upto(end) {
-        temp << applySubscript(subscriptedColor, it)
-    }
-    temp.join(';')
 }
 
 Map<String, Map<String, Map>> messageTypes() {
@@ -946,60 +947,75 @@ private Map parseBytes(String descriptor, List<Long> bytes) {
 }
 
 private Map parseBytes(List<Map> descriptor, List<Long> bytes) {
+//    logDebug "Descriptor: $descriptor"
+//    logDebug "Data is $bytes"
     Map result = new HashMap()
     int offset = 0
-    descriptor.each { item ->
-        if ('H' == item.kind) {
-            int nextOffset = offset + 8
-            List<Long> data = bytes.subList offset, nextOffset
-            assert (data.size() == item.bytes as int)
-            offset = nextOffset
-            Map color = parseBytes('hue:2l;saturation:2l;level:2l,kelvin:2l', data)
-            result.put 'hue', color.hue
-            result.put 'saturation', color.saturation
-            result.put 'level', color.level
-            result.put 'kelvin', color.kelvin
-            result.put item.name, color
-            return result
-        }
-
-        int nextOffset = offset + (item.bytes as int)
-
+    for (item in descriptor) {
+//        logDebug "Item is $item"
+        String kind = item.kind
+        // partition the data
+        int totalLength = item.size * item.count
+//        logDebug "Length is $totalLength"
+        int nextOffset = offset + totalLength
         List<Long> data = bytes.subList offset, nextOffset
-        assert (data.size() == item.bytes as int)
+//        logDebug "extracted data $data"
+        assert (data.size() == totalLength)
         offset = nextOffset
-        // assume big kind
-        //for now
-        if ('A' == item.kind) {
-            result.put(item.name, data)
-            return result
-        }
-        if ('S' == item.kind) {
-            result.put(item.name, new String((data.findAll { it != 0 }) as byte[]))
-            return result
-        }
-        if ('F' == item.kind) {
-            data = data.reverse()
-            BigInteger value = 0
-            data.each { value = (value * 256) + it }
-            def theFloat = Float.intBitsToFloat(value)
-            result.put(item.name, theFloat)
-            return result
-        }
-        if ('B' != item.kind) {
-            data = data.reverse()
-        }
 
 
-        storeValue(result, data, item.bytes, item.name)
+//        logDebug "Result before: $result"
+
+        if (item.isArray) {
+//            logDebug "It's an array"
+            def subMap = [:]
+            for (int i = 0; i < item.count; i++) {
+                processSegment subMap, data, item, i
+            }
+            result.put item.name, subMap
+        } else {
+            processSegment result, data, item, item.name
+        }
     }
     if (offset < bytes.size()) {
         result.put 'remainder', bytes[offset..-1]
     }
+//    logDebug "Result after: $result"
     return result
 }
 
-private void storeValue(Map result, List<Long> data, numBytes, String name, boolean trace = false) {
+private void processSegment(Map result, List<Long> data, Map item, name) {
+//    logDebug "Item is $item"
+    switch (item.kind) {
+        case 'B':
+        case 'W':
+        case 'I':
+        case 'L':
+//            logDebug "It's a number"
+            data = data.reverse()
+            storeValue result, data, item.size, name
+            break
+        case 'F':
+            data = data.reverse()
+            Long value = 0
+            data.each { value = (value * 256) + it }
+            def theFloat = Float.intBitsToFloat(value)
+            result.put name, theFloat
+            break
+        case 'T':
+            result.put name, new String((data.findAll { it != 0 }) as byte[])
+            break
+        case 'H':
+            Map color = parseBytes 'hue:w;saturation:w;level:w,kelvin:w', data
+//            logDebug "Colour: $color"
+            result.put name, color
+            break
+        default:
+            throw new RuntimeException("Unexpected item kind '$kind'")
+    }
+}
+
+private void storeValue(Map result, List<Long> data, numBytes, index, boolean trace = false) {
     BigInteger value = 0
     data.each { value = (value * 256) + it }
     def theValue
@@ -1016,24 +1032,29 @@ private void storeValue(Map result, List<Long> data, numBytes, String name, bool
         default: // this should complain if longer than 8 bytes
             theValue = (value & 0xFFFFFFFFFFFFFFFF) as long
     }
-    result.put name, theValue
+//    logDebug "Storing value of $theValue in $index, of size $numBytes, taken from $data"
+
+    result.put index, theValue
 }
 
 List makePayload(String device, String type, Map payload) {
     def descriptor = getDescriptor lookupDescriptorForDeviceAndType(device, type)
     def result = []
+//    logDebug "Payload is $payload"
     descriptor.each {
         Map item ->
+//            logDebug "Item is $item"
             if ('H' == item.kind) {
-                add result, (payload['hue'] ?: 0) as short
-                add result, (payload['saturation'] ?: 0) as short
-                add result, (payload['level'] ?: 0) as short
-                add result, (payload['kelvin'] ?: 0) as short
+//                logDebug "Color : $payload"
+                add result, (payload.color['hue'] ?: 0) as short
+                add result, (payload.color['saturation'] ?: 0) as short
+                add result, (payload.color['level'] ?: 0) as short
+                add result, (payload.color['kelvin'] ?: 0) as short
                 return
             }
             def value = payload[item.name] ?: 0
             //TODO possibly extend this to the other types A,S & B
-            switch (item.bytes as int) {
+            switch (item.size as int) {
                 case 1:
                     add result, value as byte
                     break
@@ -1068,13 +1089,32 @@ private List<Map> getDescriptor(String desc) {
     candidate
 }
 
+private static Number itemLength(String kind) {
+    switch (kind) {
+        case 'B': return 1
+        case 'W': return 2
+        case 'I': return 4
+        case 'L': return 8
+        case 'H': return 8
+        case 'F': return 4
+        case 'T': return 1 // length of character
+        default:
+            throw new RuntimeException("Unexpected item kind '$kind'")
+    }
+}
+
 private static List<Map> makeDescriptor(String desc) {
-    desc.findAll(~/(\w+):(\d+)([aAbBlLsShHfF]?)/) {
+    desc.findAll(~/(\w+):([bBwWiIlLhHfFtT][aA]?)(\d+)?/) {
         full ->
+            def theKind = full[2].toUpperCase()
+            def baseKind = theKind[0]
+            def isArray = theKind.length() > 1 && theKind[1] == 'A'
             [
-                    kind : full[3].toUpperCase(),
-                    bytes: full[2].toInteger(),
-                    name : full[1],
+                    name   : full[1],
+                    kind   : baseKind,
+                    isArray: isArray,
+                    count  : full[3]?.toInteger() ?: 1,
+                    size   : itemLength(baseKind)
             ]
     }
 }
@@ -1089,10 +1129,6 @@ String getSubnet() {
     return m.group(1)
 }
 
-//def /* Hub */ getHub() {
-//    location.hubs[0]
-//}
-
 static Integer getTypeFor(String dev, String act) {
     def deviceAndType = lookupDeviceAndType dev, act
     deviceAndType.type as Integer
@@ -1105,13 +1141,16 @@ String getHubIP() {
 }
 
 byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
+//    logDebug "makePacket: payload $payload"
     def listPayload = makePayload(device, type, payload)
+//    logDebug "listPayload: $listPayload"
     int messageType = lookupDeviceAndType(device, type).type
     makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload, sequence)
 }
 
 // fills the buffer with the LIFX packet and returns the sequence number
 byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = [], Byte sequence = null) {
+
     def lastSequence = sequence ?: sequenceNumber()
     createFrame buffer, targetAddress.every { it == 0 }
     createFrameAddress buffer, targetAddress, ackRequired, responseRequired, lastSequence
@@ -1370,52 +1409,52 @@ void logWarn(String msg) {
 @Field Map msgTypes = [
         DEVICE   : [
                 GET_SERVICE        : [type: 2, descriptor: ''],
-                STATE_SERVICE      : [type: 3, descriptor: 'service:1;port:4l'],
+                STATE_SERVICE      : [type: 3, descriptor: 'service:b;port:i'],
                 GET_HOST_INFO      : [type: 12, descriptor: ''],
-                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:4l;tx:4l;rx:4l,reservedHost:2l'],
+                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:i;tx:i;rx:i,reservedHost:w'],
                 GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
-                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_WIFI_INFO      : [type: 16, descriptor: ''],
-                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:4l;tx:4l;rx:4l,reservedWifi:2l'],
+                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:i;tx:i;rx:i,reservedWifi:w'],
                 GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
-                STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:8l;reservedFirmware:8l;version:4l'],
+                STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_POWER          : [type: 20, descriptor: ''],
-                SET_POWER          : [type: 21, descriptor: 'level:2l'],
-                STATE_POWER        : [type: 22, descriptor: 'level:2l'],
+                SET_POWER          : [type: 21, descriptor: 'level:w'],
+                STATE_POWER        : [type: 22, descriptor: 'level:w'],
                 GET_LABEL          : [type: 23, descriptor: ''],
-                SET_LABEL          : [type: 24, descriptor: 'label:32s'],
-                STATE_LABEL        : [type: 25, descriptor: 'label:32s'],
+                SET_LABEL          : [type: 24, descriptor: 'label:t32'],
+                STATE_LABEL        : [type: 25, descriptor: 'label:t32'],
                 GET_VERSION        : [type: 32, descriptor: ''],
-                STATE_VERSION      : [type: 33, descriptor: 'vendor:4l;product:4l;version:4l'],
+                STATE_VERSION      : [type: 33, descriptor: 'vendor:i;product:i;version:i'],
                 GET_INFO           : [type: 34, descriptor: ''],
-                STATE_INFO         : [type: 35, descriptor: 'time:8l;uptime:8l;downtime:8l'],
+                STATE_INFO         : [type: 35, descriptor: 'time:l;uptime:l;downtime:l'],
                 ACKNOWLEDGEMENT    : [type: 45, descriptor: ''],
                 GET_LOCATION       : [type: 48, descriptor: ''],
-                SET_LOCATION       : [type: 49, descriptor: 'location:16a;label:32s;updated_at:8l'],
-                STATE_LOCATION     : [type: 50, descriptor: 'location:16a;label:32s;updated_at:8l'],
+                SET_LOCATION       : [type: 49, descriptor: 'location:ba16;label:t32;updated_at:l'],
+                STATE_LOCATION     : [type: 50, descriptor: 'location:ba16;label:t32;updated_at:l'],
                 GET_GROUP          : [type: 51, descriptor: ''],
-                SET_GROUP          : [type: 52, descriptor: 'group:16a;label:32s;updated_at:8l'],
-                STATE_GROUP        : [type: 53, descriptor: 'group:16a;label:32s;updated_at:8l'],
-                ECHO_REQUEST       : [type: 58, descriptor: 'payload:64a'],
-                ECHO_RESPONSE      : [type: 59, descriptor: 'payload:64a'],
+                SET_GROUP          : [type: 52, descriptor: 'group:ba16;label:t32;updated_at:l'],
+                STATE_GROUP        : [type: 53, descriptor: 'group:ba16;label:t32;updated_at:l'],
+                ECHO_REQUEST       : [type: 58, descriptor: 'payload:ba64'],
+                ECHO_RESPONSE      : [type: 59, descriptor: 'payload:ba64'],
         ],
         LIGHT    : [
                 GET_STATE            : [type: 101, descriptor: ''],
-                SET_COLOR            : [type: 102, descriptor: "reservedColor:1;color:8h;duration:4l"],
-                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1"],
-                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:1;transient:1;color:8h;period:4l;cycles:4l;skew_ratio:2l;waveform:1;set_hue:1;set_saturation:1;set_brightness:1;set_kelvin:1"],
-                STATE                : [type: 107, descriptor: "color:8h;reserved1State:2l;power:2l;label:32s;reserved2state:8l"],
+                SET_COLOR            : [type: 102, descriptor: "reservedColor:b;color:h;duration:i"],
+                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b"],
+                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b;setColor:h"],
+                STATE                : [type: 107, descriptor: "color:h;reserved1State:w;power:w;label:t32;reserved2state:l"],
                 GET_POWER            : [type: 116, descriptor: ''],
-                SET_POWER            : [type: 117, descriptor: 'level:2l;duration:4l'],
-                STATE_POWER          : [type: 118, descriptor: 'level:2l'],
+                SET_POWER            : [type: 117, descriptor: 'level:w;duration:i'],
+                STATE_POWER          : [type: 118, descriptor: 'level:w'],
                 GET_INFRARED         : [type: 120, descriptor: ''],
-                STATE_INFRARED       : [type: 121, descriptor: 'brightness:2l'],
-                SET_INFRARED         : [type: 122, descriptor: 'brightness:2l'],
+                STATE_INFRARED       : [type: 121, descriptor: 'brightness:w'],
+                SET_INFRARED         : [type: 122, descriptor: 'brightness:w'],
         ],
         MULTIZONE: [
-                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:1;endIndex:1;color:8h;duration:4l;apply:1"],
-                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:1;endIndex:1'],
-                STATE_ZONE     : [type: 503, descriptor: "count:1;index:1;color:8h"],
-//                    STATE_MULTIZONE: [type: 506, descriptor: "count:1;index:1;${makeHSBKDescriptorList(0, 7)}"]
+                SET_COLOR_ZONES: [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
+                GET_COLOR_ZONES: [type: 502, descriptor: 'startIndex:b;endIndex:b'],
+                STATE_ZONE     : [type: 503, descriptor: "count:b;index:b;color:h"],
+                STATE_MULTIZONE: [type: 506, descriptor: "count:b;index:b;colors:ha8"]
         ]
 ]

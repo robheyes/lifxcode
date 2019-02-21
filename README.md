@@ -38,9 +38,16 @@ have power.
 Again __IMPORTANT__ if you didn't press the __Done__ button when you created the **LIFX Master** app then do it now.
 
 Open the **LIFX Master** app and press the **Discover devices** button. 
-You may notice the LIFX Discovery device in your list of devices, but this should disappear at the end of the scan. 
+You may notice the **LIFX Discovery** device in your list of devices, but this should disappear at the end of the scan. 
 
-#### Implementation information
+### Updating
+#### Always make a backup.
+
+It's recommended that when updating the LIFX code that you delete the app instance. However, this will delete
+all your existing LIFX devices.  As an alternative the first action you should take is to click the **Clear caches** 
+button.
+
+### Implementation information
 The LIFX Lan Protocol uses UDP messages, it seems that sometimes these can be missed or lost, so the discovery process 
 makes 5 passes over your local network to try to mitigate this.  So far this seems good enough on my network.
 
@@ -49,15 +56,22 @@ the sequence number is tracked with the LAN Protocol packet. When a subsequent c
 it checks to see whether the acknowledgement was received. If it wasn't received the packet is sent 
 one more time.  The reason for this is that UDP messages are not guaranteed to arrive, so it's pretty much
 a small safety net.  You can expect that this will happen at least when the device is next polled (under a minute).
-A warning should show up in the log if this happens.
-  
+
 ## Troubleshooting
 ### Undiscovered devices
-If you find that some devices aren't discovered then you could try altering some of the options
+If you find that some devices aren't discovered
+* try the **Discover new only new devices** button
+* make sure that the missing devices still have power - someone may have turned off a switch :) 
+* try altering some of the options as described below. 
 
-My first recommendation would be increasing the value of __`Time between commands for first pass (milliseconds)`__.  Try increasing it by 10 at a time.
+With recent improvements I've found that the default settings should be more than enough to discover all your devices in two 
+passes, but your mileage may vary.
 
-You can also increase `Maximum number of passes` to give discovery a better chance of reaching all the devices in your network.
+My first recommendation would be increasing the value of __`Time between commands (milliseconds)`__.  
+Try increasing it by 10 at a time.
+
+You can also increase `Maximum number of passes` to give discovery a better chance of reaching all the devices in your network. 
+I've found that all my devices are found in the first pass at least 95% of the time.
 
 ### Errors in the log
 Let me know if you see any errors in the log, and I'll do my best to fix the issue as soon as possible
