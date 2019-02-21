@@ -30,7 +30,7 @@ preferences {
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 10) {
+    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 15) {
         section('Options') {
             input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)', submitOnChange: true
 //            input 'scanTimeLimit', 'number', title: 'Max scan time (seconds)', defaultValue: 600
@@ -40,8 +40,9 @@ def mainPage() {
         section('Discovery') {
             paragraph(styles())
             input 'discoverBtn', 'button', title: 'Discover devices'
-            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
+            input 'clearCachesBtn', 'button', title: 'Clear caches'
+            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button above'
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
@@ -61,6 +62,11 @@ def mainPage() {
 
 private static String styles() {
     $/<style>
+    h4.pre {
+        background: #81BC00;
+        font-size: larger
+    }
+    
     ul {
         list-style-type: none;
     }
@@ -171,11 +177,14 @@ private void updateKnownDevices() {
 
 def appButtonHandler(btn) {
     log.debug "appButtonHandler called with ${btn}"
-    state.btnCall = btn
-    if (state.btnCall == "discoverBtn") {
+//    state.btnCall = btn
+    if (btn == "discoverBtn") {
         refresh()
-    } else if (state.btnCall == 'discoverNewBtn') {
+    } else if (btn == 'discoverNewBtn') {
         discoverNew()
+    } else if (btn == 'clearCachesBtn') {
+        clearCachedDescriptors()
+        clearDeviceDefinitions()
     }
 }
 
