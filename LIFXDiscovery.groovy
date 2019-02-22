@@ -1,3 +1,5 @@
+import groovy.transform.Field
+
 /**
  *
  *  Copyright 2019 Robert Heyes. All Rights Reserved
@@ -12,6 +14,8 @@
  *
  */
 
+@Field Integer extraProbesPerPass = 2
+
 metadata {
     definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
         capability "Refresh"
@@ -24,7 +28,6 @@ metadata {
         input "logEnable", "bool", title: "Enable debug logging", required: false
     }
 }
-
 def updated() {
     log.debug "LIFX updating"
 }
@@ -59,7 +62,8 @@ private scanNetwork(String subnet, int pass) {
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
-            1.upto(pass+3) {
+            1.upto(pass + extraProbesPerPass) {
+//            1.upto(2) {
                 sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, 1, it % 128 as Byte
             }
         }
