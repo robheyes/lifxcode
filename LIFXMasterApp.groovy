@@ -30,46 +30,131 @@ definition(
 )
 
 preferences {
-    page(name: 'mainPage')
+    page(name: 'mainPage'/*, nextPage: 'Discovery'*/)
+    page(name: 'discoveryPage')
+    page(name: 'namedColorsPage')
+    page(name: 'testBedPage')
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true, refreshInterval: 15) {
-        section('Options') {
+    dynamicPage(name: "mainPage", title: "Options", install: true, uninstall: true) {
+        section {
             input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)', submitOnChange: true
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2, submitOnChange: true
+            input 'refreshInterval', 'number', title: 'Discovery page refresh interval (seconds).<br><strong>WARNING</strong>: high refresh rates may interfere with discovery.', defaultValue: 10, submitOnChange: true
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
-        section(hidden: true, 'Testing') {
-            input 'colors', 'text', title: 'Colors', defaultValue: '{"a": "Red", "b": "#FFDDAA", "c": "random", "d": {"h":20,"s":50,"v":100}}'
-            input 'pattern', 'text', title: 'Descriptor', defaultValue: 'a:1,b:2,c:3,d:1'
-            input 'testBtn', 'button', title: 'Test pattern'
-        }
-        section('Discovery') {
-            paragraph(styles())
+        discoveryPageLink()
+        colorsPageLink()
+        testBedPageLink()
+        includeStyles()
+    }
+}
+
+def mainPageLink() {
+    section {
+        href(
+                name: 'Main page',
+                page: 'mainPage',
+                description: 'Back to main page'
+        )
+    }
+}
+
+def discoveryPage() {
+    dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
+        section {
             input 'discoverBtn', 'button', title: 'Discover devices'
-            input 'discoverNewBtn', 'button', title: 'Discover only new devices'
-            input 'clearCachesBtn', 'button', title: 'Clear caches'
-            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button above'
+            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
                             (
                                     ('DONE' == atomicState.scanPass) ?
                                             'Scanning complete' :
-                                            "Scanning your network for devices, pass ${atomicState.scanPass}"
+                                            "Scanning your network for devices, pass ${atomicState.scanPass} of ${maxScanPasses()}"
                             )
 
             )
             paragraph(
                     discoveryTextKnownDevices()
             )
+            input 'discoverNewBtn', 'button', title: 'Discover only new devices'
+            input 'clearCachesBtn', 'button', title: 'Clear caches'
+
         }
+        mainPageLink()
+        colorsPageLink()
+        includeStyles()
+    }
+}
+
+def namedColorsPage() {
+    dynamicPage(name: 'namedColorsPage', title: 'Named Colors') {
+        mainPageLink()
+        section {
+            paragraph(colorListHTML())
+        }
+        discoveryPageLink()
+        includeStyles()
+    }
+}
+
+def testBedPage() {
+    dynamicPage(name: 'testBedPage', title: 'Testing stuff') {
+        section
+        input 'colors', 'text', title: 'Colors', defaultValue: '{"a": "Red", "b": "#FFDDAA", "c": "random", "d": {"h":20,"s":50,"v":100}}'
+        input 'pattern', 'text', title: 'Descriptor', defaultValue: 'a:1,b:2,c:3,d:1'
+        input 'testBtn', 'button', title: 'Test pattern'
+    }
+    mainPageLink()
+    includeStyles()
+}
+
+
+private void includeStyles() {
+    section {
+        paragraph(styles())
+    }
+}
+
+private discoveryPageLink() {
+    section {
+        href(
+                name: 'Discovery',
+                page: 'discoveryPage',
+                description: 'Device discovery'
+        )
+    }
+}
+
+private testBedPageLink() {
+    section {
+        href(
+                name: 'Testbed',
+                page: 'testBedPage',
+                description: 'For experimental stuff'
+        )
+    }
+}
+
+private colorsPageLink() {
+    section {
+        href(
+                name: 'Named colors',
+                page: 'namedColorsPage',
+                description: 'Named colors'
+        )
     }
 }
 
 private static String styles() {
     $/<style>
+    h3.pre {
+        background: #81BC00;
+        font-size: larger;
+        font-weight: bolder
+    }
     h4.pre {
         background: #81BC00;
         font-size: larger
@@ -100,7 +185,48 @@ private static String styles() {
         font-weight: bold;
         background: violet
     }
+    
+    button span.state-incomplete-text {
+        display: block 
+    }
+    
+    button span {
+        display: none
+    }
+    
+    button br {
+        display: none
+    }    
+    
 </style>/$
+}
+
+String colorListHTML() {
+    builder = new StringBuilder()
+    builder << '<table class="colorList">'
+    colorList().each {
+        builder << '''<style>
+            table.colorList {
+                table-layout: auto;
+                width: 100%;
+                font-size: smaller
+            }
+            
+            td.colorName {
+                width: fit-content
+            }
+            td.colorSwatch {
+                width: 70%
+            }
+            </style>
+        '''
+        builder << '<tr>'
+        builder << "<td class='colorName'>$it.name</td>"
+        builder << "<td class='colorSwatch' style='background-color:$it.rgb'>&nbsp;</td>"
+        builder << '</tr>'
+    }
+    builder << '</table>'
+    builder.toString()
 }
 
 private String discoveryTextKnownDevices() {
@@ -108,10 +234,11 @@ private String discoveryTextKnownDevices() {
         return 'No devices known'
     }
 
-    ("I have found <strong>${atomicState.numDevices}</strong> LIFX "
-            + ((1 == atomicState.numDevices) ? 'device' : 'useable devices')
+    def deviceList = describeDevices() // don't inline this
+    ("I have found <strong>${atomicState.numDevices}</strong> useable LIFX device"
+            + ((1 == atomicState.numDevices) ? '' : 's')
             + ' so far:'
-            + describeDevices())
+            + deviceList)
 
 }
 
@@ -149,6 +276,10 @@ Integer interCommandPauseMilliseconds(int pass = 1) {
 
 Integer maxScanPasses() {
     settings.maxPasses ?: 2
+}
+
+Integer refreshInterval() {
+    settings.refreshInterval ?: 10
 }
 
 def updated() {
@@ -485,7 +616,7 @@ private Map pickRandomColor() {
     colors[tempRandom]
 }
 
-private List<Map> colorList() {
+List<Map> colorList() {
     colorMap
 }
 
@@ -510,15 +641,15 @@ Map transformColorValue(Map hsv) {
 
 List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor) {
     List<Map> result = []
-    def unlit = [hue: 0, saturation: 0, brightness: 0]
     logDebug "descriptor is $descriptor"
+    def darkPixel = [hue: 0, saturation: 0, brightness: 0, kelvin: 0]
     descriptor.findAll(~/(\w+):(\d+)/) {
         section ->
             String name = section[1]
             Integer count = section[2].toInteger()
             def color = namedColors[name]
             1.upto(count) {
-                result << color ?: [hue: 0, saturation: 0, brightness: 0, kelvin: 0]
+                result << color ?: darkPixel
             }
     }
     result
