@@ -23,9 +23,9 @@ metadata {
         capability "Initialize"
         capability "Color Control"
 
-        attribute "Label", "string"
-        attribute "Group", "string"
-        attribute "Location", "string"
+        attribute "label", "string"
+        attribute "group", "string"
+        attribute "location", "string"
         attribute "colorName", "string"
         attribute "lightStatus", "string"
         attribute "wifiStatus", "map"
@@ -93,6 +93,7 @@ def setLevel(level, duration = 0) {
 def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.colorTransitionTime ?: 0)
 }
+
 
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
