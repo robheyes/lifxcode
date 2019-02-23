@@ -259,7 +259,7 @@ private String describeDevices() {
                     builder << (
                             device.error ?
                                     "<li class='device-error'>${device.label} (${device.error})</li>"
-                                    : "<li class='device'>${device.label}</li>"
+                                    : "<li class='device'>${getDeviceNameLink(device, ip)}</li>"
                     )
             }
 
@@ -267,6 +267,11 @@ private String describeDevices() {
     }
     builder << '</ul>'
     builder.toString()
+}
+
+private String getDeviceNameLink(device, ip) {
+    def realDevice = getChildDevice(ip)
+    "<a href='/device/edit/${realDevice?.getId()}', target='_blank'>$device.label</a>"
 }
 
 Integer interCommandPauseMilliseconds(int pass = 1) {
