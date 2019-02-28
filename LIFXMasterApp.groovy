@@ -94,9 +94,9 @@ def namedColorsPage() {
     dynamicPage(name: 'namedColorsPage', title: 'Named Colors') {
         mainPageLink()
         section {
-            input 'sortOrder', 'enum', title: 'Sort by:', options: ['0': 'Alphabetical', '1': 'By Hue']
+            input 'sortOrder', 'enum', title: 'Sort by: ', options: ['0': 'Alphabetical', '1': 'By Hue', '2': 'By Level', '3': 'By RGB'], submitOnChange: true
             paragraph(
-                    colorListHTML(/*currentValue('sortOrder')*/)
+                    colorListHTML(settings.sortOrder)
             )
         }
         discoveryPageLink()
@@ -206,6 +206,7 @@ private static String styles() {
 }
 
 String colorListHTML(String sortOrder) {
+    logDebug("sort order is $sortOrder")
     builder = new StringBuilder()
     builder << '<table class="colorList">'
     colorList(sortOrder).each {
@@ -591,7 +592,6 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
 }
 
 
-
 Map<String, List> discoveryParse(String description) {
     def actions = makeActions()
     Map deviceParams = parseDeviceParameters description
@@ -672,21 +672,65 @@ private Map pickRandomColor() {
 }
 
 List<Map> colorList(String sortOrder) {
-    if (!sortOrder || '0' == sortOrder) {
-        colorMap
-    } else {
-        List<Map> colorMapHSV = colorMap.collect {
-            it.hsv = getHexColor(it.rgb)
-            it
+    if (!(!sortOrder || '0' == sortOrder)) {
+        switch (sortOrder) {
+            case '1':
+                List<Map> colorMapHSV = colorMap.collect {
+                    it.hsv = getHexColor(it.rgb)
+                    it
+                }
+                colorMapHSV.sort { a, b -> compareHSV(a.hsv, b.hsv) }
+                return colorMapHSV
+            case '2':
+                List<Map> colorMapHSV = colorMap.collect {
+                    it.hsv = getHexColor(it.rgb)
+                    it
+                }
+                colorMapHSV.sort { a, b -> compareVHS(a.hsv, b.hsv) }
+                return colorMapHSV
+            case '3':
+                List<Map> colorMapRGB = colorMap.collect {
+                    it.rgbMap = hexToColor(it.rgb)
+                    it
+                }
+                colorMapRGB.sort { a, b -> compareRGB(b.rgbMap, a.rgbMap) }
+                return colorMapRGB
         }
-        colorMapHSV.sort {
-            a, b ->
-                float aHue = a.hsv.h
-                float bHue = b.hsv.h
-                return aHue.compareTo(bHue)
-        }
-        colorMapHSV
     }
+    colorMap
+}
+
+int compareRGB(Map a, Map b) {
+    def result = (a.r as short).compareTo(b.r as short)
+    if (0 == result) {
+        result = (a.g as short).compareTo(b.g as short)
+    }
+    if (0 == result) {
+        result = (a.b as short).compareTo(b.b as short)
+    }
+    result
+}
+
+int compareHSV(Map a, Map b) {
+    def result = (a.h as float).compareTo(b.h as float)
+    if (0 == result) {
+        result = (a.s as float).compareTo(b.s as float)
+    }
+    if (0 == result) {
+        result = (a.v as float).compareTo(b.v as float)
+    }
+    result
+}
+
+int compareVHS(Map a, Map b) {
+    def result = (a.v as float).compareTo(b.v as float)
+    if (0 == result) {
+        result = (a.h as float).compareTo(b.h as float)
+    }
+    if (0 == result) {
+        result = (a.s as float).compareTo(b.s as float)
+    }
+    result
 }
 
 Map buildColorMaps(String jsonString) {
