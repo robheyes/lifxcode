@@ -106,13 +106,15 @@ def namedColorsPage() {
 
 def testBedPage() {
     dynamicPage(name: 'testBedPage', title: 'Testing stuff') {
-        section
-        input 'colors', 'text', title: 'Colors', defaultValue: '{"a": "Red", "b": "#FFDDAA", "c": "random", "d": {"h":20,"s":50,"v":100}}'
-        input 'pattern', 'text', title: 'Descriptor', defaultValue: 'a:1,b:2,c:3,d:1'
-        input 'testBtn', 'button', title: 'Test pattern'
+        section {
+            input 'colors', 'text', title: 'Colors', defaultValue: '{"a": "Red", "b": "#FFDDAA", "c": "random", "d": {"h":20,"s":50,"v":100}}'
+            input 'colors2', 'color_map', title: 'Colors', defaultValue: '[a: [color: Red], b: [color:"#FFDDAA"], c: [color: random], d: [h:20,s:50,v:100]]'
+            input 'pattern', 'text', title: 'Descriptor', defaultValue: 'a:1,b:2,c:3,d:1'
+            input 'testBtn', 'button', title: 'Test pattern'
+        }
+        mainPageLink()
+        includeStyles()
     }
-    mainPageLink()
-    includeStyles()
 }
 
 
@@ -344,6 +346,8 @@ def appButtonHandler(btn) {
 }
 
 def testColorMapBuilder() {
+//    Map<String, Map> map2 = buildColorMaps(settings.colors2 as Map)
+//    logDebug "Map2 is $map2"
     Map<String, Map> map = buildColorMaps(settings.colors)
     logDebug "Map is $map"
     def hsbkMaps = makeColorMaps map, settings.pattern as String
@@ -639,22 +643,20 @@ Map<String, List> discoveryParse(String description) {
 }
 
 private Map lookupColor(String color) {
-    Map myColor
-//    logDebug "color $color"
+    Map foundColor
     if (color == "random") {
         foundColor = pickRandomColor()
-//        logDebug "myColor $foundColor"
         log.info "Setting random color: ${foundColor.name}"
     } else if (color?.startsWith('#')) {
-        // convert rgb to hsv
         foundColor = [rgb: color]
     } else {
-        def foundColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
+        foundColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
         if (!foundColor) {
             throw new RuntimeException("No color found for $color")
         }
     }
-    myColor = getHexColor(foundColor.rgb)
+    logDebug "foundColor = $foundColor"
+    def myColor = getHexColor(foundColor.rgb)
     myColor.name = color
 
     myColor
@@ -736,6 +738,16 @@ int compareVHS(Map a, Map b) {
 Map buildColorMaps(String jsonString) {
     def slurper = new JsonSlurper()
     Map map = slurper.parseText jsonString
+    Map<String, Map> result = [:]
+    map.each {
+        key, value ->
+            result[key] = getScaledColorMap transformColorValue(value)
+    }
+    result
+}
+
+Map buildColorMaps(Map map) {
+    logDebug "Map2 is $map"
     Map<String, Map> result = [:]
     map.each {
         key, value ->
@@ -940,7 +952,8 @@ private void makeRealDevice(Map device) {
 
 private void addToKnownIps(Map device) {
     def knownIps = getKnownIps()
-    knownIps[device.ip as String] = device //[ip: device.ip, label: device.label, error: device.error, mac: device.mac]
+    knownIps[device.ip as String] = device
+    //[ip: device.ip, label: device.label, error: device.error, mac: device.mac]
     atomicState.knownIps = knownIps
 }
 
