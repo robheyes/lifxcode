@@ -94,7 +94,10 @@ def namedColorsPage() {
     dynamicPage(name: 'namedColorsPage', title: 'Named Colors') {
         mainPageLink()
         section {
-            paragraph(colorListHTML())
+            input 'sortOrder', 'enum', title: 'Sort by:', options: ['0': 'Alphabetical', '1': 'By Hue']
+            paragraph(
+                    colorListHTML(/*currentValue('sortOrder')*/)
+            )
         }
         discoveryPageLink()
         includeStyles()
@@ -202,10 +205,10 @@ private static String styles() {
 </style>/$
 }
 
-String colorListHTML() {
+String colorListHTML(String sortOrder) {
     builder = new StringBuilder()
     builder << '<table class="colorList">'
-    colorList().each {
+    colorList(sortOrder).each {
         builder << '''<style>
             table.colorList {
                 table-layout: auto;
@@ -323,7 +326,7 @@ private void updateKnownDevices() {
 
 
 def appButtonHandler(btn) {
-    log.debug "appButtonHandler called with ${btn}"
+//    log.debug "appButtonHandler called with ${btn}"
     if (btn == "discoverBtn") {
         refresh()
     } else if (btn == 'discoverNewBtn') {
@@ -358,7 +361,6 @@ def refresh() {
         return
     }
 
-
     discovery('discovery')
 }
 
@@ -369,7 +371,9 @@ def discoverNew() {
 
 def refreshExisting() {
     removeDiscoveryDevice()
-    discovery('refresh')
+
+//    discovery('refresh')
+
 }
 
 String discoveryType() {
@@ -493,15 +497,17 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
 
 Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, duration = 0) {
     def power = myStateMap.power
-    String color = myStateMap.color
+    String color = myStateMap.color ?: myStateMap.colour
     duration = (myStateMap.duration ?: duration)
     Map myColor = lookupColor(color)
+//    logDebug "myColor = $myColor"
+//    logDebug "myStateMap = $myStateMap"
     if (myColor) {
         def realColor = [
                 hue       : scaleUp(myColor.h, 360),
                 saturation: scaleUp100(myColor.s),
-                brightness: scaleUp100(myStateMap.level ?: myColor.v),
-                kelvin    : device.currentColorTemperature,
+                brightness: scaleUp100(myStateMap.level ?: (myStateMap.brightness ?: (myColor.v ?: 50))),
+                kelvin    : myStateMap.kelvin ?: (myStateMap.temperature ?: device.currentColorTemperature),
                 duration  : duration * 1000
         ]
         if (myColor.name) {
@@ -531,11 +537,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
         case messageTypes().DEVICE.STATE_GROUP.type:
             def data = parsePayload 'DEVICE.STATE_GROUP', header
             String group = data.label
-            return [[name: 'Group', value: group]]
+            return [[name: 'group', value: group]]
         case messageTypes().DEVICE.STATE_LOCATION.type:
             def data = parsePayload 'DEVICE.STATE_LOCATION', header
             String location = data.label
-            return [[name: 'Location', value: location]]
+            return [[name: 'location', value: location]]
         case messageTypes().DEVICE.STATE_HOST_INFO.type:
             def data = parsePayload 'DEVICE.STATE_HOST_INFO', header
             logDebug("Wifi data $data")
@@ -583,6 +589,8 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
     }
     return []
 }
+
+
 
 Map<String, List> discoveryParse(String description) {
     def actions = makeActions()
@@ -632,23 +640,22 @@ Map<String, List> discoveryParse(String description) {
 
 private Map lookupColor(String color) {
     Map myColor
-    logDebug "color $color"
+//    logDebug "color $color"
     if (color == "random") {
-        myColor = pickRandomColor()
-        logDebug "myColor $myColor"
-        log.info "Setting random color: ${myColor.name}"
+        foundColor = pickRandomColor()
+//        logDebug "myColor $foundColor"
+        log.info "Setting random color: ${foundColor.name}"
     } else if (color?.startsWith('#')) {
         // convert rgb to hsv
-        myColor = getHexColor(color)
-        myColor.name = color
+        foundColor = [rgb: color]
     } else {
         def foundColor = colorList().find { (it.name as String).equalsIgnoreCase(color) }
         if (!foundColor) {
             throw new RuntimeException("No color found for $color")
         }
-        myColor = getHexColor(foundColor.rgb)
-        myColor.name = color
     }
+    myColor = getHexColor(foundColor.rgb)
+    myColor.name = color
 
     myColor
 }
@@ -664,8 +671,22 @@ private Map pickRandomColor() {
     colors[tempRandom]
 }
 
-List<Map> colorList() {
-    colorMap
+List<Map> colorList(String sortOrder) {
+    if (!sortOrder || '0' == sortOrder) {
+        colorMap
+    } else {
+        List<Map> colorMapHSV = colorMap.collect {
+            it.hsv = getHexColor(it.rgb)
+            it
+        }
+        colorMapHSV.sort {
+            a, b ->
+                float aHue = a.hsv.h
+                float bHue = b.hsv.h
+                return aHue.compareTo(bHue)
+        }
+        colorMapHSV
+    }
 }
 
 Map buildColorMaps(String jsonString) {
@@ -1672,10 +1693,51 @@ void logInfo(msg) {
                 [name: 'Amber', rgb: '#FFBF00'],
                 [name: 'Amber (Kohaku-iro)', rgb: '#CA6924'],
                 [name: 'Amber (SAE/ECE)', rgb: '#FF7E00'],
+                [name: 'American Blue', rgb: '#3B3B6D'],
+                [name: 'American Blue', rgb: '#3B3B6D'],
+                [name: 'American Bronze', rgb: '#391802'],
+                [name: 'American Brown', rgb: '#804040'],
+                [name: 'American Gold', rgb: '#D3AF37'],
+                [name: 'American Green', rgb: '#34B334'],
+                [name: 'American Orange', rgb: '#FF8B00'],
+                [name: 'American Pink', rgb: '#FF9899'],
+                [name: 'American Purple', rgb: '#431C53'],
+                [name: 'American Red', rgb: '#B32134'],
+                [name: 'American Rose', rgb: '#FF033E'],
+                [name: 'American Silver', rgb: '#CFCFCF'],
+                [name: 'American Violet', rgb: '#551B8C'],
+                [name: 'American Yellow', rgb: '#F2B400'],
+                [name: 'Amethyst', rgb: '#9966CC'],
+                [name: 'Amur Cork Tree', rgb: '#F3C13A'],
+                [name: 'Anti-Flash White', rgb: '#F2F3F4'],
+                [name: 'Antique Brass', rgb: '#CD9575'],
+                [name: 'Antique Bronze', rgb: '#665D1E'],
+                [name: 'Antique Fuchsia', rgb: '#915C83'],
+                [name: 'Antique Ruby', rgb: '#841B2D'],
                 [name: 'Antique White', rgb: '#FAEBD7'],
+                [name: 'Apple', rgb: '#66B447'],
+                [name: 'Apple Green', rgb: '#8DB600'],
+                [name: 'Apricot', rgb: '#FBCEB1'],
                 [name: 'Aqua', rgb: '#00FFFF'],
+                [name: 'Aqua Blue', rgb: '#86ABA5'],
                 [name: 'Aquamarine', rgb: '#7FFFD4'],
-                [name: 'Azure', rgb: '#F0FFFF'],
+                [name: 'Arctic Lime', rgb: '#D0FF14'],
+                [name: 'Argent', rgb: '#C0C0C0'],
+                [name: 'Army Green', rgb: '#4B5320'],
+                [name: 'Artichoke', rgb: '#8F9779'],
+                [name: 'Arylide Yellow', rgb: '#E9D66B'],
+                [name: 'Asparagus', rgb: '#87A96B'],
+                [name: 'Ateneo Blue', rgb: '#003A6C'],
+                [name: 'Atomic Tangerine', rgb: '#FF9966'],
+                [name: 'Auburn', rgb: '#A52A2A'],
+                [name: 'Aureolin', rgb: '#FDEE00'],
+                [name: 'Avocado', rgb: '#568203'],
+                [name: 'Awesome', rgb: '#FF2052'],
+                [name: 'Axolotl', rgb: '#6E7F80'],
+                [name: 'Azure', rgb: '#007FFF'],
+                [name: 'Azure Mist', rgb: '#F0FFFF'],
+                [name: 'Azureish White', rgb: '#DBE9F4'],
+
                 [name: 'Beige', rgb: '#F5F5DC'],
                 [name: 'Bisque', rgb: '#FFE4C4'],
                 [name: 'Blanched Almond', rgb: '#FFEBCD'],
