@@ -23,9 +23,9 @@ metadata {
         capability "SwitchLevel"
         capability "Initialize"
 
-        attribute "Label", "string"
-        attribute "Group", "string"
-        attribute "Location", "string"
+        attribute "label", "string"
+        attribute "group", "string"
+        attribute "location", "string"
     }
 
     preferences {

@@ -1,3 +1,5 @@
+import groovy.transform.Field
+
 /**
  *
  *  Copyright 2019 Robert Heyes. All Rights Reserved
@@ -11,6 +13,8 @@
  *  Software is provided without warranty and your use of it is at your own risk.
  *
  */
+
+@Field Integer extraProbesPerPass = 2
 
 metadata {
     definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
@@ -35,7 +39,15 @@ def installed() {
 }
 
 def initialize() {
-    refresh()
+    def discoveryType = parent.discoveryType()
+    logDebug "Dscovery type $discoveryType"
+    if (discoveryType == 'discovery') {
+        refresh()
+    } else if (discoveryType == 'refresh') {
+        rescanNetwork()
+    } else {
+        logDebug "Unexpected discovery type $discoveryType"
+    }
 }
 
 def refresh() {
@@ -59,17 +71,35 @@ private scanNetwork(String subnet, int pass) {
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
-            1.upto(pass+3) {
-                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, [], true, 1, it % 128 as Byte
+            1.upto(pass + extraProbesPerPass) {
+//            1.upto(2) {
+                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, true, 1, it % 128 as Byte
             }
         }
 //        sendEvent name: 'progress', value: ((100 * it) / 255).toString()
     }
 }
 
-private void sendCommand(String ipAddress, int messageType, List payload = [], boolean responseRequired = true, int pass = 1, Byte sequence = 0) {
+def rescanNetwork() {
+    logDebug "Rescan network"
+    String subnet = parent.getSubnet()
+    if (!subnet) {
+        return
+    }
+    logDebug "Rescanning..."
+    1.upto(254) {
+        def ipAddress = subnet + it
+        if (parent.isKnownIp(ipAddress)) {
+            sendCommand ipAddress, messageTypes().DEVICE.GET_GROUP.type as int, true, 1, it % 128 as Byte
+        }
+    }
+    parent.setScanPass 'DONE'
+    sendEvent name: 'lifxdiscovery', value: 'complete'
+}
+
+private void sendCommand(String ipAddress, int messageType, boolean responseRequired = true, int pass = 1, Byte sequence = 0) {
     def buffer = []
-    parent.makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, payload, sequence
+    parent.makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, [], sequence
     def rawBytes = parent.asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString rawBytes
     sendPacket ipAddress, stringBytes
@@ -77,8 +107,40 @@ private void sendCommand(String ipAddress, int messageType, List payload = [], b
 }
 
 def parse(String description) {
-    Map command = parent.discoveryParse(description)
-    command != null ? sendCommand(command.ip as String, command.type as int): null
+    Map<String, List> command = parent.discoveryParse(description)
+    sendActions command
+//    command != null ? sendCommand(command.ip as String, command.type as int) : null
+}
+
+private void sendActions(Map<String, List> actions) {
+    actions.commands?.eachWithIndex { item, index -> sendCommand item.ip as String, item.type as int, true, 1, index as Byte }
+    actions.events?.each { sendEvent it }
+}
+
+private void sendCommand(String ip, String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
+//    resendUnacknowledgedCommand()
+    def parts = deviceAndType.split(/\./)
+    def buffer = []
+    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
+//    if (ackRequired) {
+//        parent.expectAckFor device, sequence, buffer
+//    }
+    sendPacket buffer
+}
+
+private void sendPacket(List buffer) {
+    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
+    sendHubCommand(
+            new hubitat.device.HubAction(
+                    stringBytes,
+                    hubitat.device.Protocol.LAN,
+                    [
+                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
+                            destinationAddress: myIp() + ":56700",
+                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+                    ]
+            )
+    )
 }
 
 Map<String, Map<String, Map>> messageTypes() {

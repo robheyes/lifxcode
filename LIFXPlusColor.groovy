@@ -23,13 +23,13 @@ metadata {
         capability "Initialize"
         capability "Color Control"
 
-        attribute "Group", "string"
-        attribute "Label", "string"
-        attribute "Location", "string"
+        attribute "label", "string"
+        attribute "group", "string"
+        attribute "location", "string"
         attribute "IrLevel", 'number'
 
         // need a command to set the ir level
-        command 'setInfraredLevel', ['number', 'number']
+        command 'setInfraredLevel', [[name: 'Level', type:'NUMBER'], [name: 'duration', type: 'NUMBER']]
     }
 
     preferences {
