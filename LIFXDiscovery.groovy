@@ -14,7 +14,7 @@ import groovy.transform.Field
  *
  */
 
-@Field Integer extraProbesPerPass = 2
+@Field Integer extraProbesPerPass = 0
 
 metadata {
     definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
@@ -82,7 +82,7 @@ List<Map> discoverMacs(String subnet) {
 }
 
 private scanNetwork(String subnet, int pass) {
-
+    String packet = makePacketString messageTypes().DEVICE.GET_VERSION.type as int, true, 1 as byte
     1.upto(254) {
         def ipAddress = subnet + it
         if (!parent.isKnownIp(ipAddress)) {
@@ -90,7 +90,9 @@ private scanNetwork(String subnet, int pass) {
 //            logDebug "Mac for $ipAddress = $mac"
             1.upto(pass + extraProbesPerPass) {
 //            1.upto(2) {
-                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, true, 1, it % 128 as Byte
+                sendPacket  ipAddress, packet
+                pauseExecution(pass > 1 ? parent.interCommandPauseMilliseconds(pass) : 30)
+//                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, true, 1, it % 128 as Byte
             }
         }
 //        sendEvent name: 'progress', value: ((100 * it) / 255).toString()
@@ -130,12 +132,17 @@ def rescanNetwork() {
 }
 
 private void sendCommand(String ipAddress, int messageType, boolean responseRequired = true, int pass = 1, Byte sequence = 0) {
+    String stringBytes = makePacketString(messageType, responseRequired, sequence)
+    sendPacket ipAddress, stringBytes
+    pauseExecution(parent.interCommandPauseMilliseconds(pass))
+}
+
+private String makePacketString(int messageType, boolean responseRequired, byte sequence) {
     def buffer = []
     parent.makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, [], sequence
     def rawBytes = parent.asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString rawBytes
-    sendPacket ipAddress, stringBytes
-    pauseExecution(parent.interCommandPauseMilliseconds(pass))
+    stringBytes
 }
 
 def parse(String description) {
