@@ -475,6 +475,7 @@ Map<String, List> deviceSetIRLevel(device, Number level, Boolean displayed, dura
 }
 
 Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, duration = 0) {
+    logDebug "setting level to $level"
     if ((level <= 0 || null == level) && 0 == duration) {
         return deviceOnOff('off', displayed)
     }
@@ -502,25 +503,38 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
 
 Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, duration = 0) {
     def power = myStateMap.power
+    def level = myStateMap.level ?: myStateMap.brightness
+    def kelvin = myStateMap.kelvin ?: myStateMap.temperature
     String color = myStateMap.color ?: myStateMap.colour
-    duration = (myStateMap.duration ?: duration)
-    Map myColor = lookupColor(color)
+    duration = (myStateMap.duration ?: duration) * 1000
+    Map myColor
+    myColor = (null == color) ? null : lookupColor(color)
 //    logDebug "myColor = $myColor"
 //    logDebug "myStateMap = $myStateMap"
     if (myColor) {
         def realColor = [
                 hue       : scaleUp(myColor.h, 360),
                 saturation: scaleUp100(myColor.s),
-                brightness: scaleUp100(myStateMap.level ?: (myStateMap.brightness ?: (myColor.v ?: 50))),
-                kelvin    : myStateMap.kelvin ?: (myStateMap.temperature ?: device.currentColorTemperature),
-                duration  : duration * 1000
+                brightness: scaleUp100(level ?: (myColor.v ?: 50)),
+                kelvin    : kelvin ?: device.currentColorTemperature,
+                duration  : duration
         ]
         if (myColor.name) {
             realColor.name = myColor.name
         }
+//        logDebug "realColor: $realColor"
         deviceSetHSBKAndPower(duration, realColor, displayed, power)
-    } else if (myStateMap.level) {
-        deviceSetLevel(device, myStateMap.level, displayed, duration)
+    } else if (kelvin) {
+        def realColor = [
+                hue       : 0,
+                saturation: 0,
+                kelvin    : kelvin,
+                brightness: scaleUp100(level ?: 100),
+                duration  : duration
+        ]
+        deviceSetHSBKAndPower(duration, realColor, displayed, power)
+    } else if (level) {
+        deviceSetLevel(device, level, displayed, duration)
         // I think this should use the code from setLevel with brightness as the level value
     } else {
         [:] // do nothing
@@ -783,17 +797,18 @@ List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor) {
 private Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
     def actions = makeActions()
 
+
+    if (hsbkMap) {
+//        logDebug "color change required"
+        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: duration])
+        actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
+    }
+
     if (null != power) {
 //        logDebug "power change required $power"
         def powerLevel = 'on' == power ? 65535 : 0
         actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: duration])
         actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
-    }
-
-    if (hsbkMap) {
-//        logDebug "color change required"
-        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap])
-        actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
     actions
