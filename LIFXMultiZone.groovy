@@ -12,7 +12,6 @@ metadata {
         capability 'Light'
         capability 'ColorControl'
         capability 'ColorTemperature'
-        capability 'HealthCheck'
         capability 'Polling'
         capability 'Initialize'
         capability 'Switch'
@@ -51,11 +50,11 @@ def poll() {
 }
 
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog())
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog())
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 def setColor(Map colorMap) {

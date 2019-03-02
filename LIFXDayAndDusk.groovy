@@ -17,7 +17,6 @@ metadata {
         capability "Bulb"
         capability "ColorTemperature"
         capability "ColorMode"
-        capability "HealthCheck"
         capability "Polling"
         capability "Switch"
         capability "SwitchLevel"
@@ -43,7 +42,6 @@ def updated() {
 }
 
 def initialize() {
-    state.colorTransitionTime = defaultTransition
     colorMode = 'CT'
     requestInfo()
     runEvery1Minute poll
@@ -58,11 +56,11 @@ def poll() {
 }
 
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog())
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog())
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 
@@ -94,7 +92,7 @@ def setLevel(level, duration = 0) {
 //}
 
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), colorTransitionTime ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {

@@ -427,9 +427,9 @@ void removeChildren() {
 }
 
 // Common device commands
-Map<String, List> deviceOnOff(String value, Boolean displayed) {
+Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     def actions = makeActions()
-    actions.commands << makeCommand('DEVICE.SET_POWER', [powerLevel: value == 'on' ? 65535 : 0])
+    actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: value == 'on' ? 65535 : 0, duration: duration * 1000])
     actions.events << [name: "switch", value: value, displayed: displayed, data: [syncing: "false"]]
     actions
 }
@@ -439,7 +439,7 @@ Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, durati
     hsbkMap << getScaledColorMap(colorMap)
     hsbkMap.duration = 1000 * (colorMap.duration ?: duration)
 
-    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+    deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
 Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration = 0) {
@@ -447,7 +447,7 @@ Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration =
     hsbkMap.hue = scaleUp100 hue
     hsbkMap.duration = 1000 * duration
 
-    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+    deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
 Map<String, List> deviceSetSaturation(device, Number saturation, Boolean displayed, duration = 0) {
@@ -455,7 +455,7 @@ Map<String, List> deviceSetSaturation(device, Number saturation, Boolean display
     hsbkMap.saturation = scaleUp100 saturation
     hsbkMap.duration = 1000 * duration
 
-    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+    deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
 Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0) {
@@ -464,7 +464,7 @@ Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean 
     hsbkMap.kelvin = temperature
     hsbkMap.duration = 1000 * duration
 
-    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+    deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
 Map<String, List> deviceSetIRLevel(device, Number level, Boolean displayed, duration = 0) {
@@ -498,7 +498,7 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
         ]
     }
 
-    deviceSetHSBKAndPower(duration, hsbkMap, displayed)
+    deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
 Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, duration = 0) {
@@ -513,8 +513,8 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
 //    logDebug "myStateMap = $myStateMap"
     if (myColor) {
         def realColor = [
-                hue       : scaleUp(myColor.h, 360),
-                saturation: scaleUp100(myColor.s),
+                hue       : scaleUp(myColor.h ?: 0, 360),
+                saturation: scaleUp100(myColor.s ?: 0),
                 brightness: scaleUp100(level ?: (myColor.v ?: 50)),
                 kelvin    : kelvin ?: device.currentColorTemperature,
                 duration  : duration
@@ -523,7 +523,7 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
             realColor.name = myColor.name
         }
 //        logDebug "realColor: $realColor"
-        deviceSetHSBKAndPower(duration, realColor, displayed, power)
+        deviceSetHSBKAndPower(device, duration, realColor, displayed, power)
     } else if (kelvin) {
         def realColor = [
                 hue       : 0,
@@ -532,7 +532,7 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
                 brightness: scaleUp100(level ?: 100),
                 duration  : duration
         ]
-        deviceSetHSBKAndPower(duration, realColor, displayed, power)
+        deviceSetHSBKAndPower(device, duration, realColor, displayed, power)
     } else if (level) {
         deviceSetLevel(device, level, displayed, duration)
         // I think this should use the code from setLevel with brightness as the level value
@@ -676,7 +676,7 @@ private Map lookupColor(String color) {
     myColor
 }
 
-private LinkedHashMap<String, Float> getHexColor(String color) {
+private LinkedHashMap<String, Number> getHexColor(String color) {
     Map rgb = hexToColor color
     rgbToHSV rgb.r, rgb.g, rgb.b, 'high'
 }
@@ -794,17 +794,15 @@ List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor) {
     result
 }
 
-private Map<String, List> deviceSetHSBKAndPower(duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
+private Map<String, List> deviceSetHSBKAndPower(device, duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
     def actions = makeActions()
-
-
     if (hsbkMap) {
 //        logDebug "color change required"
         actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: duration])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
-    if (null != power) {
+    if (null != power && device.currentSwitch != power) {
 //        logDebug "power change required $power"
         def powerLevel = 'on' == power ? 65535 : 0
         actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: duration])
@@ -848,10 +846,10 @@ private static Map<String, List> makeActions() {
 
 private static Map<String, Number> getCurrentHSBK(theDevice) {
     [
-            hue       : scaleUp(theDevice.currentHue, 100),
-            saturation: scaleUp(theDevice.currentSaturation, 100),
-            brightness: scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin    : theDevice.currentValue('colorTemperature')
+            hue       : scaleUp(theDevice.currentHue ?:0, 100),
+            saturation: scaleUp(theDevice.currentSaturation ?:0, 100),
+            brightness: scaleUp(theDevice.currentLevel as Long, 100),
+            kelvin    : theDevice.currentcolorTemperature
     ]
 }
 
@@ -1514,7 +1512,7 @@ private static List<Long> getRemainder(header) { header.remainder as List<Long> 
 void clearCachedDescriptors() { atomicState.cachedDescriptors = null }
 
 private List<Map> getDescriptor(String desc) {
-    List<Map> candidate
+    List<Map> candidate = null
 
     if (wantDescriptorCaching) {
         def cachedDescriptors = atomicState.cachedDescriptors
@@ -1613,7 +1611,9 @@ byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackR
     put buffer, 0, buffer.size() as short
 
     if (wantBufferCaching) {
-        storeBuffer hashKey, buffer
+        if (hashKey) {
+            storeBuffer hashKey, buffer
+        }
     }
     return lastSequence
 }
