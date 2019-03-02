@@ -42,6 +42,7 @@ def installed() {
 }
 
 def updated() {
+    state.transitionTime = defaultTransition
     initialize()
 }
 
@@ -60,28 +61,29 @@ def poll() {
     lifxQuery 'LIGHT.GET_INFRARED'
 }
 
+
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def setColor(Map colorMap) {
-    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), defaultTransition ?: 0)
+    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.transitionTime ?: 0)
 }
 
 def setHue(hue) {
-    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def setSaturation(saturation) {
-    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def setLevel(level, duration = 0) {
@@ -89,7 +91,7 @@ def setLevel(level, duration = 0) {
 }
 
 def setState(value) {
-    sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def setInfraredLevel(level, duration = 0) {

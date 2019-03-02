@@ -424,6 +424,7 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
 }
 
 Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, duration = 0) {
+    logDebug "Duration1: $duration"
     def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
     hsbkMap.duration = 1000 * (colorMap.duration ?: duration)
@@ -776,9 +777,10 @@ List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor) {
 }
 
 private Map<String, List> deviceSetHSBKAndPower(device, duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
+    logDebug("Map $hsbkMap")
     def actions = makeActions()
     if (hsbkMap) {
-        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: duration])
+        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: hsbkMap.duration ])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
