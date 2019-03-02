@@ -38,6 +38,7 @@ def installed() {
 }
 
 def updated() {
+    state.transitionTime = defaultTransition
     initialize()
 }
 
@@ -55,14 +56,14 @@ def poll() {
     lifxQuery 'LIGHT.GET_STATE'
 }
 
+
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
-
 
 def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)

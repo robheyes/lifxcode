@@ -37,6 +37,7 @@ def installed() {
 }
 
 def updated() {
+    state.transitionTime = defaultTransition
     initialize()
 }
 
@@ -56,11 +57,11 @@ def poll() {
 }
 
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 // DND Yet!!!
@@ -84,14 +85,12 @@ def off() {
 //    sendEvent(name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"])
 //}
 
+def setColorTemperature(temperature) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+}
 
 def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
-}
-
-
-def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), defaultTransition ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {

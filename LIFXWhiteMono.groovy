@@ -36,6 +36,7 @@ def installed() {
 }
 
 def updated() {
+    state.transitionTime = defaultTransition
     initialize()
 }
 
@@ -53,11 +54,11 @@ def poll() {
 }
 
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 
