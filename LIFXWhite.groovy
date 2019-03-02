@@ -16,7 +16,6 @@ metadata {
     definition(name: "LIFX White", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
         capability "ColorTemperature"
-        capability "HealthCheck"
         capability "Polling"
         capability "Switch"
         capability "Switch Level"
@@ -43,7 +42,6 @@ def updated() {
 
 def initialize() {
     logDebug('Initialised')
-    state.colorTransitionTime = defaultTransition
     requestInfo()
     runEvery1Minute poll
 }
@@ -57,13 +55,12 @@ def poll() {
 //    lifxQuery 'DEVICE.GET_WIFI_INFO'
 }
 
-
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog())
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog())
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 // DND Yet!!!
@@ -94,7 +91,7 @@ def setLevel(level, duration = 0) {
 
 
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.colorTransitionTime ?: 0)
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), defaultTransition ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {

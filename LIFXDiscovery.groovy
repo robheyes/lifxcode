@@ -90,7 +90,7 @@ private scanNetwork(String subnet, int pass) {
 //            logDebug "Mac for $ipAddress = $mac"
             1.upto(pass + extraProbesPerPass) {
 //            1.upto(2) {
-                sendPacket  ipAddress, packet
+                sendPacket ipAddress, packet
                 pauseExecution(pass > 1 ? parent.interCommandPauseMilliseconds(pass) : 30)
 //                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, true, 1, it % 128 as Byte
             }

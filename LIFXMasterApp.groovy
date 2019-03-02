@@ -427,9 +427,9 @@ void removeChildren() {
 }
 
 // Common device commands
-Map<String, List> deviceOnOff(String value, Boolean displayed) {
+Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     def actions = makeActions()
-    actions.commands << makeCommand('DEVICE.SET_POWER', [powerLevel: value == 'on' ? 65535 : 0])
+    actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: value == 'on' ? 65535 : 0, duration: duration * 1000])
     actions.events << [name: "switch", value: value, displayed: displayed, data: [syncing: "false"]]
     actions
 }
@@ -513,8 +513,8 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
 //    logDebug "myStateMap = $myStateMap"
     if (myColor) {
         def realColor = [
-                hue       : scaleUp(myColor.h, 360),
-                saturation: scaleUp100(myColor.s),
+                hue       : scaleUp(myColor.h ?: 0, 360),
+                saturation: scaleUp100(myColor.s ?: 0),
                 brightness: scaleUp100(level ?: (myColor.v ?: 50)),
                 kelvin    : kelvin ?: device.currentColorTemperature,
                 duration  : duration
@@ -676,7 +676,7 @@ private Map lookupColor(String color) {
     myColor
 }
 
-private LinkedHashMap<String, Float> getHexColor(String color) {
+private LinkedHashMap<String, Number> getHexColor(String color) {
     Map rgb = hexToColor color
     rgbToHSV rgb.r, rgb.g, rgb.b, 'high'
 }
@@ -846,10 +846,10 @@ private static Map<String, List> makeActions() {
 
 private static Map<String, Number> getCurrentHSBK(theDevice) {
     [
-            hue       : scaleUp(theDevice.currentHue, 100),
-            saturation: scaleUp(theDevice.currentSaturation, 100),
-            brightness: scaleUp(theDevice.currentValue('level') as Long, 100),
-            kelvin    : theDevice.currentValue('colorTemperature')
+            hue       : scaleUp(theDevice.currentHue ?:0, 100),
+            saturation: scaleUp(theDevice.currentSaturation ?:0, 100),
+            brightness: scaleUp(theDevice.currentLevel as Long, 100),
+            kelvin    : theDevice.currentcolorTemperature
     ]
 }
 

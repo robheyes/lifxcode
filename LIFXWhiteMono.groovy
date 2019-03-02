@@ -15,7 +15,6 @@
 metadata {
     definition(name: "LIFX White Mono", namespace: "robheyes", author: "Robert Alan Heyes") {
         capability "Bulb"
-        capability "HealthCheck"
         capability "Polling"
         capability "Switch"
         capability "Switch Level"
@@ -41,7 +40,6 @@ def updated() {
 }
 
 def initialize() {
-    state.colorTransitionTime = defaultTransition
     requestInfo()
     runEvery1Minute poll
 }
@@ -54,14 +52,14 @@ def poll() {
     lifxQuery 'LIGHT.GET_STATE'
 }
 
-
 def on() {
-    sendActions parent.deviceOnOff('on', getUseActivityLog())
+    sendActions parent.deviceOnOff('on', getUseActivityLog(), defaultTransition ?: 0)
 }
 
 def off() {
-    sendActions parent.deviceOnOff('off', getUseActivityLog())
+    sendActions parent.deviceOnOff('off', getUseActivityLog(), defaultTransition ?: 0)
 }
+
 
 // DND Yet!!!
 
