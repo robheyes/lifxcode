@@ -15,7 +15,7 @@ import groovy.transform.Field
  *
  */
 
-@Field Boolean wantBufferCaching = false
+@Field Boolean wantBufferCaching = false // should probably remove this?
 @Field Boolean wantDescriptorCaching = false
 
 definition(
@@ -39,9 +39,9 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Options", install: true, uninstall: true) {
         section {
-            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)', submitOnChange: true
+            input 'interCommandPause', 'number', defaultValue: 40, title: 'Time between commands (milliseconds)', submitOnChange: true
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2, submitOnChange: true
-            input 'refreshInterval', 'number', title: 'Discovery page refresh interval (seconds).<br><strong>WARNING</strong>: high refresh rates may interfere with discovery.', defaultValue: 10, submitOnChange: true
+            input 'refreshInterval', 'number', title: 'Discovery page refresh interval (seconds).<br><strong>WARNING</strong>: high refresh rates may interfere with discovery.', defaultValue: 6, submitOnChange: true
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         discoveryPageLink()
@@ -65,14 +65,14 @@ def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
             input 'discoverBtn', 'button', title: 'Discover devices'
-            paragraph 'If not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
+            paragraph 'If you have added a new device, or not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
                             (
                                     ('DONE' == atomicState.scanPass) ?
                                             'Scanning complete' :
-                                            "Scanning your network for devices, pass ${atomicState.scanPass} of ${maxScanPasses()}"
+                                            "Scanning your network for devices ${getProgressPercentage()}" /*, pass ${atomicState.scanPass} of ${maxScanPasses()}"*/
                             )
 
             )
@@ -80,7 +80,6 @@ def discoveryPage() {
                     discoveryTextKnownDevices()
             )
             input 'discoverNewBtn', 'button', title: 'Discover only new devices'
-//            input 'refreshExistingBtn', 'button', title: 'Refresh existing devices'
             input 'clearCachesBtn', 'button', title: 'Clear caches'
 
         }
@@ -250,18 +249,8 @@ private String discoveryTextKnownDevices() {
 }
 
 private String describeDevices() {
-//    def theDevices = getChildDevices()
-//    logDebug "Real Devices:"
-//    theDevices.each {
-//            logDebug("Label $it.label")
-//            logDebug("Id $it.id")
-//            logDebug("Device $it.device")
-//    }
-//        logDebug("name: $it.label, group: $it.group, location: $it.location")}
     def sorted = getKnownIps().sort { a, b -> (a.value.label as String).compareToIgnoreCase(b.value.label as String) }
     def grouped = sorted.groupBy { it.value.group }
-//    logDebug("Devices in groups = $grouped")
-
 
     def builder = new StringBuilder()
     builder << '<ul class="device-group">'
@@ -290,7 +279,7 @@ private String getDeviceNameLink(device, ip) {
 }
 
 Integer interCommandPauseMilliseconds(int pass = 1) {
-    (settings.interCommandPause ?: 50) + 10 * (pass - 1)
+    (settings.interCommandPause ?: 40) + 10 * (pass - 1)
 }
 
 
@@ -299,7 +288,7 @@ Integer maxScanPasses() {
 }
 
 Integer refreshInterval() {
-    settings.refreshInterval ?: 10
+    settings.refreshInterval ?: 6
 }
 
 def updated() {
@@ -329,7 +318,6 @@ private void updateKnownDevices() {
 
 
 def appButtonHandler(btn) {
-//    log.debug "appButtonHandler called with ${btn}"
     if (btn == "discoverBtn") {
         refresh()
     } else if (btn == 'discoverNewBtn') {
@@ -346,8 +334,6 @@ def appButtonHandler(btn) {
 }
 
 def testColorMapBuilder() {
-//    Map<String, Map> map2 = buildColorMaps(settings.colors2 as Map)
-//    logDebug "Map2 is $map2"
     Map<String, Map> map = buildColorMaps(settings.colors)
     logDebug "Map is $map"
     def hsbkMaps = makeColorMaps map, settings.pattern as String
@@ -390,21 +376,24 @@ private void discovery(String discoveryType) {
     atomicState.scanPass = null
     updateKnownDevices()
     clearDeviceDefinitions()
+    atomicState.progressPercent = 0
     def discoveryDevice = addChildDevice 'robheyes', 'LIFX Discovery', 'LIFX Discovery'
     subscribe discoveryDevice, 'lifxdiscovery.complete', removeDiscoveryDevice
-//    subscribe discoveryDevice, 'progress', progress
+    subscribe discoveryDevice, 'progress', progress
 }
 
+/** DND event handler */
 def progress(evt) {
-    // no idea why this doesn't work when the subscribe is enabled
-    logDebug "Event $evt"
-    def percent = evt.getFloatValue()
-    logDebug "%age $percent"
+    def percent = evt.getIntegerValue()
+    atomicState.progressPercent = percent
 }
 
-// used by runIn - DND
+def getProgressPercentage() {
+    def percent = atomicState.progressPercent ?: 0
+    "$percent%"
+}
+
 void removeDiscoveryDevice(evt) {
-    logDebug("Event: $evt")
     logInfo 'Removing LIFX Discovery device'
     unsubscribe()
     atomicState.scanPass = 'DONE'
@@ -475,7 +464,6 @@ Map<String, List> deviceSetIRLevel(device, Number level, Boolean displayed, dura
 }
 
 Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, duration = 0) {
-    logDebug "setting level to $level"
     if ((level <= 0 || null == level) && 0 == duration) {
         return deviceOnOff('off', displayed)
     }
@@ -507,12 +495,11 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
     def kelvin = myStateMap.kelvin ?: myStateMap.temperature
     String color = myStateMap.color ?: myStateMap.colour
     duration = (myStateMap.duration ?: duration) * 1000
+
     Map myColor
     myColor = (null == color) ? null : lookupColor(color)
-//    logDebug "myColor = $myColor"
-//    logDebug "myStateMap = $myStateMap"
     if (myColor) {
-        def realColor = [
+        Map realColor = [
                 hue       : scaleUp(myColor.h ?: 0, 360),
                 saturation: scaleUp100(myColor.s ?: 0),
                 brightness: scaleUp100(level ?: (myColor.v ?: 50)),
@@ -522,7 +509,6 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
         if (myColor.name) {
             realColor.name = myColor.name
         }
-//        logDebug "realColor: $realColor"
         deviceSetHSBKAndPower(device, duration, realColor, displayed, power)
     } else if (kelvin) {
         def realColor = [
@@ -539,7 +525,6 @@ Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, dura
     } else {
         [:] // do nothing
     }
-
 }
 
 List<Map> parseForDevice(device, String description, Boolean displayed) {
@@ -570,7 +555,6 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             break
         case messageTypes().LIGHT.STATE.type:
             def data = parsePayload 'LIGHT.STATE', header
-//            logDebug "State: $data"
             device.setLabel data.label.trim()
             List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
@@ -586,14 +570,13 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             return result
         case messageTypes().LIGHT.STATE_INFRARED.type:
             def data = parsePayload 'LIGHT.STATE_INFRARED', header
-            logDebug "IR Data: $data"
+//            logDebug "IR Data: $data"
             return [[name: 'IRLevel', value: scaleDown100(data.irLevel), displayed: displayed]]
         case messageTypes().DEVICE.STATE_POWER.type:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
             return [[name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],]
         case messageTypes().LIGHT.STATE_POWER.type:
             Map data = parsePayload 'LIGHT.STATE_POWER', header
-            logDebug "Data returned is $data"
             return [
                     [name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
                     [name: "level", value: (data.powerLevel as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
@@ -603,12 +586,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             clearExpectedAckFor device, sequence
             return []
         default:
-            logDebug "Unhandled response for ${header.type}"
+            logWarn "Unhandled response for ${header.type}"
             return []
     }
     return []
 }
-
 
 Map<String, List> discoveryParse(String description) {
     def actions = makeActions()
@@ -669,14 +651,13 @@ private Map lookupColor(String color) {
             throw new RuntimeException("No color found for $color")
         }
     }
-    logDebug "foundColor = $foundColor"
-    def myColor = getHexColor(foundColor.rgb)
+    Map myColor = getHexColor(foundColor.rgb)
     myColor.name = color
 
     myColor
 }
 
-private LinkedHashMap<String, Number> getHexColor(String color) {
+private static Map getHexColor(String color) {
     Map rgb = hexToColor color
     rgbToHSV rgb.r, rgb.g, rgb.b, 'high'
 }
@@ -716,7 +697,7 @@ List<Map> colorList(String sortOrder) {
     colorMap
 }
 
-int compareRGB(Map a, Map b) {
+static int compareRGB(Map a, Map b) {
     def result = (a.r as short).compareTo(b.r as short)
     if (0 == result) {
         result = (a.g as short).compareTo(b.g as short)
@@ -727,7 +708,7 @@ int compareRGB(Map a, Map b) {
     result
 }
 
-int compareHSV(Map a, Map b) {
+static int compareHSV(Map a, Map b) {
     def result = (a.h as float).compareTo(b.h as float)
     if (0 == result) {
         result = (a.s as float).compareTo(b.s as float)
@@ -738,7 +719,7 @@ int compareHSV(Map a, Map b) {
     result
 }
 
-int compareVHS(Map a, Map b) {
+static int compareVHS(Map a, Map b) {
     def result = (a.v as float).compareTo(b.v as float)
     if (0 == result) {
         result = (a.h as float).compareTo(b.h as float)
@@ -774,13 +755,13 @@ Map transformColorValue(String value) {
     transformColorValue(lookupColor(value))
 }
 
-Map transformColorValue(Map hsv) {
+static Map transformColorValue(Map hsv) {
     [hue: hsv.h, saturation: hsv.s, brightness: hsv.v]
 }
 
 List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor) {
     List<Map> result = []
-    logDebug "descriptor is $descriptor"
+//    logDebug "descriptor is $descriptor"
     def darkPixel = [hue: 0, saturation: 0, brightness: 0, kelvin: 0]
     descriptor.findAll(~/(\w+):(\d+)/) {
         section ->
@@ -797,13 +778,11 @@ List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor) {
 private Map<String, List> deviceSetHSBKAndPower(device, duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
     def actions = makeActions()
     if (hsbkMap) {
-//        logDebug "color change required"
         actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: duration])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
     if (null != power && device.currentSwitch != power) {
-//        logDebug "power change required $power"
         def powerLevel = 'on' == power ? 65535 : 0
         actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: duration])
         actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
@@ -820,7 +799,6 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
             [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
     ]
     if (hsbkMap.name) {
-        logDebug "Color name from map $hsbkMap.name"
         colorMap.add([name: 'colorName', value: hsbkMap.name, displayed: displayed])
     }
     colorMap
@@ -835,7 +813,6 @@ private static Map<String, Number> getScaledColorMap(Map colorMap) {
     ]
 }
 
-
 private static Map makeCommand(String command, Map payload) {
     [cmd: command, payload: payload]
 }
@@ -846,8 +823,8 @@ private static Map<String, List> makeActions() {
 
 private static Map<String, Number> getCurrentHSBK(theDevice) {
     [
-            hue       : scaleUp(theDevice.currentHue ?:0, 100),
-            saturation: scaleUp(theDevice.currentSaturation ?:0, 100),
+            hue       : scaleUp(theDevice.currentHue ?: 0, 100),
+            saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
             brightness: scaleUp(theDevice.currentLevel as Long, 100),
             kelvin    : theDevice.currentcolorTemperature
     ]
@@ -913,7 +890,6 @@ private void saveDeviceDefinitions(Map devices) {
 }
 
 void saveDeviceDefinition(Map device) {
-//    logDebug("Saving device $device")
     Map devices = getDeviceDefinitions()
 
     devices[device.mac] = device
@@ -953,12 +929,11 @@ private void makeRealDevice(Map device) {
         updateKnownDevices()
         logInfo "Added device $device.label of type $device.deviceName with ip address $device.ip"
     } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
-        // ignore this, expected if device already present
         logWarn "${e.message} - you need to install the appropriate driver"
         device.error = "No driver installed for $device.deviceName"
         addToKnownIps(device)
-    } catch (IllegalArgumentException e) {
-        // ignore
+    } catch (IllegalArgumentException ignored) {
+        // Intentionally ignored. Expected if device already present
     }
     deleteDeviceDefinition device
 }
@@ -966,7 +941,6 @@ private void makeRealDevice(Map device) {
 private void addToKnownIps(Map device) {
     def knownIps = getKnownIps()
     knownIps[device.ip as String] = device
-    //[ip: device.ip, label: device.label, error: device.error, mac: device.mac]
     atomicState.knownIps = knownIps
 }
 
@@ -1321,8 +1295,7 @@ private static Map deviceVersion(Map device) {
     }
 }
 
-
-private static def rgbToHSV(red = 255, green = 255, blue = 255, resolution = "low") {
+private static Map rgbToHSV(red = 255, green = 255, blue = 255, resolution = "low") {
     // Takes RGB (0-255) and returns HSV in 0-360, 0-100, 0-100
     // resolution ("low", "high") will return a hue between 0-100, or 0-360, respectively.
 
@@ -1637,6 +1610,7 @@ private void storeBuffer(String hashKey, List buffer) {
     atomicState.bufferCache = cache
 }
 
+@SuppressWarnings("GrMethodMayBeStatic")
 byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }
