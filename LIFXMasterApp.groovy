@@ -72,7 +72,9 @@ def discoveryPage() {
                             (
                                     ('DONE' == atomicState.scanPass) ?
                                             'Scanning complete' :
-                                            "Scanning your network for devices ${getProgressPercentage()}" /*, pass ${atomicState.scanPass} of ${maxScanPasses()}"*/
+                                            "Scanning your network for devices <div class='meter'>" +
+                                                    "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
+                                                    "</div>"
                             )
 
             )
@@ -203,6 +205,29 @@ private static String styles() {
         display: none
     }    
     
+/* Progress bar - modified from https://css-tricks.com/examples/ProgressBars/ */
+    .meter {
+        height: 20px;  /* Can be anything */
+        position: relative;
+        background: #D9ECB1;
+        -moz-border-radius: 5px;
+        -webkit-border-radius: 5px;
+        border-radius: 5px;
+        padding: 0px;
+    }
+
+    .meter > span {
+          display: block;
+          height: 100%;
+          border-top-right-radius: 2px;
+          border-bottom-right-radius: 2px;
+          border-top-left-radius: 5px;
+          border-bottom-left-radius: 5px;
+          background-color: #81BC00;
+          position: relative;
+          overflow: hidden;
+          text-align: center;
+    }
 </style>/$
 }
 
@@ -780,7 +805,7 @@ private Map<String, List> deviceSetHSBKAndPower(device, duration, Map<String, Nu
     logDebug("Map $hsbkMap")
     def actions = makeActions()
     if (hsbkMap) {
-        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: hsbkMap.duration ])
+        actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: hsbkMap.duration])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
     }
 
