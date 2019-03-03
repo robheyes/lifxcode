@@ -64,27 +64,6 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
-// DND Yet!!!
-
-//def setLevel(level, duration = 0) {
-////    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
-//    if (level > 100) {
-//        level = 100
-//    } else if ((level <= 0 || level == null) && duration == 0) {
-//        return off()
-//    }
-//    Map hsbkMap = parent.getCurrentBK device
-//    hsbkMap.level = parent.scaleUp(level, 100)
-//    hsbkMap.duration = duration * 1000
-//    lifxCommand'LIGHT.SET_COLOR', hsbkMap
-//    sendLevelAndSwitchEvents(hsbkMap)
-//}
-
-//private void sendLevelAndSwitchEvents(Map hsbkMap) {
-//    sendEvent(name: "level", value: parent.scaleDown(hsbkMap.level, 100), displayed: getUseActivityLogDebug())
-//    sendEvent(name: "switch", value: (hsbkMap.level as Integer == 0 ? "off" : "on"), displayed: getUseActivityLog(), data: [syncing: "false"])
-//}
-
 def setColorTemperature(temperature) {
     sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }

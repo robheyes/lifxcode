@@ -93,7 +93,7 @@ def setLevel(level, duration = 0) {
 //}
 
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), colorTransitionTime ?: 0)
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {
