@@ -93,7 +93,6 @@ def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
 }
 
-
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
     actions.events?.each { sendEvent it }
