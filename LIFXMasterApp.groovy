@@ -821,7 +821,7 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
     List<Map> events = []
     logDebug "makeColorMapEvents map: $hsbkMap"
     if (hsbkMap.hue || hsbkMap.saturation) {
-        events << [name: 'colorMode', value: 'RGBW', displayed: displayed]
+        events << [name: 'colorMode', value: 'RGB', displayed: displayed]
         hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed]:null
         hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed]: null
         hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed]:null
