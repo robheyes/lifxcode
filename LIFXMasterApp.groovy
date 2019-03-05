@@ -64,6 +64,7 @@ def mainPageLink() {
 def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
+            paragraph "<strong>RECOMMENDATION</strong>: It is advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
             input 'discoverBtn', 'button', title: 'Discover devices'
             paragraph 'If you have added a new device, or not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             paragraph(
@@ -288,7 +289,7 @@ private String describeDevices() {
                     builder << (
                             device.error ?
                                     "<li class='device-error'>${device.label} (${device.error})</li>"
-                                    : "<li class='device'>${getDeviceNameLink(device, ip)}</li>"
+                                    : "<li class='device'>${getDeviceNameLink(device)}</li>"
                     )
             }
 
@@ -298,8 +299,8 @@ private String describeDevices() {
     builder.toString()
 }
 
-private String getDeviceNameLink(device, ip) {
-    def realDevice = getChildDevice(ip)
+private String getDeviceNameLink(device) {
+    def realDevice = getChildDevice(device.ip)
     "<a href='/device/edit/${realDevice?.getId()}', target='_blank'>$device.label</a>"
 }
 
@@ -832,12 +833,15 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
 }
 
 private static Map<String, Number> getScaledColorMap(Map colorMap) {
-    [
-            hue       : scaleUp100(colorMap.hue) as Integer,
-            saturation: scaleUp100(colorMap.saturation) as Integer,
-            brightness: scaleUp100(colorMap.level ?: colorMap.brightness) as Integer,
-            kelvin    : colorMap.kelvin
-    ]
+    def result = [:]
+    def brightness = colorMap.level ?: colorMap.brightness
+
+    colorMap.hue ? result.hue = scaleUp100(colorMap.hue) as Integer : null
+    colorMap.saturation ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
+    colorMap.saturation ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
+    brightness ? result.brightness = scaleUp100(brightness) as Integer : null
+    result.kelvin = colorMap.kelvin
+    result
 }
 
 private static Map makeCommand(String command, Map payload) {
@@ -932,11 +936,12 @@ void deleteDeviceDefinition(Map device) {
     saveDeviceDefinitions devices
 }
 
+
 String updateDeviceDefinition(String mac, String ip, Map properties) {
     Map device = getDeviceDefinition mac
     if (!device) {
         // perhaps it's a real device?
-        return getChildDevice(ip)
+        return getChildDevice(ip) // @TODO Change to mac
     }
     properties.each { key, val -> (device[key] = val) }
 
@@ -951,10 +956,11 @@ List knownDeviceLabels() {
 private void makeRealDevice(Map device) {
     addToKnownIps device
     try {
+        //@todo Change device.ip to device.mac
         addChildDevice 'robheyes', device.deviceName, device.ip, null, [group: device.group, label: device.label, location: device.location]
         addToKnownIps device
         updateKnownDevices()
-        logInfo "Added device $device.label of type $device.deviceName with ip address $device.ip"
+        logInfo "Added device $device.label of type $device.deviceName with ip address $device.ip and MAC address $device.mac"
     } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
         logWarn "${e.message} - you need to install the appropriate driver"
         device.error = "No driver installed for $device.deviceName"
