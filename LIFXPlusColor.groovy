@@ -21,6 +21,7 @@ metadata {
         capability "Switch Level"
         capability "Initialize"
         capability "Color Control"
+        capability "Color Mode"
 
         attribute "label", "string"
         attribute "group", "string"

@@ -475,10 +475,8 @@ Map<String, List> deviceSetSaturation(device, Number saturation, Boolean display
 }
 
 Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0) {
-    def hsbkMap = getCurrentHSBK device
-    hsbkMap.saturation = 0
-    hsbkMap.kelvin = temperature
-    hsbkMap.duration = 1000 * duration
+//    def hsbkMap = getCurrentHSBK device
+    def hsbkMap = [/*saturation: 0,*/ kelvin: temperature, duration: 1000 * duration, brightness: scaleUp(device.currentLevel as Long, 100)]
 
     deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
@@ -820,16 +818,23 @@ private Map<String, List> deviceSetHSBKAndPower(device, duration, Map<String, Nu
 }
 
 private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
-    List<Map> colorMap = [
-            [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed],
-            [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed],
-            [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed],
-            [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
-    ]
-    if (hsbkMap.name) {
-        colorMap.add([name: 'colorName', value: hsbkMap.name, displayed: displayed])
+    List<Map> events = []
+    logDebug "makeColorMapEvents map: $hsbkMap"
+    if (hsbkMap.hue || hsbkMap.saturation) {
+        events << [name: 'colorMode', value: 'RGBW', displayed: displayed]
+        hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed]:null
+        hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed]: null
+        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed]:null
+    } else if (hsbkMap.kelvin) {
+        events << [name: 'colorMode', value: 'CT', displayed: displayed]
+        events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
     }
-    colorMap
+
+    if (hsbkMap.name) {
+        events.add([name: 'colorName', value: hsbkMap.name, displayed: displayed])
+    }
+    logDebug "Events: $events"
+    events
 }
 
 private static Map<String, Number> getScaledColorMap(Map colorMap) {
