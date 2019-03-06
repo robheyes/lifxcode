@@ -828,6 +828,7 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
     } else if (hsbkMap.kelvin) {
         events << [name: 'colorMode', value: 'CT', displayed: displayed]
         events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
+        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed]:null
     }
 
     if (hsbkMap.name) {
