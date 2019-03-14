@@ -31,10 +31,12 @@ metadata {
     }
 }
 
+@SuppressWarnings("unused")
 def installed() {
     initialize()
 }
 
+@SuppressWarnings("unused")
 def updated() {
     state.transitionTime = defaultTransition
     initialize()
@@ -45,10 +47,12 @@ def initialize() {
     runEvery1Minute poll
 }
 
+@SuppressWarnings("unused")
 def refresh() {
 
 }
 
+@SuppressWarnings("unused")
 def poll() {
     lifxQuery 'LIGHT.GET_STATE'
 }
@@ -61,6 +65,7 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
 }

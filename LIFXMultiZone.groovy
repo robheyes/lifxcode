@@ -27,13 +27,17 @@ metadata {
     }
 }
 
+@SuppressWarnings("unused")
 def installed() {
     initialize()
 }
 
+@SuppressWarnings("unused")
 def updated() {
+    unsubscribe 'LIFX.MULTIZONEQUERY'
     state.transitionTime = defaultTransition
     initialize()
+    subscribe 'LIFX.MULTIZONEQUERY'
 }
 
 def initialize() {
@@ -41,13 +45,16 @@ def initialize() {
     runEvery1Minute poll
 }
 
+@SuppressWarnings("unused")
 def refresh() {
 
 }
 
+@SuppressWarnings("unused")
 def poll() {
     lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
+//    lifxQuery 'MULTIZONE.GET_EXTENDED_COLOR_ZONES'
 }
 
 def on() {
@@ -57,18 +64,23 @@ def on() {
 def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
+
+@SuppressWarnings("unused")
 def setColor(Map colorMap) {
 
 }
 
+@SuppressWarnings("unused")
 def setHue(number) {
 
 }
 
+@SuppressWarnings("unused")
 def setSaturation(number) {
 
 }
 
+@SuppressWarnings("unused")
 def setColorTemperature(temperature) {
 
 }

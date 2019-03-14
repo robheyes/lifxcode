@@ -28,10 +28,12 @@ metadata {
     }
 }
 
+@SuppressWarnings("unused")
 def installed() {
     initialize()
 }
 
+@SuppressWarnings("unused")
 def updated() {
     state.transitionTime = defaultTransition
     initialize()
@@ -42,10 +44,12 @@ def initialize() {
     runEvery1Minute poll
 }
 
+@SuppressWarnings("unused")
 def refresh() {
 
 }
 
+@SuppressWarnings("unused")
 def poll() {
     lifxQuery 'DEVICE.GET_POWER'
     lifxQuery 'LIGHT.GET_STATE'
@@ -61,23 +65,25 @@ def off() {
 }
 
 
-
+@SuppressWarnings("unused")
 def setColor(Map colorMap) {
 
 }
 
+@SuppressWarnings("unused")
 def setHue(number) {
 
 }
 
+@SuppressWarnings("unused")
 def setSaturation(number) {
 
 }
 
+@SuppressWarnings("unused")
 def setColorTemperature(temperature) {
 
 }
-
 
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
