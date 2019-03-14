@@ -39,10 +39,12 @@ metadata {
     }
 }
 
+@SuppressWarnings("unused")
 def installed() {
     initialize()
 }
 
+@SuppressWarnings("unused")
 def updated() {
     state.transitionTime = defaultTransition
     initialize()
@@ -54,10 +56,12 @@ def initialize() {
     runEvery1Minute poll
 }
 
+@SuppressWarnings("unused")
 def refresh() {
 
 }
 
+@SuppressWarnings("unused")
 def poll() {
     lifxQuery 'LIGHT.GET_STATE'
 }
@@ -70,26 +74,32 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def setColor(Map colorMap) {
     sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def setHue(hue) {
     sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def setSaturation(saturation) {
     sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def setColorTemperature(temperature) {
     sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
 }
 
+@SuppressWarnings("unused")
 def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
 }

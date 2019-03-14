@@ -29,10 +29,12 @@ metadata {
     }
 }
 
+@SuppressWarnings("unused")
 def updated() {
     log.info "LIFX updating"
 }
 
+@SuppressWarnings("unused")
 def installed() {
     log.info "LIFX Discovery installed"
     initialize()
@@ -83,7 +85,7 @@ private static Map prepareQueue(String packet) {
     [packet: packet, ipAddresses: [], delay: 50]
 }
 
-/** DND used by runInMillis */
+@SuppressWarnings("unused")
 private processQueue(Map queue) {
     def oldPercent = calculateQueuePercentage(queue)
     if (isQueueEmpty(queue)) {
