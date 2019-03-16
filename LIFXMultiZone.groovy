@@ -8,7 +8,7 @@
  *
  */
 metadata {
-    definition(name: 'LIFX Multizone', namespace: 'robheyes', author: 'Robert Alan Heyes') {
+    definition(name: 'LIFX Multizone', namespace: 'robheyes', author: 'Robert Alan Heyes', importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXMultiZone.groovy') {
         capability 'Light'
         capability 'ColorControl'
         capability 'ColorTemperature'

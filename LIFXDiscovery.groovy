@@ -17,7 +17,7 @@ import groovy.transform.Field
 @Field Integer extraProbesPerPass = 0
 
 metadata {
-    definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes') {
+    definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes', importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDiscovery.groovy') {
         capability "Refresh"
 
         attribute 'lifxdiscovery', 'string'
