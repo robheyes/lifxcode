@@ -13,7 +13,7 @@
  */
 
 metadata {
-    definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes") {
+    definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes", importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXColor.groovy') {
         capability "Bulb"
         capability "Color Temperature"
         capability "Polling"
