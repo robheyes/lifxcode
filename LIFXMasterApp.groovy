@@ -67,10 +67,10 @@ def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
             paragraph "<strong>RECOMMENDATION</strong>: The device network id (DNI) for a LIFX device is based on it's IP address. It is, therefore, advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
-            paragraph '<strong>ADVICE</strong>: I would suggest that it\'s a good idea to create groups for all your '+
-                    'devices, and not just LIFX ones. This will make your rules and other automations dependent only '+
-                    'on the groups and not the actual hardware, making it easier to replace devices at a later date '+
-                    'with minimal disruption.<br>If you do this, then you may want to set the device prefix on the '+
+            paragraph '<strong>ADVICE</strong>: I would suggest that it\'s a good idea to create groups for all your ' +
+                    'devices, and not just LIFX ones. This will make your rules and other automations dependent only ' +
+                    'on the groups and not the actual hardware, making it easier to replace devices at a later date ' +
+                    'with minimal disruption.<br>If you do this, then you may want to set the device prefix on the ' +
                     'settings page to provide a way of clearly distinguishing between the group name and the device name.'
             input 'discoverBtn', 'button', title: 'Discover devices'
             paragraph 'If you have added a new device, or not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
@@ -797,23 +797,32 @@ String getSubnet() {
     return m.group(1)
 }
 
+// returns [h, s, v, name]
 private Map lookupColor(String color) {
     Map foundColor
+    if (color?.startsWith('#')) {
+        foundColor = getHexColor(color)
+        foundColor.name = color
+        logDebug "Hex color $foundColor"
+        return foundColor
+    }
+
     if (color == "random") {
         foundColor = pickRandomColor()
-        log.info "Setting random color: ${foundColor.name}"
-    } else if (color?.startsWith('#')) {
-        foundColor = [rgb: color]
     } else {
         foundColor = fullColorMap.find { (it.name as String).equalsIgnoreCase(color) }
         if (!foundColor) {
             throw new RuntimeException("No color found for $color")
         }
     }
-    Map myColor = getHexColor(foundColor.rgb)
-    myColor.name = color
 
-    myColor
+    return transformNamedColor(foundColor)
+}
+
+private static Map transformNamedColor(Map foundColor) {
+    def theColor = foundColor.hsv
+    theColor.name = foundColor.name
+    theColor
 }
 
 private static Map getHexColor(String color) {
@@ -956,6 +965,7 @@ private static List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
         hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed] : null
         hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed] : null
         hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(scaleDown100(hsbkMap.hue), scaleDown100(hsbkMap.saturation), scaleDown100(hsbkMap.brightness)), displayed: displayed]
     } else if (hsbkMap.kelvin) {
         events << [name: 'colorMode', value: 'CT', displayed: displayed]
         events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
@@ -1099,8 +1109,8 @@ private void makeRealDevice(Map device) {
                 device.ip,
                 null,
                 [
-                        group: device.group,
-                        label: device.label,
+                        group   : device.group,
+                        label   : device.label,
                         location: device.location
                 ]
         )
@@ -1451,8 +1461,8 @@ private static Map rgbToHSV(red = 255, green = 255, blue = 255, resolution = "lo
     double h
     double s
 
-    double max = Math.max(Math.max(r, g), b)
-    double min = Math.min(Math.min(r, g), b)
+    double max = [r, g, b].max()
+    double min = [r, g, b].min()
     double delta = (max - min)
     double v = (max * 100.0)
 
@@ -1478,6 +1488,31 @@ private static Map rgbToHSV(red = 255, green = 255, blue = 255, resolution = "lo
         h /= 3.6d
     }
     return [h: h, s: s, v: v]
+}
+
+private static String hsvToRgbString(Float hue, Float saturation, Float level) {
+    def rgb = hsvToRgb(hue, saturation, level)
+//    logDebug "RGB = $rgb"
+    Long r = rgb.r
+    Long g = rgb.g
+    Long b = rgb.b
+
+    def value = b + 256 * (g + 256 * r)
+    String.format('%06x', value).toUpperCase()
+}
+
+private static Map<String, Long> hsvToRgb(hue, saturation, level) {
+    double h = hue * 3.6d
+    double s = saturation / 100
+    double v = level / 100
+
+    def f = {
+        n ->
+            double k = (n + h / 60) % 6
+            Math.round((v - (v * s * Math.max([k, 4 - k, 1.0d].min(), 0.0d))) * 255) as Long
+    }
+
+    [r: f(5), g: f(3), b: f(1)]
 }
 
 private static Map hexToColor(String hex) {

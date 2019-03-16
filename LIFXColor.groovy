@@ -15,18 +15,18 @@
 metadata {
     definition(name: "LIFX Color", namespace: "robheyes", author: "Robert Alan Heyes", importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXColor.groovy') {
         capability "Bulb"
-        capability "Color Temperature"
+        capability "ColorTemperature"
         capability "Polling"
         capability "Switch"
         capability "Switch Level"
         capability "Initialize"
-        capability "Color Control"
-        capability "Color Mode"
+        capability "ColorControl"
+        capability "ColorMode"
 
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
-        attribute "colorName", "string"
+//        attribute "colorName", "string"
         attribute "lightStatus", "string"
         attribute "wifiStatus", "map"
 
