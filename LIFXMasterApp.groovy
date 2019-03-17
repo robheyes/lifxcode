@@ -106,7 +106,7 @@ def namedColorsPage() {
         section {
             input 'sortOrder', 'enum', title: 'Sort by: ', options: ['0': 'Alphabetical', '1': 'By Hue', '2': 'By Level', '3': 'By RGB'], submitOnChange: true
             paragraph(
-                    colorListHTML(settings.sortOrder)
+                    colorListHTML(settings.sortOrder as String)
             )
         }
         discoveryPageLink()
@@ -712,13 +712,38 @@ Map<String, List> discoveryParse(String description) {
 byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }
-//
-//// fills the buffer with the LIFX packet and returns the sequence number
-//byte makePacket(List buffer, String device, String type, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
-//    def listPayload = makePayload("$device.$type", payload)
-//    int messageType = lookupDeviceAndType(device, type).type
-//    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload, sequence)
-//}
+
+
+@SuppressWarnings("unused")
+void lifxQuery(device, String deviceAndType, Closure<List> sender) {
+    sendCommand device, deviceAndType, [:], true, false, 0 as Byte, sender
+}
+
+@SuppressWarnings("unused")
+void lifxCommand(device, String deviceAndType, Map payload, Byte index, Closure<List> sender) {
+    sendCommand device, deviceAndType, payload, false, true, index, sender
+}
+
+void sendCommand(device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
+    resendUnacknowledgedCommand(device, sender)
+    def buffer = []
+    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
+    if (ackRequired) {
+        expectAckFor device, sequence, buffer
+    }
+    sender buffer
+//    sendPacket buffer
+}
+
+@SuppressWarnings("unused")
+void resendUnacknowledgedCommand(device, Closure<List> sender) {
+    def expectedSequence = ackWasExpected device
+    if (expectedSequence) {
+        List resendBuffer = getBufferToResend device, expectedSequence
+        clearExpectedAckFor device, expectedSequence
+        sender resendBuffer
+    }
+}
 
 // fills the buffer with the LIFX packet and returns the sequence number
 byte makePacket(List buffer, String deviceAndType, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
@@ -2094,11 +2119,11 @@ private static Map flattenMessageTypes() {
 }
 
 private static Map flattenedTypes() {
-    flattenMessageTypes().collectEntries {k, v -> [(k): v.type]}
+    flattenMessageTypes().collectEntries { k, v -> [(k): v.type] }
 }
 
 private static Map flattenedDescriptors() {
-    flattenMessageTypes().collectEntries {k, v -> [(k): v.descriptor]}
+    flattenMessageTypes().collectEntries { k, v -> [(k): v.descriptor] }
 }
 
 @Lazy @Field Map<String, Integer> messageType = flattenedTypes()
