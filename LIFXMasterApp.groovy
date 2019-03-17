@@ -715,16 +715,16 @@ byte[] asByteArray(List buffer) {
 
 
 @SuppressWarnings("unused")
-void lifxQuery(device, String deviceAndType, Closure<List> sender) {
+void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
     sendCommand device, deviceAndType, [:], true, false, 0 as Byte, sender
 }
 
 @SuppressWarnings("unused")
-void lifxCommand(device, String deviceAndType, Map payload, Byte index, Closure<List> sender) {
+void lifxCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Byte index, Closure<List> sender) {
     sendCommand device, deviceAndType, payload, false, true, index, sender
 }
 
-void sendCommand(device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
+void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
     resendUnacknowledgedCommand(device, sender)
     def buffer = []
     byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
@@ -732,11 +732,9 @@ void sendCommand(device, String deviceAndType, Map payload = [:], boolean respon
         expectAckFor device, sequence, buffer
     }
     sender buffer
-//    sendPacket buffer
 }
 
-@SuppressWarnings("unused")
-void resendUnacknowledgedCommand(device, Closure<List> sender) {
+void resendUnacknowledgedCommand(com.hubitat.app.DeviceWrapper device, Closure<List> sender) {
     def expectedSequence = ackWasExpected device
     if (expectedSequence) {
         List resendBuffer = getBufferToResend device, expectedSequence
@@ -747,7 +745,6 @@ void resendUnacknowledgedCommand(device, Closure<List> sender) {
 
 // fills the buffer with the LIFX packet and returns the sequence number
 byte makePacket(List buffer, String deviceAndType, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
-    def parts = deviceAndType.split(/\./)
     def listPayload = makePayload(deviceAndType, payload)
     int messageType = messageType[deviceAndType]
     makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload, sequence)
@@ -786,24 +783,24 @@ Boolean isKnownIp(String ip) {
     null != knownIps[ip]
 }
 
-void expectAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence, List buffer) {
+private void expectAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence, List buffer) {
     def expected = atomicState.expectedAckFor ?: [:]
     expected[device.getDeviceNetworkId() as String] = [sequence: sequence, buffer: buffer]
     atomicState.expectedAckFor = expected
 }
 
-Byte ackWasExpected(com.hubitat.app.DeviceWrapper device) {
+private Byte ackWasExpected(com.hubitat.app.DeviceWrapper device) {
     def expected = atomicState.expectedAckFor ?: [:]
     expected[device.getDeviceNetworkId() as String]?.sequence as Byte
 }
 
-void clearExpectedAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence) {
+private void clearExpectedAckFor(com.hubitat.app.DeviceWrapper device, Byte sequence) {
     def expected = atomicState.expectedAckFor ?: [:]
     expected.remove(device.getDeviceNetworkId())
     atomicState.expectedAckFor = expected
 }
 
-List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence) {
+private List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence) {
     def expected = atomicState.expectedAckFor ?: [:]
     Map expectation = expected[device.getDeviceNetworkId()]
     if (null == expectation) {
@@ -816,12 +813,9 @@ List getBufferToResend(com.hubitat.app.DeviceWrapper device, Byte sequence) {
     }
 }
 
-int typeOfMessage(String deviceAndType) {
-    messageType[deviceAndType]
-}
+int typeOfMessage(String deviceAndType) { messageType[deviceAndType] }
 
 void clearCachedDescriptors() { atomicState.cachedDescriptors = null }
-
 
 String getSubnet() {
     def ip = getHubIP()
@@ -872,12 +866,14 @@ private static Map expandRgb(Map colorDef) {
     [name: colorDef.name, rgb: colorDef.rgb, rgbMap: rgb, hsv: hsv]
 }
 
+@SuppressWarnings("GrMethodMayBeStatic")
 private Map pickRandomColor() {
     def colors = fullColorMap
     def tempRandom = Math.abs(new Random().nextInt() % colors.size())
     colors[tempRandom]
 }
 
+@SuppressWarnings("GrMethodMayBeStatic")
 private List<Map> colorList(String sortOrder) {
     if (!(!sortOrder || '0' == sortOrder)) {
         switch (sortOrder) {
@@ -1059,18 +1055,6 @@ private static Float scaleDown(value, maxValue) {
 private static Long scaleUp(value, maxValue) {
     (value * 65535) / maxValue
 }
-//
-//private Map lookupDeviceAndType(String device, String type) {
-//    messageTypes()[device][type]
-//}
-
-//private String lookupDescriptorForDeviceAndType(String device, String type) {
-//    lookupDeviceAndType(device, type).descriptor
-//}
-//
-//private String lookupDescriptorForDeviceAndType(String deviceAndType) {
-//    descriptors[deviceAndType]
-//}
 
 private Map parseHeader(Map deviceParams) {
     List<Map> headerDescriptor = makeDescriptor('size:w,misc:w,source:i,target:ba8,frame_reserved:ba6,flags:b,sequence:b,protocol_reserved:ba8,type:w,protocol_reserved2:w')
@@ -1113,7 +1097,6 @@ private void saveDeviceDefinition(Map device) {
 
     saveDeviceDefinitions devices
 }
-
 
 private void deleteDeviceDefinition(Map device) {
     Map devices = getDeviceDefinitions()
@@ -1199,7 +1182,6 @@ private static List matchKeys(Map device, List<String> expected) {
     }
     result
 }
-
 
 private String convertIpLong(String ip) {
     sprintf '%d.%d.%d.%d', hubitat.helper.HexUtils.hexStringToIntArray(ip)
@@ -1579,10 +1561,6 @@ private static Map parseDeviceParameters(String description) {
 private Map parseHeaderFromDescription(String description) {
     parseHeader parseDeviceParameters(description)
 }
-//
-//private Map parsePayload(String theDevice, String theType, Map header) {
-//    parseBytes lookupDescriptorForDeviceAndType(theDevice, theType), getRemainder(header)
-//}
 
 private Map parsePayload(String deviceAndType, Map header) {
     parseBytes descriptors[deviceAndType], getRemainder(header)
@@ -1705,7 +1683,6 @@ private List makePayload(String deviceAndType, Map payload) {
 
 private static List<Long> getRemainder(header) { header.remainder as List<Long> }
 
-
 private static Number itemLength(String kind) {
     switch (kind) {
         case 'B': return 1
@@ -1737,17 +1714,11 @@ private List<Map> makeDescriptor(String desc) {
     }
 }
 
-//static Integer getTypeFor(String dev, String act) {
-//    def deviceAndType = lookupDeviceAndType dev, act
-//    deviceAndType.type as Integer
-//}
-
 private String getHubIP() {
     def hub = location.hubs[0]
 
     hub.localIP
 }
-
 
 private void clearBufferCache() {
     atomicState.bufferCache = [:]

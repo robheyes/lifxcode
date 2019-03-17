@@ -174,10 +174,6 @@ private void broadcast(String stringBytes, String ipAddress) {
     )
 }
 
-//private Integer getTypeFor(String dev, String act) {
-//    parent.getTypeFor dev, act
-//}
-
 static byte[] asByteArray(List buffer) {
     (buffer.each { it as byte }) as byte[]
 }

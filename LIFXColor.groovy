@@ -26,7 +26,6 @@ metadata {
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
-//        attribute "colorName", "string"
         attribute "lightStatus", "string"
         attribute "wifiStatus", "map"
 
@@ -54,7 +53,6 @@ def updated() {
 }
 
 def initialize() {
-//    logDebug('Initialised')
     requestInfo()
     runEvery1Minute poll
 }
