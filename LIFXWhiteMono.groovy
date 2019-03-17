@@ -85,9 +85,8 @@ private void lifxCommand(String deviceAndType, Map payload, Byte index = 0) {
 
 private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
     resendUnacknowledgedCommand()
-    def parts = deviceAndType.split(/\./)
     def buffer = []
-    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
+    byte sequence = parent.makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
     if (ackRequired) {
         parent.expectAckFor device, sequence, buffer
     }
