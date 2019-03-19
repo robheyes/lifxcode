@@ -64,9 +64,9 @@ def refresh() {
 
 @SuppressWarnings("unused")
 def poll() {
-    parent.lifxQuery('DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
-    parent.lifxQuery('LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-    parent.lifxQuery('LIGHT.GET_INFRARED') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_INFRARED') { List buffer -> sendPacket buffer }
 }
 
 def on() {
@@ -118,7 +118,7 @@ private void sendActions(Map<String, List> actions) {
 }
 
 def requestInfo() {
-    parent.lifxQuery('LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def parse(String description) {
