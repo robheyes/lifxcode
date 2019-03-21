@@ -55,15 +55,18 @@ def poll() {
     parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
+def requestInfo() {
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+}
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+
 def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
-
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
@@ -88,10 +91,6 @@ def setColorTemperature(temperature) {
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
     actions.events?.each { sendEvent it }
-}
-
-def requestInfo() {
-    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def parse(String description) {

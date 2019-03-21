@@ -57,7 +57,10 @@ def refresh() {
 @SuppressWarnings("unused")
 def poll() {
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-//    lifxQuery 'DEVICE.GET_WIFI_INFO'
+}
+
+def requestInfo() {
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def on() {
@@ -81,10 +84,6 @@ def setLevel(level, duration = 0) {
 private void sendActions(Map<String, List> actions) {
     actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
     actions.events?.each { sendEvent it }
-}
-
-def requestInfo() {
-    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def parse(String description) {
