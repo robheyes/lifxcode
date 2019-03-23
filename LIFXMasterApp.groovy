@@ -484,7 +484,7 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
 }
 
 @SuppressWarnings("GrMethodMayBeStatic")
-Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map colorMap, Boolean displayed, duration = 0) {
 //    logDebug "Duration1: $duration"
     def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
@@ -493,7 +493,7 @@ Map<String, List> deviceSetColor(device, Map colorMap, Boolean displayed, durati
 }
 
 @SuppressWarnings("GrMethodMayBeStatic")
-Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetHue(com.hubitat.app.DeviceWrapper device, Number hue, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap.hue = scaleUp100 hue
     hsbkMap.duration = duration
@@ -502,7 +502,7 @@ Map<String, List> deviceSetHue(device, Number hue, Boolean displayed, duration =
 }
 
 @SuppressWarnings("GrMethodMayBeStatic")
-Map<String, List> deviceSetSaturation(device, Number saturation, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetSaturation(com.hubitat.app.DeviceWrapper device, Number saturation, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap.saturation = scaleUp100 saturation
     hsbkMap.duration = duration
@@ -511,20 +511,20 @@ Map<String, List> deviceSetSaturation(device, Number saturation, Boolean display
 }
 
 @SuppressWarnings("GrMethodMayBeStatic")
-Map<String, List> deviceSetColorTemperature(device, Number temperature, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetColorTemperature(com.hubitat.app.DeviceWrapper device, Number temperature, Boolean displayed, duration = 0) {
     def hsbkMap = [kelvin: temperature, duration: duration, brightness: scaleUp(device.currentLevel as Long, 100)]
 
     deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetIRLevel(device, Number level, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, duration = 0) {
     def actions = makeActions()
     actions.commands << makeCommand('LIGHT.SET_INFRARED', [irLevel: value == scaleUp100(level)])
     actions.events << [name: "IRLevel", value: level, displayed: displayed, data: [syncing: "false"]]
     actions
 }
 
-Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, duration = 0) {
     if ((null == level || level <= 0) && 0 == duration) {
         return deviceOnOff('off', displayed)
     }
@@ -532,7 +532,7 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
         level = 100
     }
     def hsbkMap = getCurrentHSBK(device)
-    if (hsbkMap.saturation == 0) {
+    if (device.currentValue('colorMode') == 'CT') {
         hsbkMap.brightness = scaleUp100 level
         hsbkMap.hue = 0
         hsbkMap.saturation = 0
@@ -550,7 +550,7 @@ Map<String, List> deviceSetLevel(device, Number level, Boolean displayed, durati
     deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetState(device, Map myStateMap, Boolean displayed, duration = 0) {
+Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map myStateMap, Boolean displayed, duration = 0) {
     def power = myStateMap.power
     def level = myStateMap.level ?: myStateMap.brightness
     def kelvin = myStateMap.kelvin ?: myStateMap.temperature
