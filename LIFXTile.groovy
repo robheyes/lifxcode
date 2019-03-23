@@ -51,19 +51,22 @@ def refresh() {
 
 @SuppressWarnings("unused")
 def poll() {
-    lifxQuery 'DEVICE.GET_POWER'
-    lifxQuery 'LIGHT.GET_STATE'
+    parent.lifxQuery (device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
+    parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
+def requestInfo() {
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+}
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+
 def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
-
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
@@ -86,40 +89,8 @@ def setColorTemperature(temperature) {
 }
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
+    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
     actions.events?.each { sendEvent it }
-}
-
-private void lifxQuery(String deviceAndType) {
-    sendCommand deviceAndType, [:], true, false, 0 as Byte
-}
-
-private void lifxCommand(String deviceAndType, Map payload, Byte index = 0) {
-    sendCommand deviceAndType, payload, false, true, index
-}
-
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
-    resendUnacknowledgedCommand()
-    def parts = deviceAndType.split(/\./)
-    def buffer = []
-    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
-    if (ackRequired) {
-        parent.expectAckFor device, sequence, buffer
-    }
-    sendPacket buffer
-}
-
-private void resendUnacknowledgedCommand() {
-    def expectedSequence = parent.ackWasExpected device
-    if (expectedSequence) {
-        List resendBuffer = parent.getBufferToResend device, expectedSequence
-        parent.clearExpectedAckFor device, expectedSequence
-        sendPacket resendBuffer
-    }
-}
-
-def requestInfo() {
-    lifxQuery('LIGHT.GET_STATE')
 }
 
 def parse(String description) {

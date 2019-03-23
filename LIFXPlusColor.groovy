@@ -15,13 +15,13 @@
 metadata {
     definition(name: "LIFXPlus Color", namespace: "robheyes", author: "Robert Alan Heyes", importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXPlusColor.groovy') {
         capability "Bulb"
-        capability "Color Temperature"
+        capability "ColorTemperature"
         capability "Polling"
         capability "Switch"
-        capability "Switch Level"
+        capability "SwitchLevel"
         capability "Initialize"
-        capability "Color Control"
-        capability "Color Mode"
+        capability "ColorControl"
+        capability "ColorMode"
 
         attribute "label", "string"
         attribute "group", "string"
@@ -33,7 +33,8 @@ metadata {
     }
 
     preferences {
-        input "logEnable", "bool", title: "Enable debug logging", required: false
+        input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
+        input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
         input "defaultTransition", "decimal", title: "Color map level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
     }
 }
@@ -46,6 +47,8 @@ def installed() {
 @SuppressWarnings("unused")
 def updated() {
     state.transitionTime = defaultTransition
+    state.useActivityLog = useActivityLogFlag
+    statue.useActivityLogDebug = useDebugActivityLogFlag
     initialize()
 }
 
@@ -61,11 +64,14 @@ def refresh() {
 
 @SuppressWarnings("unused")
 def poll() {
-    lifxQuery 'DEVICE.GET_POWER'
-    lifxQuery 'LIGHT.GET_STATE'
-    lifxQuery 'LIGHT.GET_INFRARED'
+    parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_INFRARED') { List buffer -> sendPacket buffer }
 }
 
+def requestInfo() {
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+}
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
@@ -111,48 +117,14 @@ def setInfraredLevel(level, duration = 0) {
 }
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
+    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
     actions.events?.each { sendEvent it }
 }
-
-private void lifxQuery(String deviceAndType) {
-    sendCommand deviceAndType, [:], true, false, 0 as Byte
-}
-
-private void lifxCommand(String deviceAndType, Map payload, Byte index = 0) {
-    sendCommand deviceAndType, payload, false, true, index
-}
-
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
-    resendUnacknowledgedCommand()
-    def parts = deviceAndType.split(/\./)
-    def buffer = []
-    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
-    if (ackRequired) {
-        parent.expectAckFor device, sequence, buffer
-    }
-    sendPacket buffer
-}
-
-private void resendUnacknowledgedCommand() {
-    def expectedSequence = parent.ackWasExpected device
-    if (expectedSequence) {
-        def resendBuffer = parent.getBufferToResend device, expectedSequence
-        parent.clearExpectedAckFor device, expectedSequence
-        sendPacket resendBuffer
-    }
-}
-
-def requestInfo() {
-    lifxQuery('LIGHT.GET_STATE')
-}
-
 
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     events.collect { createEvent(it) }
 }
-
 
 private def myIp() {
     device.getDeviceNetworkId()

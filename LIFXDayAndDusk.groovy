@@ -57,9 +57,12 @@ def refresh() {
 
 @SuppressWarnings("unused")
 def poll() {
-    lifxQuery 'LIGHT.GET_STATE'
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
+def requestInfo() {
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+}
 
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
@@ -74,28 +77,6 @@ def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
 }
 
-// DND YET
-
-//def setLevel(level, duration = 0) {
-//    log.debug("Begin setting light's level to ${level} over ${duration} seconds.")
-//    if (level > 100) {
-//        level = 100
-//    } else if ((level <= 0 || level == null) && duration == 0) {
-//        return off()
-//    }
-////    Map hsbkMap = parent.getCurrentBK(device)
-////    logDebug("BK Map: $hsbkMap")
-//    hsbkMap = [
-//            level     : parent.scaleUp(level as Long, 100),
-//            duration  : duration * 1000,
-//            hue       : 0,
-//            saturation: 0,
-//            kelvin    : device.currentColorTemperature
-//    ]
-//    logDebug "Map to be sent: $hsbkMap"
-//    lifxCommand 'LIGHT.SET_COLOR', hsbkMap
-//    sendEvent name: 'level', value: level, displayed: getUseActivityLog()
-//}
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
@@ -103,41 +84,8 @@ def setColorTemperature(temperature) {
 }
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> lifxCommand item.cmd, item.payload, index as Byte }
+    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
     actions.events?.each { sendEvent it }
-}
-
-private void lifxQuery(String deviceAndType) {
-    sendCommand deviceAndType, [:], true, false, 0 as Byte
-}
-
-private void lifxCommand(String deviceAndType, Map payload, Byte index = 0) {
-    sendCommand deviceAndType, payload, false, true, index
-}
-
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired = true, boolean ackRequired = false, Byte index = 0) {
-    resendUnacknowledgedCommand()
-    def parts = deviceAndType.split(/\./)
-    def buffer = []
-    byte sequence = parent.makePacket buffer, parts[0], parts[1], payload, responseRequired, ackRequired, index
-    if (ackRequired) {
-        parent.expectAckFor device, sequence, buffer
-    }
-    sendPacket buffer
-}
-
-private void resendUnacknowledgedCommand() {
-    def expectedSequence = parent.ackWasExpected(device)
-    if (expectedSequence) {
-        List resendBuffer = parent.getBufferToResend device, expectedSequence
-        logWarn "resend buffer is $resendBuffer"
-        parent.clearExpectedAckFor device, expectedSequence
-        sendPacket resendBuffer
-    }
-}
-
-def requestInfo() {
-    lifxQuery 'LIGHT.GET_STATE'
 }
 
 def parse(String description) {

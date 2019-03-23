@@ -61,7 +61,7 @@ def refresh() {
 
     parent.clearCachedDescriptors()
     def scanPasses = parent.maxScanPasses()
-    String packet = makePacketString messageTypes().DEVICE.GET_VERSION.type as int, true, 1 as byte
+    String packet = makePacketString parent.typeOfMessage('DEVICE.GET_VERSION'), true, 1 as byte
     Map queue = prepareQueue(packet)
     1.upto(scanPasses) {
         parent.setScanPass(it)
@@ -125,7 +125,7 @@ def rescanNetwork() {
     1.upto(254) {
         def ipAddress = subnet + it
         if (parent.isKnownIp(ipAddress)) {
-            sendCommand ipAddress, messageTypes().DEVICE.GET_GROUP.type as int, true, 1, it % 128 as Byte
+            sendCommand ipAddress, parent.typeOfMessage('DEVICE.GET_GROUP'), true, 1, it % 128 as Byte
         }
     }
     parent.setScanPass 'DONE'
@@ -156,10 +156,6 @@ private void sendActions(Map<String, List> actions) {
     actions.events?.each { sendEvent it }
 }
 
-Map<String, Map<String, Map>> messageTypes() {
-    parent.messageTypes()
-}
-
 private void sendPacket(String ipAddress, String bytes) {
     broadcast bytes, ipAddress
 }
@@ -176,10 +172,6 @@ private void broadcast(String stringBytes, String ipAddress) {
                     ]
             )
     )
-}
-
-private Integer getTypeFor(String dev, String act) {
-    parent.getTypeFor dev, act
 }
 
 static byte[] asByteArray(List buffer) {
@@ -200,27 +192,27 @@ private void logWarn(String msg) {
 
 
 /** ========= BELOW THIS LINE IS EXPERIMENTAL CODE THAT MAY PROVE USEFUL EVENTUALLY */
-List<Map> discoverMacs(String subnet) {
-    def result = []
-    1.upto(254) {
-        def ipAddress = subnet + it
-        def mac = getMACFromIP(ipAddress)
-        if (mac) {
-            result << [mac: mac, ip: ipAddress]
-        }
-    }
-    result
-}
-
-private scanNetwork(List<Map> macs, int pass) {
-
-    macs.each {
-        String ipAddress = it.ip
-        if (!parent.isKnownIp(ipAddress)) {
-            logDebug "Scanning $ipAddress"
-            1.upto(pass + extraProbesPerPass) {
-                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, true, 1, it % 128 as Byte
-            }
-        }
-    }
-}
+//List<Map> discoverMacs(String subnet) {
+//    def result = []
+//    1.upto(254) {
+//        def ipAddress = subnet + it
+//        def mac = getMACFromIP(ipAddress)
+//        if (mac) {
+//            result << [mac: mac, ip: ipAddress]
+//        }
+//    }
+//    result
+//}
+//
+//private scanNetwork(List<Map> macs, int pass) {
+//
+//    macs.each {
+//        String ipAddress = it.ip
+//        if (!parent.isKnownIp(ipAddress)) {
+//            logDebug "Scanning $ipAddress"
+//            1.upto(pass + extraProbesPerPass) {
+//                sendCommand ipAddress, messageTypes().DEVICE.GET_VERSION.type as int, true, 1, it % 128 as Byte
+//            }
+//        }
+//    }
+//}
