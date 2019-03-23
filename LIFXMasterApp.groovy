@@ -532,7 +532,7 @@ Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number le
         level = 100
     }
     def hsbkMap = getCurrentHSBK(device)
-    if (device.currentValue('colorMode') == 'CT') {
+    if (device.hasCapability('ColorMode') && (device.currentValue('colorMode') == 'CT') || hsbkMap.saturation == 0) {
         hsbkMap.brightness = scaleUp100 level
         hsbkMap.hue = 0
         hsbkMap.saturation = 0
