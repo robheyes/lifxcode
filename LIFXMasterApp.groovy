@@ -43,6 +43,7 @@ def mainPage() {
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2, submitOnChange: true
             input 'refreshInterval', 'number', title: 'Discovery page refresh interval (seconds).<br><strong>WARNING</strong>: high refresh rates may interfere with discovery.', defaultValue: 6, submitOnChange: true
             input 'namePrefix', 'text', title: 'Device name prefix', description: 'If you specify a prefix then all your device names will be preceded by this value', submitOnChange: true
+            input 'baseIpSegment', 'text', title: 'IP subnet(s)', description: 'e.g. 192.168.0 or 192.168.1, separate multiple subnets with commas', submitOnChange: true
             input 'savePreferences', 'button', title: 'Save', submitOnChange: true
         }
         discoveryPageLink()
@@ -80,7 +81,8 @@ def discoveryPage() {
                             (
                                     ('DONE' == atomicState.scanPass) ?
                                             'Scanning complete' :
-                                            "Scanning your network for devices <div class='meter'>" +
+                                            "Scanning your network for devices from subnets [${describeSubnets()}]" +
+                                                    "<div class='meter'>" +
                                                     "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
                                                     "</div>"
                             )
@@ -335,9 +337,14 @@ String deviceNamePrefix() {
     settings.namePrefix ? settings.namePrefix + ' ' : ""
 }
 
+String ipSegment() {
+    settings.baseIpSegment
+}
+
 @SuppressWarnings("unused")
 def updated() {
     logDebug 'LIFX updating'
+    atomicState.subnets = null
     initialize()
 }
 
@@ -404,12 +411,6 @@ def setScanPass(pass) {
 
 def refresh() {
     removeChildren()
-
-    String subnet = getSubnet()
-    if (!subnet) {
-        return
-    }
-
     discovery('discovery')
 }
 
@@ -443,7 +444,9 @@ private void discovery(String discoveryType) {
 @SuppressWarnings("unused")
 def progress(evt) {
     def percent = evt.getIntegerValue()
-    atomicState.progressPercent = percent
+    if (percent - (atomicState.progressPercent ?: 0) > 10) {
+        atomicState.progressPercent = percent
+    }
 }
 
 def getProgressPercentage() {
@@ -818,6 +821,14 @@ int typeOfMessage(String deviceAndType) { messageType[deviceAndType] }
 void clearCachedDescriptors() { atomicState.cachedDescriptors = null }
 
 String getSubnet() {
+    if (null != settings.baseIpSegment) {
+        def baseIp = parseIPSegment(settings.baseIpSegment)
+        if (baseIp != null) {
+//        log.debug 'Using base ip'
+            return baseIp
+        }
+    }
+//    log.debug 'Base IP not found, using current subnet'
     def ip = getHubIP()
     def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
     if (!m) {
@@ -825,6 +836,49 @@ String getSubnet() {
         return null
     }
     return m.group(1)
+}
+
+String describeSubnets() {
+    def subnets = getSubnets()
+    subnets.join ','
+}
+
+String[] getSubnets() {
+    if (atomicState.subnets != null) {
+        return atomicState.subnets
+    }
+    def baseIps = getBaseIps()
+    if (baseIps?.size() != 0) {
+//        log.debug "Using base ips $baseIps"
+        atomicState.subnets = baseIps
+        return baseIps
+    }
+//    log.debug 'Base IP not found, using current subnet'
+    def ip = getHubIP()
+    def m = ip =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}/
+    if (!m) {
+        logWarn('ip does not match pattern')
+        return null
+    }
+    atomicState.subnets = [m.group(1)]
+    return atomicState.subnets
+}
+
+String[] getBaseIps() {
+//    logDebug "Baseip segment = ${settings.baseIpSegment}"
+    String ipSegment = settings.baseIpSegment
+    return ipSegment == null ? [] : ipSegment.split(/,/)?.collect { return parseIPSegment(it) }
+}
+
+private String parseIPSegment(String ipSegment) {
+//    logDebug "Segment $ipSegment"
+    def m = ipSegment =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3})/
+    if (!m) {
+        logDebug 'null segment'
+        return null
+    }
+    def segment = m.group(1)
+    (segment.endsWith('.')) ? segment : segment + '.'
 }
 
 // returns [h, s, v, name]

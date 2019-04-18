@@ -53,26 +53,29 @@ def initialize() {
 }
 
 def refresh() {
-    String subnet = parent.getSubnet()
-    if (!subnet) {
+    String[] subnets = parent.getSubnets()
+    if (0 == subnets.size()) {
         log.warn "Can't discover the hub's subnet!"
         return
     }
 
     parent.clearCachedDescriptors()
-    def scanPasses = parent.maxScanPasses()
+    int scanPasses = parent.maxScanPasses()
     String packet = makePacketString parent.typeOfMessage('DEVICE.GET_VERSION'), true, 1 as byte
     Map queue = prepareQueue(packet)
-    1.upto(scanPasses) {
-        parent.setScanPass(it)
-        scanNetwork queue, subnet, it
+    subnets.each {
+        String subnet = it
+        1.upto(scanPasses) {
+            parent.setScanPass(it)
+            scanNetwork queue, subnet, it
+        }
     }
     sendEvent name: 'progress', value: 0
     queue.size = queue.ipAddresses.size()
     runInMillis(50, 'processQueue', [data: queue])
 }
 
-private void scanNetwork(Map queue, String subnet, int pass) {
+private void scanNetwork(Map queue, String subnet, Number pass) {
     1.upto(pass + extraProbesPerPass) {
         1.upto(254) {
             def ipAddress = subnet + it
@@ -82,7 +85,7 @@ private void scanNetwork(Map queue, String subnet, int pass) {
 }
 
 private static Map prepareQueue(String packet) {
-    [packet: packet, ipAddresses: [], delay: 50]
+    [packet: packet, ipAddresses: [], delay: 20]
 }
 
 @SuppressWarnings("unused")
