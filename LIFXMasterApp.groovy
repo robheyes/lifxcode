@@ -67,7 +67,7 @@ def mainPageLink() {
 def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
-            paragraph "<strong>RECOMMENDATION</strong>: The device network id (DNI) for a LIFX device is based on it's IP address. It is, therefore, advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
+            paragraph "<strong>RECOMMENDATION</strong>: The device network id (DNI) for a LIFX device is based on its IP address. It is, therefore, advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
             paragraph '<strong>ADVICE</strong>: I would suggest that it\'s a good idea to create groups for all your ' +
                     'devices, and not just LIFX ones. This will make your rules and other automations dependent only ' +
                     'on the groups and not the actual hardware, making it easier to replace devices at a later date ' +
@@ -249,7 +249,7 @@ private static String styles() {
 }
 
 String colorListHTML(String sortOrder) {
-    logDebug("sort order is $sortOrder")
+//    logDebug("sort order is $sortOrder")
     builder = new StringBuilder()
     builder << '<table class="colorList">'
     colorList(sortOrder).each {
@@ -496,6 +496,11 @@ Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map color
 }
 
 @SuppressWarnings("GrMethodMayBeStatic")
+Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, String colorMap, Boolean displayed, duration = 0) {
+    deviceSetColor(device, stringToMap(colorMap), displayed, duration)
+}
+
+@SuppressWarnings("GrMethodMayBeStatic")
 Map<String, List> deviceSetHue(com.hubitat.app.DeviceWrapper device, Number hue, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap.hue = scaleUp100 hue
@@ -562,7 +567,7 @@ Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map mySta
 
     if (color) {
         Map myColor
-        myColor = (null == color) ? null : lookupColor(color)
+        myColor = (null == color) ? null : lookupColor(color.replace('_', ' '))
         Map realColor = [
                 hue       : scaleUp(myColor.h ?: 0, 360),
                 saturation: scaleUp100(myColor.s ?: 0),
@@ -592,15 +597,17 @@ Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map mySta
     return [:] // do nothing
 }
 
-List<Map> parseForDevice(device, String description, Boolean displayed) {
+List<Map> parseForDevice(device, String description, Boolean displayed, Boolean updateDevice = false) {
     Map header = parseHeaderFromDescription description
     switch (header.type) {
         case messageType["DEVICE.STATE_VERSION"]:
             log.warn("STATE_VERSION type ignored")
             return []
         case messageType['DEVICE.STATE_LABEL']:
-            def data = parsePayload 'DEVICE.STATE_LABEL', header
-            device.setLabel(officialDeviceName(data.label.trim()))
+            if (updateDevice) {
+                def data = parsePayload 'DEVICE.STATE_LABEL', header
+                device.setLabel(officialDeviceName(data.label.trim()))
+            }
             return []
         case messageType['DEVICE.STATE_GROUP']:
             def data = parsePayload 'DEVICE.STATE_GROUP', header
@@ -619,10 +626,12 @@ List<Map> parseForDevice(device, String description, Boolean displayed) {
             break
         case messageType['LIGHT.STATE']:
             def data = parsePayload 'LIGHT.STATE', header
-            def label = data.label.trim()
-            def deviceName = officialDeviceName(label)
-            device.setName deviceName
-            device.setLabel deviceName
+            if (updateDevice) {
+                def label = data.label.trim()
+                def deviceName = officialDeviceName(label)
+                device.setName deviceName
+                device.setLabel deviceName
+            }
             List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
                 result.add([name: "hue", value: scaleDown100(data.color.hue), displayed: displayed])
@@ -719,15 +728,22 @@ byte[] asByteArray(List buffer) {
 
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
-    sendCommand device, deviceAndType, [:], true, false, 0 as Byte, sender
+    sendCommand device, deviceAndType, [:], true, 0 as Byte, sender
 }
 
 @SuppressWarnings("unused")
 void lifxCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Byte index, Closure<List> sender) {
-    sendCommand device, deviceAndType, payload, false, true, index, sender
+/*    sendCommand device, deviceAndType, payload, false, false, index, sender*/ // this is with an ack
+    sendCommand device, deviceAndType, payload, false, index, sender
 }
 
-void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
+private void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, Byte index, Closure<List> sender) {
+    def buffer = []
+    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, false, index
+    sender buffer
+}
+
+private void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
     resendUnacknowledgedCommand(device, sender)
     def buffer = []
     byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
@@ -737,7 +753,7 @@ void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map
     sender buffer
 }
 
-void resendUnacknowledgedCommand(com.hubitat.app.DeviceWrapper device, Closure<List> sender) {
+private void resendUnacknowledgedCommand(com.hubitat.app.DeviceWrapper device, Closure<List> sender) {
     def expectedSequence = ackWasExpected device
     if (expectedSequence) {
         List resendBuffer = getBufferToResend device, expectedSequence
@@ -1026,7 +1042,7 @@ private static List<Map> makeColorMaps(Map<String, Map> namedColors, String desc
     result
 }
 
-private static Map<String, List> deviceSetHSBKAndPower(device, duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
+private static Map<String, List> deviceSetHSBKAndPower(com.hubitat.app.DeviceWrapper device, duration, Map<String, Number> hsbkMap, boolean displayed, String power = 'on') {
 //    logDebug("Map $hsbkMap")
     def actions = makeActions()
     if (hsbkMap) {
@@ -1084,7 +1100,7 @@ private static Map<String, List> makeActions() {
     [commands: [], events: []]
 }
 
-private static Map<String, Number> getCurrentHSBK(theDevice) {
+private static Map getCurrentHSBK(com.hubitat.app.DeviceWrapper theDevice) {
     [
             hue       : scaleUp(theDevice.currentHue ?: 0, 100),
             saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
