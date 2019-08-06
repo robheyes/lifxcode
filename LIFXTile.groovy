@@ -51,8 +51,8 @@ def refresh() {
 
 @SuppressWarnings("unused")
 def poll() {
-    parent.lifxQuery (device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
-    parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
@@ -89,7 +89,7 @@ def setColorTemperature(temperature) {
 }
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
+    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer, true } }
     actions.events?.each { sendEvent it }
 }
 
@@ -102,7 +102,7 @@ private String myIp() {
     device.getDeviceNetworkId()
 }
 
-private void sendPacket(List buffer) {
+private void sendPacket(List buffer, boolean noResponseExpected = false) {
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
     sendHubCommand(
             new hubitat.device.HubAction(
@@ -111,7 +111,8 @@ private void sendPacket(List buffer) {
                     [
                             type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
                             destinationAddress: myIp() + ":56700",
-                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
+                            ignoreResponse    : noResponseExpected
                     ]
             )
     )
