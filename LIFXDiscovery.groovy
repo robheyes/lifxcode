@@ -14,7 +14,7 @@ import groovy.transform.Field
  *
  */
 
-@Field Integer extraProbesPerPass = 0
+@Field Integer extraProbesPerPass = 2
 
 metadata {
     definition(name: 'LIFX Discovery', namespace: 'robheyes', author: 'Robert Alan Heyes', importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDiscovery.groovy') {
@@ -84,15 +84,16 @@ private void scanNetwork(Map queue, String subnet, Number pass) {
     }
 }
 
-private static Map prepareQueue(String packet) {
-    [packet: packet, ipAddresses: [], delay: 20]
+private static Map prepareQueue(String packet, int delay = 20) {
+    [packet: packet, ipAddresses: [], delay: delay]
 }
 
 @SuppressWarnings("unused")
 private processQueue(Map queue) {
     def oldPercent = calculateQueuePercentage(queue)
     if (isQueueEmpty(queue)) {
-        sendEvent name: 'lifxdiscovery', value: 'complete'
+        def outstandingDevices = parent.getDeviceDefinitions()
+        sendEvent name: 'lifxdiscovery', value: outstandingDevices.size() == 0 ? 'complete': 'outstanding'
         return
     }
     def data = getNext(queue)
@@ -171,7 +172,8 @@ private void broadcast(String stringBytes, String ipAddress) {
                     [
                             type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
                             destinationAddress: ipAddress + ":56700",
-                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
+                            ignoreWarning    : true
                     ]
             )
     )

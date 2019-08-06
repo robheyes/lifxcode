@@ -39,7 +39,7 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Options", install: true, uninstall: true) {
         section {
-            input 'interCommandPause', 'number', defaultValue: 40, title: 'Time between commands (milliseconds)', submitOnChange: true
+            input 'interCommandPause', 'number', defaultValue: 50, title: 'Time between commands (milliseconds)', submitOnChange: true
             input 'maxPasses', 'number', title: 'Maximum number of passes', defaultValue: 2, submitOnChange: true
             input 'refreshInterval', 'number', title: 'Discovery page refresh interval (seconds).<br><strong>WARNING</strong>: high refresh rates may interfere with discovery.', defaultValue: 6, submitOnChange: true
             input 'namePrefix', 'text', title: 'Device name prefix', description: 'If you specify a prefix then all your device names will be preceded by this value', submitOnChange: true
@@ -91,7 +91,8 @@ def discoveryPage() {
             paragraph(
                     discoveryTextKnownDevices()
             )
-            input 'discoverNewBtn', 'button', title: 'Discover only new devices'
+
+            input 'discoverNewBtn', 'button', title: discoverNewText()
             input 'clearCachesBtn', 'button', title: 'Clear caches'
 
         }
@@ -99,6 +100,13 @@ def discoveryPage() {
         colorsPageLink()
         includeStyles()
     }
+}
+
+private String discoverNewText() {
+    def numDevices = getDeviceDefinitions().size()
+    numDevices == 0
+            ? 'Discover only new devices'
+            : "${numDevices} outstanding device(s) found, try to process them?"
 }
 
 @SuppressWarnings("unused")
@@ -415,8 +423,26 @@ def refresh() {
 }
 
 def discoverNew() {
+//    def outstandingDevices = getDeviceDefinitions();
+//    if (!(outstandingDevices.size() == 0)) {
+//        processOutstanding()
+//        return
+//    }
     removeDiscoveryDevice()
     discovery('discovery')
+
+}
+
+def processOutstanding() {
+    def outstandingDefinitions = getDeviceDefinitions()
+    if (outstandingDefinitions.size() == 0) {
+        removeDiscoveryDevice()
+        return
+    }
+    List keys = outstandingDefinitions.collect {key, value -> value}
+    def first = keys.first();
+    logDebug "First entry is ${first}"
+//    removeDiscoveryDevice() // temporary
 }
 
 def refreshExisting() {
@@ -438,7 +464,12 @@ private void discovery(String discoveryType) {
     atomicState.progressPercent = 0
     def discoveryDevice = addChildDevice 'robheyes', 'LIFX Discovery', 'LIFX Discovery'
     subscribe discoveryDevice, 'lifxdiscovery.complete', removeDiscoveryDevice
+    subscribe discoveryDevice, 'lifxdiscovery.outstanding', handleOutstandingDevices
     subscribe discoveryDevice, 'progress', progress
+}
+
+def handleOutstandingDevices(evt) {
+    logDebug "Found outstanding devices"
 }
 
 @SuppressWarnings("unused")
@@ -454,7 +485,7 @@ def getProgressPercentage() {
     "$percent%"
 }
 
-void removeDiscoveryDevice(evt) {
+void removeDiscoveryDevice(evt = null) {
     logInfo 'Removing LIFX Discovery device'
     unsubscribe()
     atomicState.scanPass = 'DONE'
@@ -682,6 +713,9 @@ Map<String, List> discoveryParse(String description) {
     final String mac = deviceParams.mac
     switch (parsed.type) {
         case messageType['DEVICE.STATE_VERSION']:
+            if (isKnownIp(ip)) {
+                break
+            }
             def existing = getDeviceDefinition mac
             if (!existing) {
                 createDeviceDefinition parsed, ip, mac
@@ -1139,6 +1173,7 @@ private void createDeviceDefinition(Map parsed, String ip, String mac) {
     def device = deviceVersion version
     device['ip'] = ip
     device['mac'] = mac
+//    logDebug "Found device definition ${device}"
     saveDeviceDefinition device
 }
 
@@ -1152,7 +1187,7 @@ private void clearDeviceDefinitions() {
     atomicState.devices = [:]
 }
 
-private Map getDeviceDefinitions() {
+public Map getDeviceDefinitions() {
     atomicState.devices
 }
 

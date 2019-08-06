@@ -82,7 +82,7 @@ def setLevel(level, duration = 0) {
 }
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer } }
+    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer, true } }
     actions.events?.each { sendEvent it }
 }
 
@@ -95,22 +95,21 @@ private def myIp() {
     device.getDeviceNetworkId()
 }
 
-private def sendPacket(List buffer) {
-    def rawBytes = parent.asByteArray(buffer)
-    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString(rawBytes)
+private void sendPacket(List buffer, boolean noResponseExpected = false) {
+    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
     sendHubCommand(
             new hubitat.device.HubAction(
                     stringBytes,
                     hubitat.device.Protocol.LAN,
                     [
                             type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-                            destinationAddress: (myIp() as String) + ":56700",
-                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING
+                            destinationAddress: myIp() + ":56700",
+                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
+                            ignoreResponse    : noResponseExpected
                     ]
             )
     )
 }
-
 def getUseActivityLog() {
     if (state.useActivityLog == null) {
         state.useActivityLog = true
