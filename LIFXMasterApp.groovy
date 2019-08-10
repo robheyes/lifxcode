@@ -1188,6 +1188,10 @@ private void clearDeviceDefinitions() {
 }
 
 public Map getDeviceDefinitions() {
+	if (atomicState.devices == null) {
+		atomicState.devices = [:]
+	}
+
     atomicState.devices
 }
 
