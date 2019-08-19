@@ -15,10 +15,13 @@ metadata {
         capability 'Polling'
         capability 'Initialize'
         capability 'Switch'
+        capability "Switch Level"
 
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
+
+        command "setState", ["MAP"]
     }
 
 
@@ -71,22 +74,32 @@ def off() {
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
-
+    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setHue(number) {
-
+    logWarn "Setting hue is not supported"
 }
 
 @SuppressWarnings("unused")
 def setSaturation(number) {
-
+    logWarn "Setting saturation is not supported"
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+}
 
+@SuppressWarnings("unused")
+def setLevel(level, duration = 0) {
+    sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
+}
+
+@SuppressWarnings("unused")
+def setState(value) {
+    sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {
