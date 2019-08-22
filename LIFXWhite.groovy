@@ -44,7 +44,7 @@ def updated() {
 }
 
 def initialize() {
-    logDebug('Initialised')
+    unschedule()
     requestInfo()
     runEvery1Minute poll
 }

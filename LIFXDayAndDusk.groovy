@@ -45,6 +45,7 @@ def updated() {
 }
 
 def initialize() {
+    unschedule()
     colorMode = 'CT'
     requestInfo()
     runEvery1Minute poll

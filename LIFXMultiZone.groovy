@@ -20,6 +20,7 @@ metadata {
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
+        attribute "multizone", "string"
 
         command "setState", ["MAP"]
     }
@@ -37,13 +38,12 @@ def installed() {
 
 @SuppressWarnings("unused")
 def updated() {
-    unsubscribe 'LIFX.MULTIZONEQUERY'
     state.transitionTime = defaultTransition
     initialize()
-    subscribe 'LIFX.MULTIZONEQUERY'
 }
 
 def initialize() {
+    unschedule()
     requestInfo()
     runEvery1Minute poll
 }
@@ -57,7 +57,7 @@ def refresh() {
 def poll() {
     parent.lifxQuery (device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
     parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-//    parent.lifxQuery (device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    parent.lifxQuery (device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
@@ -109,6 +109,10 @@ private void sendActions(Map<String, List> actions) {
 
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
+    def multizoneEvent = events.find { it.name == 'multizone' }
+    if (null != multizoneEvent) {
+        state.lastMultizone = multizoneEvent.data
+    }
     events.collect { createEvent(it) }
 }
 

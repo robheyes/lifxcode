@@ -40,6 +40,7 @@ def updated() {
 }
 
 def initialize() {
+    unschedule()
     requestInfo()
     runEvery1Minute poll
 }
