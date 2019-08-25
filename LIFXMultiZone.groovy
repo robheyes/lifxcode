@@ -23,6 +23,7 @@ metadata {
         attribute "multizone", "string"
 
         command "setState", ["MAP"]
+        command "saveZones", [[name: "Zone name*", type: "STRING"]]
     }
 
 
@@ -53,11 +54,21 @@ def refresh() {
 
 }
 
+def saveZones(String name) {
+    if (!(name != '')) {
+        return
+    }
+    def zones = state.namedZones ?: [:]
+    zones[name] = state.lastMultizone
+    state.namedZones = zones
+
+}
+
 @SuppressWarnings("unused")
 def poll() {
-    parent.lifxQuery (device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
-    parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-    parent.lifxQuery (device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {

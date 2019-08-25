@@ -26,8 +26,8 @@ metadata {
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
-        attribute "lightStatus", "string"
-        attribute "wifiStatus", "map"
+        attribute "lightStatus", "string" // is this used?
+        attribute "wifiStatus", "map" // is this used?
 
         command "setState", ["MAP"]
     }

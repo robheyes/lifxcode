@@ -806,8 +806,14 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             return []
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
+            logDebug data
+            String compressed = compressMultizoneData data
+//            logDebug compressed
+//            compressed.each {logDebug stringToHsbk(it)}
+            def multizoneHtml = renderMultizone(data)
+//            logDebug multizoneHtml
             return [
-                    [name: 'multizone', value: renderMultizone(data), data: data, displayed: true],
+                    [name: 'multizone', value: multizoneHtml, data: compressed, displayed: true],
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -841,10 +847,10 @@ void discoveryParse(response) {
             break
         case messageType['DEVICE.STATE_LABEL']:
             def data = parsePayload 'DEVICE.STATE_LABEL', parsed
-            def device = updateDeviceDefinition mac, ip, [label: officialDeviceName(data.label)]
+            def device = updateDeviceDefinition mac, ip, [label: officialDeviceName(data.label as String)]
             if (device) {
-                sendEvent ip, [name: 'label', value: officialDeviceName(data.label)]
-                sendEvent ip, [name: 'deviceName', value: officialDeviceName(data.label)]
+                sendEvent ip, [name: 'label', value: officialDeviceName(data.label as String)]
+                sendEvent ip, [name: 'deviceName', value: officialDeviceName(data.label as String)]
             }
             break
         case messageType['DEVICE.STATE_GROUP']:
@@ -2341,25 +2347,27 @@ private Map flattenedDescriptors() {
                 STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
                 SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colorsCount:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
-                STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'count:w;index:w;colors_count:b;colors:ha82'],
+                STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
         ]
 ]
 
 String renderMultizone(HashMap hashMap) {
     def builder = new StringBuilder();
-    builder << '<table>'
-    def count = hashMap.count
+    builder << '<table cellspacing="0">'
+    def count = hashMap.colors_count as Integer
     Map<Integer, Map> colours = hashMap.colors
+    builder << '<tr>'
     for (int i = 0; i < count; i++) {
-        if (i % 10 == 0) {
-            builder << '<tr>'
-        }
+//        if (i % 20 == 0) {
+//            builder << '<tr>'
+//        }
         colour = colours[i];
         def rgb = renderDatum(colours[i])
-        builder << "<td style='background-color:$rgb;color:$rgb'>&nbsp;</td>"
+        builder << '<td height="2" width="1" style="background-color:' + rgb + ';color:' + rgb + '">&nbsp;'
     }
     builder << '</tr></table>'
     def result = builder.toString()
+
     result
 }
 
@@ -2370,4 +2378,54 @@ String renderDatum(Map item) {
             scaleDown100(item.brightness as Long)
     )
     "$rgb"
+}
+
+String hsbkToString(Map hsbk) {
+    sprintf '%04x%04x%04x%04x', hsbk.hue, hsbk.saturation, hsbk.brightness, hsbk.kelvin
+}
+
+Map stringToHsbk(String data) {
+    def m = data =~ /^(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})$/
+    if (m) {
+        def hue = Long.parseLong(m.group(1), 16)
+        def sat = Long.parseLong(m.group(2), 16)
+        def bri = Long.parseLong(m.group(3), 16)
+        def kel = Long.parseLong(m.group(4), 16)
+        [hue: hue, saturation: sat, brightness: bri, kelvin: kel]
+    }
+}
+
+String rle(List<String> colors) {
+    StringBuilder builder = new StringBuilder()
+    String current = null
+    Integer count = 0
+    colors.each {
+        if (it != current) {
+            if (count > 0) {
+                builder << sprintf("%1x\n", count)
+            }
+            count = 1
+            current = it
+            builder << current
+        } else {
+            count++
+        }
+    }
+    if (count != 0) {
+        builder << sprintf('%02x', count)
+    }
+    builder.toString()
+}
+
+String compressMultizoneData(Map data) {
+    Integer count = data.colors_count as Integer
+    Map<Integer, Map> colors = data.colors as Map<Integer, Map>
+    List<String> stringColors = []
+//    def lastHsbk = null
+//    def repetitions = 0
+    for (int i = 0; i < count; i++) {
+        Map hsbk = colors[i]
+        stringColors << hsbkToString(hsbk)
+    }
+    rle stringColors
 }
