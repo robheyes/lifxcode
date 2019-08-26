@@ -634,6 +634,14 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     actions
 }
 
+Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean displayed = true) {
+    def actions = makeActions()
+    actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+//    logDebug "Actions = $actions"
+//    actions.events << [name: "switch", value: value, displayed: displayed, data: [syncing: "false"]]
+    actions
+}
+
 Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map colorMap, Boolean displayed, duration = 0) {
 //    logDebug "Duration1: $duration"
     def hsbkMap = getCurrentHSBK device
@@ -806,7 +814,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             return []
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
-            logDebug data
+//            logDebug data
             String compressed = compressMultizoneData data
 //            logDebug compressed
 //            compressed.each {logDebug stringToHsbk(it)}
@@ -1850,10 +1858,22 @@ private List makePayload(String deviceAndType, Map payload) {
     descriptor.each {
         Map item ->
             if ('H' == item.kind) {
-                add result, (payload.color['hue'] ?: 0) as short
-                add result, (payload.color['saturation'] ?: 0) as short
-                add result, (payload.color['brightness'] ?: 0) as short
-                add result, (payload.color['kelvin'] ?: 0) as short
+                if (item.isArray) {
+//                    logDebug "Item count is ${item.count}"
+                    for (int i = 0; i < item.count; i++) {
+                        Map hsbk = payload.colors[i] as Map
+//                        logDebug "making $hsbk"
+                        add result, (hsbk['hue'] ?: 0) as short
+                        add result, (hsbk['saturation'] ?: 0) as short
+                        add result, (hsbk['brightness'] ?: 0) as short
+                        add result, (hsbk['kelvin'] ?: 0) as short
+                    }
+                } else {
+                    add result, (payload.color['hue'] ?: 0) as short
+                    add result, (payload.color['saturation'] ?: 0) as short
+                    add result, (payload.color['brightness'] ?: 0) as short
+                    add result, (payload.color['kelvin'] ?: 0) as short
+                }
                 return
             }
             def value = payload[item.name] ?: 0
@@ -2345,7 +2365,7 @@ private Map flattenedDescriptors() {
                 GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
                 STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
                 STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
-                SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colorsCount:b;colors:ha82'],
+                SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colors_count:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
                 STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
         ]
@@ -2385,36 +2405,101 @@ String hsbkToString(Map hsbk) {
 }
 
 Map stringToHsbk(String data) {
-    def m = data =~ /^(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})$/
+    def m = data =~ /^(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{0,2})$/
     if (m) {
         def hue = Long.parseLong(m.group(1), 16)
         def sat = Long.parseLong(m.group(2), 16)
         def bri = Long.parseLong(m.group(3), 16)
         def kel = Long.parseLong(m.group(4), 16)
-        [hue: hue, saturation: sat, brightness: bri, kelvin: kel]
+        def count = 1
+        if (m.group(5)) {
+            count = Integer.parseInt(m.group(5), 16)
+        }
+        [hue: hue, saturation: sat, brightness: bri, kelvin: kel, count: count]
     }
 }
 
 String rle(List<String> colors) {
-    StringBuilder builder = new StringBuilder()
+    StringBuilder builder = new StringBuilder('*')
+    StringBuilder uniqueBuilder = new StringBuilder('@')
     String current = null
     Integer count = 0
+    boolean allUnique = true
     colors.each {
+        uniqueBuilder << it
+        uniqueBuilder << "\n"
         if (it != current) {
             if (count > 0) {
-                builder << sprintf("%1x\n", count)
+                builder << sprintf("%02x\n", count)
             }
             count = 1
             current = it
             builder << current
         } else {
             count++
+            allUnique = false
         }
     }
     if (count != 0) {
         builder << sprintf('%02x', count)
     }
-    builder.toString()
+    if (allUnique) {
+        uniqueBuilder.toString()
+    } else {
+        builder.toString()
+    }
+}
+
+List<String> unpack(String packed) {
+    def matcher = packed =~ /\p{XDigit}{16}/
+    List<Map> result = matcher[0..-1].collect() {
+        it as String
+    }
+//    logDebug "result = $result"
+    result
+}
+
+List<String> unRle(String compressed) {
+    def matcher = compressed =~ /\p{XDigit}{18}/
+//    logDebug("Matcher is $matcher")
+    List<String> temp = matcher[0..-1].collect() {
+        it as String
+    }
+    List<String> result = []
+    temp.each {
+        def value = it.substring(0, 16)
+        def count = Integer.parseInt(it.substring(16), 16)
+        for (int i = 0; i < count; i++) {
+            result << value
+        }
+    }
+//    logDebug "unRle result $result"
+    result
+}
+
+List<String> decompress(String compressed) {
+    if (compressed.startsWith('@')) {
+        unpack(compressed.substring(1))
+    } else if (compressed.startsWith('*')) {
+        unRle(compressed.substring(1))
+    } else {
+        []
+    }
+}
+
+Map getZones(String compressed) {
+    List<Map> colors = decompress(compressed).collect { stringToHsbk(it) }
+//    logDebug "Colours: $colors"
+    def numZones = colors.size()
+    while (colors.size() < 82) {
+        colors << [hue: 0, saturation: 0, brightness: 0, kelvin: 0]
+    }
+    def realColors = [:]
+    colors.eachWithIndex { v, k -> realColors[k] = v }
+//    def realColors = (colors.collectEntries {k,v -> [(k):v]})
+//    def realColors = colors.collectEntries { k, v -> [k, v] }
+
+    [index: 0, zone_count: numZones, colors_count: numZones, colors: realColors]
 }
 
 String compressMultizoneData(Map data) {

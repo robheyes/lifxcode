@@ -24,6 +24,7 @@ metadata {
 
         command "setState", ["MAP"]
         command "saveZones", [[name: "Zone name*", type: "STRING"]]
+        command "loadZones", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
     }
 
 
@@ -55,13 +56,29 @@ def refresh() {
 }
 
 def saveZones(String name) {
-    if (!(name != '')) {
+    if (name == '') {
         return
     }
     def zones = state.namedZones ?: [:]
     zones[name] = state.lastMultizone
     state.namedZones = zones
+}
 
+def loadZones(String name, duration = 0) {
+    if (null == state.namedZones) {
+        logWarn 'No saved zones'
+    }
+    def zoneString = state.namedZones[name]
+    if (null == zoneString) {
+        logWarn "No such zone $name"
+        return
+    }
+
+    def theZones = parent.getZones(zoneString)
+    theZones['apply'] = 1
+    theZones['duration'] = duration * 1000
+//    logDebug "Sending $theZones"
+    sendActions parent.deviceSetZones(device, theZones)
 }
 
 @SuppressWarnings("unused")
@@ -132,6 +149,7 @@ private String myIp() {
 }
 
 private void sendPacket(List buffer, boolean noResponseExpected = false) {
+//    logDebug "Sending buffer $buffer"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
     sendHubCommand(
             new hubitat.device.HubAction(
