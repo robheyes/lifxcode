@@ -771,10 +771,12 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
                     [name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],
                     [name: "level", value: (data.powerLevel as Integer == 0 ? 0 : 100), displayed: displayed, data: [syncing: "false"]]
             ]
+/*
         case messageType['DEVICE.ACKNOWLEDGEMENT']:
             Byte sequence = header.sequence
             clearExpectedAckFor device, sequence
             return []
+*/
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
             String compressed = compressMultizoneData data
@@ -846,6 +848,12 @@ private void sendActions(Map<String, List> actions) {
     actions.events?.each { sendEvent it }
 }
 
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired, Byte index, Closure<List> sender) {
+    def buffer = []
+    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, index
+    sender buffer
+}
+
 private void sendCommand(String ipAddress, int messageType, boolean responseRequired = true, int pass = 1, Byte sequence = 0) {
     String stringBytes = makePacketString(messageType, responseRequired, sequence)
     sendPacket ipAddress, stringBytes
@@ -854,7 +862,7 @@ private void sendCommand(String ipAddress, int messageType, boolean responseRequ
 
 private String makePacketString(int messageType, boolean responseRequired, byte sequence) {
     def buffer = []
-    makePacket buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, false, responseRequired, [], sequence
+    simpleMakePacket buffer, messageType, responseRequired, [], sequence
     def rawBytes = asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString rawBytes
     stringBytes
@@ -866,50 +874,50 @@ byte[] asByteArray(List buffer) {
 
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
-    sendCommand device, deviceAndType, [:], true, 0 as Byte, sender
+    sendCommand deviceAndType, [:], true, 0 as Byte, sender
+}
+
+@SuppressWarnings("unused")
+void lifxQuery(com.hubitat.app.DeviceWrapper device, List<String> deviceAndType, Closure<List> sender) {
+    deviceAndType.each { sendCommand it, [:], true, 0 as Byte, sender }
 }
 
 @SuppressWarnings("unused")
 void lifxCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Byte index, Closure<List> sender) {
-    sendCommand device, deviceAndType, payload, false, index, sender
+    sendCommand deviceAndType, payload, false, index, sender
 }
 
-private void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, Byte index, Closure<List> sender) {
-    def buffer = []
-    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, false, index
-    sender buffer
-}
+//private void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
+//    resendUnacknowledgedCommand(device, sender)
+//    def buffer = []
+//    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
+//    if (ackRequired) {
+//        expectAckFor device, sequence, buffer
+//    }
+//    sender buffer
+//}
 
-private void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
-    resendUnacknowledgedCommand(device, sender)
-    def buffer = []
-    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
-    if (ackRequired) {
-        expectAckFor device, sequence, buffer
-    }
-    sender buffer
-}
-
-private void resendUnacknowledgedCommand(com.hubitat.app.DeviceWrapper device, Closure<List> sender) {
-    def expectedSequence = ackWasExpected device
-    if (expectedSequence) {
-        List resendBuffer = getBufferToResend device, expectedSequence
-        clearExpectedAckFor device, expectedSequence
-        sender resendBuffer
-    }
-}
+//private void resendUnacknowledgedCommand(com.hubitat.app.DeviceWrapper device, Closure<List> sender) {
+//    def expectedSequence = ackWasExpected device
+//    if (expectedSequence) {
+//        List resendBuffer = getBufferToResend device, expectedSequence
+//        clearExpectedAckFor device, expectedSequence
+//        sender resendBuffer
+//    }
+//}
 
 // fills the buffer with the LIFX packet and returns the sequence number
-byte makePacket(List buffer, String deviceAndType, Map payload, Boolean responseRequired = true, Boolean ackRequired = false, Byte sequence = null) {
+byte makePacket(List buffer, String deviceAndType, Map payload, Boolean responseRequired = true, Byte sequence = null) {
     def listPayload = makePayload(deviceAndType, payload)
     int messageType = messageType[deviceAndType]
-    makePacket(buffer, [0, 0, 0, 0, 0, 0] as byte[], messageType, ackRequired, responseRequired, listPayload, sequence)
+    simpleMakePacket(buffer, messageType, responseRequired, listPayload, sequence)
 }
 
-byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackRequired = false, Boolean responseRequired = false, List payload = [], Byte sequence = null) {
+private byte simpleMakePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = [], Byte sequence = null) {
+    byte[] targetAddress = [0, 0, 0, 0, 0, 0]
     def lastSequence = sequence ?: sequenceNumber()
     if (wantBufferCaching) {
-        def hashKey = targetAddress.toString() + messageType.toString() + payload.toString() + (ackRequired ? 'T' : 'F') + (responseRequired ? 'T' : 'F')
+        def hashKey = targetAddress.toString() + messageType.toString() + payload.toString() /*+ (ackRequired ? 'T' : 'F')*/ + (responseRequired ? 'T' : 'F')
         aBuffer = lookupBuffer(hashKey)
         if (aBuffer) {
             add buffer, aBuffer as byte[]
@@ -919,7 +927,7 @@ byte makePacket(List buffer, byte[] targetAddress, int messageType, Boolean ackR
         }
     }
     createFrame buffer, targetAddress.every { it == 0 }
-    createFrameAddress buffer, targetAddress, ackRequired, responseRequired, lastSequence
+    createFrameAddress buffer, targetAddress, false, responseRequired, lastSequence
     createProtocolHeader buffer, messageType as short
     createPayload buffer, payload as byte[]
 

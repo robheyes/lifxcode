@@ -2,7 +2,7 @@
  *
  * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
  *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
+ *  This software is free for Private Use. You may use and modify the software without distributing it.
  *  You may not grant a sublicense to modify and distribute this software to third parties.
  *  Software is provided without warranty and your use of it is at your own risk.
  *

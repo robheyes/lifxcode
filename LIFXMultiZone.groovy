@@ -2,7 +2,7 @@
  *
  * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
  *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
+ *  This software is free for Private Use. You may use and modify the software without distributing it.
  *  You may not grant a sublicense to modify and distribute this software to third parties.
  *  Software is provided without warranty and your use of it is at your own risk.
  *
@@ -23,8 +23,9 @@ metadata {
         attribute "multizone", "string"
 
         command "setState", ["MAP"]
-        command "saveZones", [[name: "Zone name*", type: "STRING"]]
-        command "loadZones", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
+        command "zonesSave", [[name: "Zone name*", type: "STRING"]]
+        command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
+        command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
     }
 
 
@@ -55,7 +56,7 @@ def refresh() {
 
 }
 
-def saveZones(String name) {
+def zonesSave(String name) {
     if (name == '') {
         return
     }
@@ -64,7 +65,7 @@ def saveZones(String name) {
     state.namedZones = zones
 }
 
-def loadZones(String name, duration = 0) {
+def zonesLoad(String name, duration = 0) {
     if (null == state.namedZones) {
         logWarn 'No saved zones'
     }
@@ -81,6 +82,9 @@ def loadZones(String name, duration = 0) {
     sendActions parent.deviceSetZones(device, theZones)
 }
 
+def zonesDelete(String name) {
+    state.namedZones?.remove(name)
+}
 @SuppressWarnings("unused")
 def poll() {
     parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
