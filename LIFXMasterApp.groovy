@@ -380,6 +380,7 @@ def appButtonHandler(btn) {
     if (btn == "discoverBtn") {
         clearKnownIps()
         clearDeviceDefinitions()
+        atomicState.packets = null
         removeChildren()
         discover()
     } else if (btn == 'discoverNewBtn') {
@@ -454,7 +455,7 @@ private void discover() {
 }
 
 private String makeVersionPacket() {
-    makePacketString typeOfMessage('DEVICE.GET_VERSION'), true, 1 as byte
+    makeDiscoveryPacketString typeOfMessage('DEVICE.GET_VERSION')
 }
 
 private void scanNetwork(Map queue, String subnet, Number pass) {
@@ -779,10 +780,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
 */
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
-            String compressed = compressMultizoneData data
+//            String compressed = compressMultizoneData data
             def multizoneHtml = renderMultizone(data)
             return [
-                    [name: 'multizone', value: multizoneHtml, data: compressed, displayed: true],
+                    [name: 'multizone', value: multizoneHtml, data: data, displayed: true],
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -840,31 +841,54 @@ void discoveryParse(response) {
         case messageType['DEVICE.STATE_INFO']:
             break
     }
-    sendActions actions
+    sendDiscoveryActions actions
 }
 
-private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> sendCommand item.ip as String, item.type as int, true, 1, index as Byte }
+private void sendDiscoveryActions(Map<String, List> actions) {
+    actions.commands?.eachWithIndex { item, index -> sendDiscoveryCommand item.ip as String, item.type as int, 1 }
     actions.events?.each { sendEvent it }
 }
 
-private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired, Byte index, Closure<List> sender) {
+private void sendCommand(String deviceAndType, Map payload = [:], boolean responseRequired, Closure<List> sender) {
     def buffer = []
-    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, index
-    sender buffer
+    sender makePacket(buffer, deviceAndType, payload, responseRequired)
 }
 
-private void sendCommand(String ipAddress, int messageType, boolean responseRequired = true, int pass = 1, Byte sequence = 0) {
-    String stringBytes = makePacketString(messageType, responseRequired, sequence)
+private void sendDiscoveryCommand(String ipAddress, int messageType, int pass = 1) {
+    String stringBytes = makeDiscoveryPacketString messageType
     sendPacket ipAddress, stringBytes
     pauseExecution(interCommandPauseMilliseconds(pass))
 }
 
-private String makePacketString(int messageType, boolean responseRequired, byte sequence) {
+private Map<String, Object> getPacketStringCache() {
+    if (null == atomicState.packets) {
+        atomicState.packets = new HashMap<String, String>()
+    }
+    atomicState.packets
+}
+
+private storePacket(String messageType, Object bytes) {
+    packets = getPacketStringCache()
+    packets[messageType] = bytes
+    atomicState.packets = packets
+}
+
+private Object getCachedPacket(String messageType) {
+    def cache = getPacketStringCache()
+    def bytes = cache.get(messageType)
+    bytes
+}
+
+private String makeDiscoveryPacketString(int messageType) {
+    def bytes = getCachedPacket(messageType as String)
+    if (bytes) {
+        return bytes as String
+    }
     def buffer = []
-    simpleMakePacket buffer, messageType, responseRequired, [], sequence
+    simpleMakePacket buffer, messageType, true, []
     def rawBytes = asByteArray(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString rawBytes
+    storePacket(messageType as String, stringBytes)
     stringBytes
 }
 
@@ -874,71 +898,46 @@ byte[] asByteArray(List buffer) {
 
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
-    sendCommand deviceAndType, [:], true, 0 as Byte, sender
+    sendCommand deviceAndType, [:], true, sender
 }
 
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, List<String> deviceAndType, Closure<List> sender) {
-    deviceAndType.each { sendCommand it, [:], true, 0 as Byte, sender }
+    deviceAndType.each { sendCommand it, [:], true, sender }
 }
 
 @SuppressWarnings("unused")
-void lifxCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Byte index, Closure<List> sender) {
-    sendCommand deviceAndType, payload, false, index, sender
+void lifxCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Closure<List> sender) {
+    sendCommand deviceAndType, payload, false, sender
 }
 
-//private void sendCommand(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload = [:], boolean responseRequired, boolean ackRequired, Byte index, Closure<List> sender) {
-//    resendUnacknowledgedCommand(device, sender)
-//    def buffer = []
-//    byte sequence = makePacket buffer, deviceAndType, payload, responseRequired, ackRequired, index
-//    if (ackRequired) {
-//        expectAckFor device, sequence, buffer
-//    }
-//    sender buffer
-//}
+List makePacket(List buffer, String deviceAndType, Map payload, Boolean responseRequired = true) {
+    def tryCache = responseRequired && payload.isEmpty()
 
-//private void resendUnacknowledgedCommand(com.hubitat.app.DeviceWrapper device, Closure<List> sender) {
-//    def expectedSequence = ackWasExpected device
-//    if (expectedSequence) {
-//        List resendBuffer = getBufferToResend device, expectedSequence
-//        clearExpectedAckFor device, expectedSequence
-//        sender resendBuffer
-//    }
-//}
-
-// fills the buffer with the LIFX packet and returns the sequence number
-byte makePacket(List buffer, String deviceAndType, Map payload, Boolean responseRequired = true, Byte sequence = null) {
-    def listPayload = makePayload(deviceAndType, payload)
-    int messageType = messageType[deviceAndType]
-    simpleMakePacket(buffer, messageType, responseRequired, listPayload, sequence)
-}
-
-private byte simpleMakePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = [], Byte sequence = null) {
-    byte[] targetAddress = [0, 0, 0, 0, 0, 0]
-    def lastSequence = sequence ?: sequenceNumber()
-    if (wantBufferCaching) {
-        def hashKey = targetAddress.toString() + messageType.toString() + payload.toString() /*+ (ackRequired ? 'T' : 'F')*/ + (responseRequired ? 'T' : 'F')
-        aBuffer = lookupBuffer(hashKey)
-        if (aBuffer) {
-            add buffer, aBuffer as byte[]
-
-            put buffer, 23, lastSequence as byte // store the sequence
-            return lastSequence
+    if (tryCache) {
+        def bytes = getCachedPacket(deviceAndType)
+        if (bytes) {
+            return bytes as List<Byte>
         }
     }
+
+    def listPayload = makePayload(deviceAndType, payload)
+    int messageType = messageType[deviceAndType]
+    simpleMakePacket(buffer, messageType, responseRequired, listPayload)
+    storePacket(deviceAndType, buffer)
+    buffer
+}
+
+private List simpleMakePacket(List buffer, int messageType, Boolean responseRequired = false, List payload = []) {
+    byte[] targetAddress = [0, 0, 0, 0, 0, 0]
     createFrame buffer, targetAddress.every { it == 0 }
-    createFrameAddress buffer, targetAddress, false, responseRequired, lastSequence
+    createFrameAddress buffer, targetAddress, false, responseRequired, 0 as byte
     createProtocolHeader buffer, messageType as short
     createPayload buffer, payload as byte[]
 
     put buffer, 0, buffer.size() as short
 
-    if (wantBufferCaching) {
-        if (hashKey) {
-            storeBuffer hashKey, buffer
-        }
-    }
-    return lastSequence
+    return buffer
 }
 
 Boolean isKnownIp(String ip) {
@@ -1310,7 +1309,7 @@ private String updateDeviceDefinition(String mac, String ip, Map properties) {
     Map device = getDeviceDefinition mac
     if (!device) {
         // perhaps it's a real device?
-        return getChildDevice(ip) // @TODO Change to mac
+        return getChildDevice(ip)
     }
     properties.each { key, val -> (device[key] = val) }
 
@@ -2346,9 +2345,6 @@ String renderDatum(Map item) {
     "$rgb"
 }
 
-String hsbkToString(Map hsbk) {
-    sprintf '%04x%04x%04x%04x', hsbk.hue, hsbk.saturation, hsbk.brightness, hsbk.kelvin
-}
 
 Map stringToHsbk(String data) {
     def m = data =~ /^(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{4})(\p{XDigit}{0,2})$/
@@ -2362,37 +2358,6 @@ Map stringToHsbk(String data) {
             count = Integer.parseInt(m.group(5), 16)
         }
         [hue: hue, saturation: sat, brightness: bri, kelvin: kel, count: count]
-    }
-}
-
-String rle(List<String> colors) {
-    StringBuilder builder = new StringBuilder('*')
-    StringBuilder uniqueBuilder = new StringBuilder('@')
-    String current = null
-    Integer count = 0
-    boolean allUnique = true
-    colors.each {
-        uniqueBuilder << it
-        uniqueBuilder << "\n"
-        if (it != current) {
-            if (count > 0) {
-                builder << sprintf("%02x\n", count)
-            }
-            count = 1
-            current = it
-            builder << current
-        } else {
-            count++
-            allUnique = false
-        }
-    }
-    if (count != 0) {
-        builder << sprintf('%02x', count)
-    }
-    if (allUnique) {
-        uniqueBuilder.toString()
-    } else {
-        builder.toString()
     }
 }
 
@@ -2441,13 +2406,4 @@ Map getZones(String compressed) {
     [index: 0, zone_count: numZones, colors_count: numZones, colors: realColors]
 }
 
-String compressMultizoneData(Map data) {
-    Integer count = data.colors_count as Integer
-    Map<Integer, Map> colors = data.colors as Map<Integer, Map>
-    List<String> stringColors = []
-    for (int i = 0; i < count; i++) {
-        Map hsbk = colors[i]
-        stringColors << hsbkToString(hsbk)
-    }
-    rle stringColors
-}
+
