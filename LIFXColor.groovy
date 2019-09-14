@@ -22,13 +22,14 @@ metadata {
         capability "Initialize"
         capability "ColorControl"
         capability "ColorMode"
+        capability 'ChangeLevel'
 
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
         attribute "lightStatus", "string" // is this used?
         attribute "wifiStatus", "map" // is this used?
-
+        attribute "cancelLevelChange", "string"
         command "setState", ["MAP"]
     }
 
@@ -36,6 +37,8 @@ metadata {
         input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
         input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
         input "defaultTransition", "decimal", title: "Color map level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
+        input "changeLevelStep", 'decimal', title: "Change level step size", description: "", required: false, defaultValue: 1
+        input "changeLevelEvery", 'number', title: "Change Level every x milliseconds", description: "", required: false, defaultValue: 20
     }
 }
 
@@ -109,6 +112,39 @@ def setLevel(level, duration = 0) {
 def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
 }
+
+def startLevelChange(direction) {
+//    logDebug "startLevelChange called with $direction"
+    enableLevelChange()
+    if (changeLevelStep && changeLevelEvery) {
+        direction == 'up' ? 1 : -1
+        doLevelChange(direction == 'up' ? 1 : -1)
+    } else {
+        logDebug "No parameters"
+    }
+}
+
+def enableLevelChange() {
+    sendEvent([name: "cancelLevelChange", value: 'no'])
+}
+
+def doLevelChange(direction) {
+    if (0 == direction) {
+        return
+    }
+    def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
+    if (cancelling == 'yes') {
+        runInMillis 2*(changeLevelEvery as Integer), "enableLevelChange"
+        return;
+    }
+    sendActions parent.deviceSetLevel(device, device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float)), getUseActivityLog(), 0)
+    runInMillis changeLevelEvery as Integer, "doLevelChange", [data: direction]
+}
+
+def stopLevelChange() {
+    sendEvent([name: "cancelLevelChange", value: 'yes'])
+}
+
 
 private void sendActions(Map<String, List> actions) {
     actions.commands?.each { item -> parent.lifxCommand(device, item.cmd, item.payload) { List buffer -> sendPacket buffer, true } }
