@@ -2,7 +2,7 @@
  *
  * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
  *
- *  This software if free for Private Use. You may use and modify the software without distributing it.
+ *  This software is free for Private Use. You may use and modify the software without distributing it.
  *  You may not grant a sublicense to modify and distribute this software to third parties.
  *  Software is provided without warranty and your use of it is at your own risk.
  *
@@ -20,13 +20,18 @@ metadata {
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
+        attribute "multizone", "string"
 
         command "setState", ["MAP"]
+        command "zonesSave", [[name: "Zone name*", type: "STRING"]]
+        command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
+        command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
     }
 
 
     preferences {
-        input 'logEnable', 'bool', title: 'Enable debug logging', required: false
+        input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
+        input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
     }
 }
 
@@ -37,13 +42,14 @@ def installed() {
 
 @SuppressWarnings("unused")
 def updated() {
-    unsubscribe 'LIFX.MULTIZONEQUERY'
-    state.transitionTime = defaultTransition
     initialize()
-    subscribe 'LIFX.MULTIZONEQUERY'
 }
 
 def initialize() {
+    state.transitionTime = defaultTransition
+    state.useActivityLog = useActivityLogFlag
+    state.useActivityLogDebug = useDebugActivityLogFlag
+    unschedule()
     requestInfo()
     runEvery1Minute poll
 }
@@ -54,14 +60,55 @@ def refresh() {
 }
 
 @SuppressWarnings("unused")
+def zonesSave(String name) {
+    if (name == '') {
+        return
+    }
+    def zones = state.namedZones ?: [:]
+    def theZones = (state.lastMultizone as Map)
+    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+    def compressed = compressMultizoneData theZones
+    zones[name] = compressed
+    state.namedZones = zones
+    state.knownZones = zones.keySet().toString()
+}
+
+@SuppressWarnings("unused")
+def zonesLoad(String name, duration = 0) {
+    if (null == state.namedZones) {
+        logWarn 'No saved zones'
+    }
+    def zoneString = state.namedZones[name]
+    if (null == zoneString) {
+        logWarn "No such zone $name"
+        return
+    }
+
+    def theZones = parent.getZones(zoneString)
+    theZones['apply'] = 1
+    theZones['duration'] = duration * 1000
+    logDebug "Sending $theZones"
+    sendActions parent.deviceSetZones(device, theZones)
+}
+
+def zonesDelete(String name) {
+    state.namedZones?.remove(name)
+    updateKnownZones()
+}
+
+private void updateKnownZones() {
+    state.knownZones = state.namedZones?.keySet().toString()
+}
+
+@SuppressWarnings("unused")
 def poll() {
-    parent.lifxQuery (device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
-    parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-//    parent.lifxQuery (device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
-    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    poll()
 }
 
 def on() {
@@ -94,7 +141,7 @@ def setColorTemperature(temperature) {
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
+    sendActions parent.deviceSetMultiLevel(device, level as Number, getUseActivityLog(), duration)
 }
 
 @SuppressWarnings("unused")
@@ -103,12 +150,14 @@ def setState(value) {
 }
 
 private void sendActions(Map<String, List> actions) {
-    actions.commands?.eachWithIndex { item, index -> parent.lifxCommand(device, item.cmd, item.payload, index as Byte) { List buffer -> sendPacket buffer, true } }
+    actions.commands?.each { item -> parent.lifxCommand(device, item.cmd, item.payload) { List buffer -> sendPacket buffer, true } }
     actions.events?.each { sendEvent it }
 }
 
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
+    def multizoneEvent = events.find { it.name == 'multizone' }
+    state.lastMultizone = multizoneEvent?.data
     events.collect { createEvent(it) }
 }
 
@@ -117,6 +166,7 @@ private String myIp() {
 }
 
 private void sendPacket(List buffer, boolean noResponseExpected = false) {
+    logDebug "Sending buffer $buffer"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
     sendHubCommand(
             new hubitat.device.HubAction(
@@ -132,6 +182,81 @@ private void sendPacket(List buffer, boolean noResponseExpected = false) {
     )
 }
 
+//
+//String renderMultizone(HashMap hashMap) {
+//    def builder = new StringBuilder();
+//    builder << '<table cellspacing="0">'
+//    def count = hashMap.colors_count as Integer
+//    Map<Integer, Map> colours = hashMap.colors
+//    builder << '<tr>'
+//    for (int i = 0; i < count; i++) {
+//        colour = colours[i];
+//        def rgb = renderDatum(colours[i])
+//        builder << '<td height="2" width="1" style="background-color:' + rgb + ';color:' + rgb + '">&nbsp;'
+//    }
+//    builder << '</tr></table>'
+//    def result = builder.toString()
+//
+//    result
+//}
+
+//String renderDatum(Map item) {
+//    def rgb = parent.hsvToRgbString(
+//            parent.scaleDown100(item.hue as Long),
+//            parent.scaleDown100(item.saturation as Long),
+//            parent.scaleDown100(item.brightness as Long)
+//    )
+//    "$rgb"
+//}
+String rle(List<String> colors) {
+    StringBuilder builder = new StringBuilder('*')
+    StringBuilder uniqueBuilder = new StringBuilder('@')
+    String current = null
+    Integer count = 0
+    boolean allUnique = true
+    colors.each {
+        uniqueBuilder << it
+        uniqueBuilder << "\n"
+        if (it != current) {
+            if (count > 0) {
+                builder << sprintf("%02x\n", count)
+            }
+            count = 1
+            current = it
+            builder << current
+        } else {
+            count++
+            allUnique = false
+        }
+    }
+    if (count != 0) {
+        builder << sprintf('%02x', count)
+    }
+    if (allUnique) {
+        uniqueBuilder.toString()
+    } else {
+        builder.toString()
+    }
+}
+
+String hsbkToString(Map hsbk) {
+    sprintf '%04x%04x%04x%04x', hsbk.hue, hsbk.saturation, hsbk.brightness, hsbk.kelvin
+}
+
+String compressMultizoneData(Map data) {
+    Integer count = data.colors_count as Integer
+    logDebug "Count: $count"
+    Map<Integer, Map> colors = data.colors as Map<Integer, Map>
+    logDebug "colors: $colors"
+    List<String> stringColors = []
+    for (int i = 0; i < count; i++) {
+        Map hsbk = colors[i]
+        logDebug "Colors[$i]: $hsbk"
+        stringColors << hsbkToString(hsbk)
+    }
+    rle stringColors
+}
+
 def getUseActivityLog() {
     if (state.useActivityLog == null) {
         state.useActivityLog = true
@@ -140,6 +265,7 @@ def getUseActivityLog() {
 }
 
 def setUseActivityLog(value) {
+    log.debug("Setting useActivityLog to ${value ? 'true':'false'}")
     state.useActivityLog = value
 }
 
@@ -151,18 +277,25 @@ def getUseActivityLogDebug() {
 }
 
 def setUseActivityLogDebug(value) {
+    log.debug("Setting useActivityLogDebug to ${value ? 'true':'false'}")
     state.useActivityLogDebug = value
 }
 
 void logDebug(msg) {
-    log.debug msg
+    if (state.useActivityLogDebug) {
+        log.debug msg
+    }
 }
 
 void logInfo(msg) {
-    log.info msg
+    if (state.useActivityLog) {
+        log.info msg
+    }
 }
 
 void logWarn(String msg) {
-    log.warn msg
+    if (state.useActivityLog) {
+        log.warn msg
+    }
 }
 
