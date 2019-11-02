@@ -594,7 +594,83 @@ void removeChildren() {
     updateKnownDevices()
 }
 
+
+def enableLevelChange(com.hubitat.app.DeviceWrapper device) {
+    sendEvent(device, [name: "cancelLevelChange", value: 'no', displayed: false])
+}
+
 // Common device commands
+//def deviceDoLevelChange(Map params) {
+//    logDebug "Params $params"
+//    String deviceId = params.dni
+//    com.hubitat.app.DeviceWrapper device = getChildDevice(deviceId)
+//    logDebug "Device for $deviceId is $device"
+//    def direction = params.direction
+//    def changeLevelStep = params.step
+//    def changeLevelEvery = params.every
+//    def useActivityLog = params.logIt as Boolean
+////    if (0 == direction) {
+////        return
+////    }
+//    def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
+//    if (cancelling == 'yes') {
+//        runInMillis 2 * (changeLevelEvery as Integer), "enableLevelChange", [data: device]
+//        return;
+//    }
+//    def newLevel = device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float))
+//    def lastStep = false
+//    if (newLevel < 0) {
+//        newLevel = 0
+//        lastStep = true
+//    } else if (newLevel > 100) {
+//        newLevel = 100
+//        lastStep = true
+//    }
+//    sendActions device, deviceId, deviceSetLevel(device, newLevel, useActivityLog, (changeLevelEvery - 1) / 1000)
+//    if (!lastStep) {
+//        runInMillis(
+//                changeLevelEvery as Integer,
+//                "deviceDoLevelChange",
+//                [
+//                        data: [
+//                                direction: direction,
+//                                dni      : deviceId,
+//                                step     : changeLevelStep,
+//                                every    : changeLevelEvery,
+//                                logIt    : useActivityLog
+//                        ]
+//                ]
+//        )
+//    }
+//}
+//
+//private void sendActions(com.hubitat.app.DeviceWrapper device, String ipAddress, Map<String, List> actions) {
+//    actions.commands?.each { item -> lifxCommand(device, item.cmd, item.payload) { List buffer -> sendPacket ipAddress, buffer, true } }
+//    actions.events?.each { sendEvent it }
+//}
+//
+//def parser(value) {
+//    logDebug("Value is $value")
+//}
+//
+//private void sendPacket(String ipAddress, List buffer, boolean noResponseExpected = false) {
+//    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString asByteArray(buffer)
+//    logDebug("Sending $stringBytes to $ipAddress")
+//    sendHubCommand(
+//            new hubitat.device.HubAction(
+//                    stringBytes,
+//                    hubitat.device.Protocol.LAN,
+//                    ipAddress,
+//                    [
+//                            callback: 'parser',
+//                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
+//                            destinationAddress: ipAddress + ":56700",
+//                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
+//                            ignoreResponse    : noResponseExpected
+//                    ]
+//            )
+//    )
+//}
 
 Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     def actions = makeActions()
@@ -649,7 +725,8 @@ Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number 
     actions
 }
 
-Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, Integer duration = 0) {
+//@TODO change duration to be a float to allow for fractional durations
+Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, Number duration = 0.0) {
     if ((null == level || level <= 0) && 0 == duration) {
         return deviceOnOff('off', displayed)
     }

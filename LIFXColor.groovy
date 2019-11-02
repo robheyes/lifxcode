@@ -49,13 +49,15 @@ def installed() {
 
 @SuppressWarnings("unused")
 def updated() {
-    state.transitionTime = defaultTransition
-    state.useActivityLog = useActivityLogFlag
-    state.useActivityLogDebug = useDebugActivityLogFlag
     initialize()
 }
 
 def initialize() {
+    state.transitionTime = defaultTransition
+    state.useActivityLog = useActivityLogFlag
+    state.useActivityLogDebug = useDebugActivityLogFlag
+    state.changeLevelEvery = changeLevelEvery
+    state.changeLevelStep = changeLevelStep
     unschedule()
     requestInfo()
     runEvery1Minute poll
@@ -113,36 +115,45 @@ def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+@SuppressWarnings("unused")
 def startLevelChange(direction) {
 //    logDebug "startLevelChange called with $direction"
     enableLevelChange()
     if (changeLevelStep && changeLevelEvery) {
-        direction == 'up' ? 1 : -1
         doLevelChange(direction == 'up' ? 1 : -1)
     } else {
         logDebug "No parameters"
     }
 }
 
+@SuppressWarnings("unused")
+def stopLevelChange() {
+    sendEvent([name: "cancelLevelChange", value: 'yes', displayed: false])
+}
+
 def enableLevelChange() {
-    sendEvent([name: "cancelLevelChange", value: 'no'])
+    sendEvent([name: "cancelLevelChange", value: 'no', displayed: false])
 }
 
 def doLevelChange(direction) {
-    if (0 == direction) {
-        return
-    }
     def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
     if (cancelling == 'yes') {
-        runInMillis 2*(changeLevelEvery as Integer), "enableLevelChange"
+        runInMillis 2 * (changeLevelEvery as Integer), "enableLevelChange"
         return;
     }
-    sendActions parent.deviceSetLevel(device, device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float)), getUseActivityLog(), 0)
-    runInMillis changeLevelEvery as Integer, "doLevelChange", [data: direction]
-}
-
-def stopLevelChange() {
-    sendEvent([name: "cancelLevelChange", value: 'yes'])
+    def newLevel = device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float))
+    def lastStep = false
+    if (newLevel < 0) {
+        newLevel = 0
+        lastStep = true
+    } else if (newLevel > 100) {
+        newLevel = 100
+        lastStep = true
+    }
+    sendActions parent.deviceSetLevel(device, newLevel, getUseActivityLog(), (changeLevelEvery - 1) / 1000)
+    if (!lastStep) {
+        runInMillis changeLevelEvery as Integer, "doLevelChange", [data: direction]
+    }
 }
 
 
@@ -184,6 +195,7 @@ def getUseActivityLog() {
 }
 
 def setUseActivityLog(value) {
+    log.debug("Setting useActivityLog to ${value ? 'true' : 'false'}")
     state.useActivityLog = value
 }
 
@@ -195,17 +207,24 @@ def getUseActivityLogDebug() {
 }
 
 def setUseActivityLogDebug(value) {
+    log.debug("Setting useActivityLogDebug to ${value ? 'true' : 'false'}")
     state.useActivityLogDebug = value
 }
 
 void logDebug(msg) {
-    log.debug msg
+    if (state.useActivityLogDebug) {
+        log.debug msg
+    }
 }
 
 void logInfo(msg) {
-    log.info msg
+    if (state.useActivityLog) {
+        log.info msg
+    }
 }
 
 void logWarn(String msg) {
-    log.warn msg
+    if (state.useActivityLog) {
+        log.warn msg
+    }
 }

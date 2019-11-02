@@ -26,8 +26,12 @@ metadata {
     }
 
     preferences {
-        input "logEnable", "bool", title: "Enable debug logging", required: false
-        input "defaultTransition", "decimal", title: "Color map level transition time", description: "Set color time (seconds)", required: true, defaultValue: 0.0
+        input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
+        input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
+        input "defaultTransition", "decimal", title: "Transition time", description: "Set transition time (seconds)", required: true, defaultValue: 0.0
+        input "changeLevelStep", 'decimal', title: "Change level step size", description: "", required: false, defaultValue: 1
+        input "changeLevelEvery", 'number', title: "Change Level every x milliseconds", description: "", required: false, defaultValue: 20
+
     }
 }
 
@@ -38,11 +42,15 @@ def installed() {
 
 @SuppressWarnings("unused")
 def updated() {
-    state.transitionTime = defaultTransition
     initialize()
 }
 
 def initialize() {
+    state.transitionTime = defaultTransition
+    state.useActivityLog = useActivityLogFlag
+    state.useActivityLogDebug = useDebugActivityLogFlag
+    state.changeLevelEvery = changeLevelEvery
+    state.changeLevelStep = changeLevelStep
     unschedule()
     requestInfo()
     runEvery1Minute poll
@@ -55,11 +63,11 @@ def refresh() {
 
 @SuppressWarnings("unused")
 def poll() {
-    parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
-    parent.lifxQuery (device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def on() {
@@ -73,6 +81,47 @@ def off() {
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
     sendActions parent.deviceSetLevel(device, level as Number, getUseActivityLog(), duration)
+}
+
+@SuppressWarnings("unused")
+def startLevelChange(direction) {
+//    logDebug "startLevelChange called with $direction"
+    enableLevelChange()
+    if (changeLevelStep && changeLevelEvery) {
+        doLevelChange(direction == 'up' ? 1 : -1)
+    } else {
+        logDebug "No parameters"
+    }
+}
+
+@SuppressWarnings("unused")
+def stopLevelChange() {
+    sendEvent([name: "cancelLevelChange", value: 'yes', displayed: false])
+}
+
+def enableLevelChange() {
+    sendEvent([name: "cancelLevelChange", value: 'no', displayed: false])
+}
+
+def doLevelChange(direction) {
+    def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
+    if (cancelling == 'yes') {
+        runInMillis 2 * (changeLevelEvery as Integer), "enableLevelChange"
+        return;
+    }
+    def newLevel = device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float))
+    def lastStep = false
+    if (newLevel < 0) {
+        newLevel = 0
+        lastStep = true
+    } else if (newLevel > 100) {
+        newLevel = 100
+        lastStep = true
+    }
+    sendActions parent.deviceSetLevel(device, newLevel, getUseActivityLog(), (changeLevelEvery - 1) / 1000)
+    if (!lastStep) {
+        runInMillis changeLevelEvery as Integer, "doLevelChange", [data: direction]
+    }
 }
 
 private void sendActions(Map<String, List> actions) {
@@ -104,14 +153,9 @@ private void sendPacket(List buffer, boolean noResponseExpected = false) {
             )
     )
 }
-def getUseActivityLog() {
-    if (state.useActivityLog == null) {
-        state.useActivityLog = true
-    }
-    return state.useActivityLog
-}
 
 def setUseActivityLog(value) {
+    log.debug("Setting useActivityLog to ${value ? 'true' : 'false'}")
     state.useActivityLog = value
 }
 
@@ -123,17 +167,24 @@ def getUseActivityLogDebug() {
 }
 
 def setUseActivityLogDebug(value) {
+    log.debug("Setting useActivityLogDebug to ${value ? 'true' : 'false'}")
     state.useActivityLogDebug = value
 }
 
 void logDebug(msg) {
-    log.debug msg
+    if (state.useActivityLogDebug) {
+        log.debug msg
+    }
 }
 
 void logInfo(msg) {
-    log.info msg
+    if (state.useActivityLog) {
+        log.info msg
+    }
 }
 
 void logWarn(String msg) {
-    log.warn msg
+    if (state.useActivityLog) {
+        log.warn msg
+    }
 }
