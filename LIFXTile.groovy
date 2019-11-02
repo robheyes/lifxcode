@@ -22,9 +22,10 @@ metadata {
         attribute "location", "string"
     }
 
-
     preferences {
-        input 'logEnable', 'bool', title: 'Enable debug logging', required: false
+        input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
+        input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
+        input "defaultTransition", "decimal", title: "Level transition time", description: "Set transition time (seconds)", required: true, defaultValue: 0.0
     }
 }
 
@@ -35,11 +36,13 @@ def installed() {
 
 @SuppressWarnings("unused")
 def updated() {
-    state.transitionTime = defaultTransition
     initialize()
 }
 
 def initialize() {
+    state.transitionTime = defaultTransition
+    state.useActivityLog = useActivityLogFlag
+    state.useActivityLogDebug = useDebugActivityLogFlag
     unschedule()
     requestInfo()
     runEvery1Minute poll
@@ -119,14 +122,8 @@ private void sendPacket(List buffer, boolean noResponseExpected = false) {
     )
 }
 
-def getUseActivityLog() {
-    if (state.useActivityLog == null) {
-        state.useActivityLog = true
-    }
-    return state.useActivityLog
-}
-
 def setUseActivityLog(value) {
+    log.debug("Setting useActivityLog to ${value ? 'true':'false'}")
     state.useActivityLog = value
 }
 
@@ -138,18 +135,24 @@ def getUseActivityLogDebug() {
 }
 
 def setUseActivityLogDebug(value) {
+    log.debug("Setting useActivityLogDebug to ${value ? 'true':'false'}")
     state.useActivityLogDebug = value
 }
 
 void logDebug(msg) {
-    log.debug msg
+    if (state.useActivityLogDebug) {
+        log.debug msg
+    }
 }
 
 void logInfo(msg) {
-    log.info msg
+    if (state.useActivityLog) {
+        log.info msg
+    }
 }
 
 void logWarn(String msg) {
-    log.warn msg
+    if (state.useActivityLog) {
+        log.warn msg
+    }
 }
-

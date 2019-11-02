@@ -30,7 +30,8 @@ metadata {
 
 
     preferences {
-        input 'logEnable', 'bool', title: 'Enable debug logging', required: false
+        input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
+        input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
     }
 }
 
@@ -41,11 +42,13 @@ def installed() {
 
 @SuppressWarnings("unused")
 def updated() {
-    state.transitionTime = defaultTransition
     initialize()
 }
 
 def initialize() {
+    state.transitionTime = defaultTransition
+    state.useActivityLog = useActivityLogFlag
+    state.useActivityLogDebug = useDebugActivityLogFlag
     unschedule()
     requestInfo()
     runEvery1Minute poll
@@ -56,21 +59,21 @@ def refresh() {
 
 }
 
+@SuppressWarnings("unused")
 def zonesSave(String name) {
     if (name == '') {
         return
     }
-//    logDebug "Saving as $name"
     def zones = state.namedZones ?: [:]
-//    logDebug "Last zones: ${state.lastMultizone}"
     def theZones = (state.lastMultizone as Map)
-    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v]}
+    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
     def compressed = compressMultizoneData theZones
     zones[name] = compressed
     state.namedZones = zones
     state.knownZones = zones.keySet().toString()
 }
 
+@SuppressWarnings("unused")
 def zonesLoad(String name, duration = 0) {
     if (null == state.namedZones) {
         logWarn 'No saved zones'
@@ -84,7 +87,7 @@ def zonesLoad(String name, duration = 0) {
     def theZones = parent.getZones(zoneString)
     theZones['apply'] = 1
     theZones['duration'] = duration * 1000
-//    logDebug "Sending $theZones"
+    logDebug "Sending $theZones"
     sendActions parent.deviceSetZones(device, theZones)
 }
 
@@ -154,12 +157,7 @@ private void sendActions(Map<String, List> actions) {
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     def multizoneEvent = events.find { it.name == 'multizone' }
-    if (null != multizoneEvent) {
-        def data = multizoneEvent.data as Map
-//        String compressed = compressMultizoneData data
-//        def multizoneHtml = renderMultizone(data)
-        state.lastMultizone = multizoneEvent.data
-    }
+    state.lastMultizone = multizoneEvent?.data
     events.collect { createEvent(it) }
 }
 
@@ -168,7 +166,7 @@ private String myIp() {
 }
 
 private void sendPacket(List buffer, boolean noResponseExpected = false) {
-//    logDebug "Sending buffer $buffer"
+    logDebug "Sending buffer $buffer"
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
     sendHubCommand(
             new hubitat.device.HubAction(
@@ -184,32 +182,32 @@ private void sendPacket(List buffer, boolean noResponseExpected = false) {
     )
 }
 
+//
+//String renderMultizone(HashMap hashMap) {
+//    def builder = new StringBuilder();
+//    builder << '<table cellspacing="0">'
+//    def count = hashMap.colors_count as Integer
+//    Map<Integer, Map> colours = hashMap.colors
+//    builder << '<tr>'
+//    for (int i = 0; i < count; i++) {
+//        colour = colours[i];
+//        def rgb = renderDatum(colours[i])
+//        builder << '<td height="2" width="1" style="background-color:' + rgb + ';color:' + rgb + '">&nbsp;'
+//    }
+//    builder << '</tr></table>'
+//    def result = builder.toString()
+//
+//    result
+//}
 
-String renderMultizone(HashMap hashMap) {
-    def builder = new StringBuilder();
-    builder << '<table cellspacing="0">'
-    def count = hashMap.colors_count as Integer
-    Map<Integer, Map> colours = hashMap.colors
-    builder << '<tr>'
-    for (int i = 0; i < count; i++) {
-        colour = colours[i];
-        def rgb = renderDatum(colours[i])
-        builder << '<td height="2" width="1" style="background-color:' + rgb + ';color:' + rgb + '">&nbsp;'
-    }
-    builder << '</tr></table>'
-    def result = builder.toString()
-
-    result
-}
-
-String renderDatum(Map item) {
-    def rgb = parent.hsvToRgbString(
-            paretnt.scaleDown100(item.hue as Long),
-            paretnt.scaleDown100(item.saturation as Long),
-            paretnt.scaleDown100(item.brightness as Long)
-    )
-    "$rgb"
-}
+//String renderDatum(Map item) {
+//    def rgb = parent.hsvToRgbString(
+//            parent.scaleDown100(item.hue as Long),
+//            parent.scaleDown100(item.saturation as Long),
+//            parent.scaleDown100(item.brightness as Long)
+//    )
+//    "$rgb"
+//}
 String rle(List<String> colors) {
     StringBuilder builder = new StringBuilder('*')
     StringBuilder uniqueBuilder = new StringBuilder('@')
@@ -247,13 +245,13 @@ String hsbkToString(Map hsbk) {
 
 String compressMultizoneData(Map data) {
     Integer count = data.colors_count as Integer
-//    logDebug "Count: $count"
+    logDebug "Count: $count"
     Map<Integer, Map> colors = data.colors as Map<Integer, Map>
-//    logDebug "colors: $colors"
+    logDebug "colors: $colors"
     List<String> stringColors = []
     for (int i = 0; i < count; i++) {
         Map hsbk = colors[i]
-//        logDebug "Colors[$i]: $hsbk"
+        logDebug "Colors[$i]: $hsbk"
         stringColors << hsbkToString(hsbk)
     }
     rle stringColors
@@ -267,6 +265,7 @@ def getUseActivityLog() {
 }
 
 def setUseActivityLog(value) {
+    log.debug("Setting useActivityLog to ${value ? 'true':'false'}")
     state.useActivityLog = value
 }
 
@@ -278,18 +277,25 @@ def getUseActivityLogDebug() {
 }
 
 def setUseActivityLogDebug(value) {
+    log.debug("Setting useActivityLogDebug to ${value ? 'true':'false'}")
     state.useActivityLogDebug = value
 }
 
 void logDebug(msg) {
-    log.debug msg
+    if (state.useActivityLogDebug) {
+        log.debug msg
+    }
 }
 
 void logInfo(msg) {
-    log.info msg
+    if (state.useActivityLog) {
+        log.info msg
+    }
 }
 
 void logWarn(String msg) {
-    log.warn msg
+    if (state.useActivityLog) {
+        log.warn msg
+    }
 }
 
