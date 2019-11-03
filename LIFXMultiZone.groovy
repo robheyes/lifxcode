@@ -141,7 +141,8 @@ def setColorTemperature(temperature) {
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    sendActions parent.deviceSetMultiLevel(device, level as Number, getUseActivityLog(), duration)
+    logWarn "Setting level is not supported"
+//    sendActions parent.deviceSetMultiLevel(device, level as Number, getUseActivityLog(), duration)
 }
 
 @SuppressWarnings("unused")

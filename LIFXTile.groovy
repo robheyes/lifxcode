@@ -122,6 +122,13 @@ private void sendPacket(List buffer, boolean noResponseExpected = false) {
     )
 }
 
+def getUseActivityLog() {
+    if (state.useActivityLog == null) {
+        state.useActivityLog = true
+    }
+    return state.useActivityLog
+}
+
 def setUseActivityLog(value) {
     log.debug("Setting useActivityLog to ${value ? 'true':'false'}")
     state.useActivityLog = value
