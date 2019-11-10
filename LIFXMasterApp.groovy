@@ -752,9 +752,9 @@ Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number le
     deviceSetHSBKAndPower(device, duration, hsbkMap, displayed)
 }
 
-Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map myStateMap, Boolean displayed, Integer duration = 0) {
+Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map myStateMap, Boolean displayed, duration = 0) {
     String power = myStateMap.power
-    Number level = myStateMap.level ?: myStateMap.brightness
+    Number level = (myStateMap.level ?: myStateMap.brightness) as Number
     def kelvin = myStateMap.kelvin ?: myStateMap.temperature
     String color = myStateMap.color ?: myStateMap.colour
     duration = (myStateMap.duration ?: duration) as Integer

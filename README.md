@@ -4,7 +4,6 @@ LIFX is quite a complex system to integrate into Hubitat so it's not as simple a
 
 There are several components
 * The LIFX Master App - this is where you discover devices
-* The LIFX Discovery device - this does the grunt work of scanning your network for LIFX devices
 * Various LIFX device handlers
   * LIFX Color
   * LIFXPlus Color (does not currently include support for Infrared/Night Vision) 
@@ -17,14 +16,15 @@ There are several components
 ### LIFX Master App
 On the Apps Code page, press the **New App** button
 
-Paste the code for LIFXMasterApp.groovy and press the **Save** button (or type **Ctrl-S**)
-### LIFX Discovery and individual device handlers
+Paste the code for `LIFXMasterApp.groovy` and press the **Save** button (or type **Ctrl-S**)
+### Individual device handlers
 On the Devices Code page, press the **New Driver** button 
 
-Paste the code for LIFXDiscovery.groovy and save
+Paste the code for `LIFXColor.groovy` and save
 
 Repeat this process for each of the device handlers you want to install. It's probably best
-to add all of them
+to add all of them even if you don't have a corresponding device at the moment, I've found that buying
+LIFX devices is a bit addictive.
 
 ### Create the app
 On the Apps page press the **Add User App** button then click on **LIFX Master** in the list of available apps.
@@ -43,9 +43,19 @@ You may notice the **LIFX Discovery** device in your list of devices, but this s
 ### Updating
 #### Always make a backup.
 
-It's recommended that when updating the LIFX code that you delete the app instance. However, this will delete
-all your existing LIFX devices.  As an alternative the first action you should take is to click the **Clear caches** 
-button.
+When the drivers/app have been updated I'll post a message on the Hubitat forum.  
+
+To update a device or the app just open the corresponding code, 
+1. click the `Import` button at the top of the window
+2. a dialog should open with the URL prefilled - click its `Import` button
+3. click `OK` on the override dialog that should have appeared
+4. click the `Save` button
+
+I normally open the code for each app and device driver in a new tab, then for each tab I'll just do the import (steps 1-3)
+then once the code has been updated I'll go through the tabs one at a time clicking save and then closing that tab.  
+
+While this is happening, you may find some errors appearing in the log if I've made significant changes.  Only be
+concerned if you see errors after all the drivers and the app have been updated.
 
 ### Implementation information
 The LIFX Lan Protocol uses UDP messages, it seems that sometimes these can be missed or lost, so the discovery process 

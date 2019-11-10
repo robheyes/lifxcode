@@ -199,11 +199,11 @@ def setUseActivityLog(value) {
     state.useActivityLog = value
 }
 
-def getUseActivityLogDebug() {
+Boolean getUseActivityLogDebug() {
     if (state.useActivityLogDebug == null) {
         state.useActivityLogDebug = false
     }
-    return state.useActivityLogDebug
+    return state.useActivityLogDebug as Boolean
 }
 
 def setUseActivityLogDebug(value) {
@@ -212,19 +212,19 @@ def setUseActivityLogDebug(value) {
 }
 
 void logDebug(msg) {
-    if (state.useActivityLogDebug) {
+    if (getUseActivityLogDebug()) {
         log.debug msg
     }
 }
 
 void logInfo(msg) {
-    if (state.useActivityLog) {
+    if (getUseActivityLog()) {
         log.info msg
     }
 }
 
 void logWarn(String msg) {
-    if (state.useActivityLog) {
+    if (getUseActivityLog()) {
         log.warn msg
     }
 }
