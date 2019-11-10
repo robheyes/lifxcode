@@ -283,19 +283,19 @@ def setUseActivityLogDebug(value) {
 }
 
 void logDebug(msg) {
-    if (state.useActivityLogDebug) {
+    if (getUseActivityLogDebug()) {
         log.debug msg
     }
 }
 
 void logInfo(msg) {
-    if (state.useActivityLog) {
+    if (getUseActivityLog()) {
         log.info msg
     }
 }
 
 void logWarn(String msg) {
-    if (state.useActivityLog) {
+    if (getUseActivityLog()) {
         log.warn msg
     }
 }
