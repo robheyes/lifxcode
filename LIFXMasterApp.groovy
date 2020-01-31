@@ -720,7 +720,7 @@ Map<String, List> deviceSetColorTemperature(com.hubitat.app.DeviceWrapper device
 
 Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, duration = 0) {
     def actions = makeActions()
-    actions.commands << makeCommand('LIGHT.SET_INFRARED', [irLevel: value = scaleUp100(level)])
+    actions.commands << makeCommand('LIGHT.SET_INFRARED', [irLevel: scaleUp100(level)])
     actions.events << [name: "IRLevel", value: level, displayed: displayed, data: [syncing: "false"]]
     actions
 }
