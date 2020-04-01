@@ -26,6 +26,7 @@ metadata {
         command "zonesSave", [[name: "Zone name*", type: "STRING"]]
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
+		command "setZones", ["RAW COLORS"]
     }
 
 
@@ -71,6 +72,15 @@ def zonesSave(String name) {
     zones[name] = compressed
     state.namedZones = zones
     state.knownZones = zones.keySet().toString()
+}
+
+def setZones(colors) {
+	def theZones = [index: 0, zone_count: 24, colors_count: 24, apply: 1, duration: 0]
+    log.debug(colors)
+    def colorsMap = stringToMap(colors)
+	log.debug(colorsMap)
+    theZones.colors = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
+	sendActions parent.deviceSetZones(device, theZones)
 }
 
 @SuppressWarnings("unused")
