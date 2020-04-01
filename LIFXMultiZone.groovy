@@ -80,6 +80,12 @@ def setZones(colors) {
     def colorsMap = stringToMap(colors)
 	log.debug(colorsMap)
     theZones.colors = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
+	for (i=0; i<82; i++) {
+		if (theZones.colors[i] == null) {
+			log.debug(i)
+			theZones.colors[i] = [hue: 0, saturation: 0, brightness: 0, kelvin: 0]
+		}
+	}
 	sendActions parent.deviceSetZones(device, theZones)
 }
 
