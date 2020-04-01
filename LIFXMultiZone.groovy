@@ -26,7 +26,7 @@ metadata {
         command "zonesSave", [[name: "Zone name*", type: "STRING"]]
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
-		command "setZones", ["RAW COLORS"]
+		command "setZones", [[name: "RAW COLORS", type: "STRING"], [name: "Duration", type: "NUMBER"]]
     }
 
 
@@ -74,18 +74,14 @@ def zonesSave(String name) {
     state.knownZones = zones.keySet().toString()
 }
 
-def setZones(colors) {
-	def theZones = [index: 0, zone_count: 24, colors_count: 24, apply: 1, duration: 0]
-    log.debug(colors)
-    def colorsMap = stringToMap(colors)
-	log.debug(colorsMap)
-    theZones.colors = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
-	for (i=0; i<82; i++) {
-		if (theZones.colors[i] == null) {
-			log.debug(i)
-			theZones.colors[i] = [hue: 0, saturation: 0, brightness: 0, kelvin: 0]
-		}
-	}
+def setZones(String colors, duration = 0) {
+	def theZones = (state.lastMultizone as Map)
+	theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+	def colorsMap = stringToMap(colors)
+	colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
+	theZones.colors = theZones.colors + colorsMap
+	theZones['apply'] = 1
+	theZones['duration'] = duration
 	sendActions parent.deviceSetZones(device, theZones)
 }
 
