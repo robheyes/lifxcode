@@ -26,7 +26,8 @@ metadata {
         command "zonesSave", [[name: "Zone name*", type: "STRING"]]
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
-		command "setZones", [[name: "RAW COLORS", type: "STRING"], [name: "Duration", type: "NUMBER"]]
+		command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
+		command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
     }
 
 
@@ -58,6 +59,21 @@ def initialize() {
 @SuppressWarnings("unused")
 def refresh() {
 
+}
+
+def createChildDevices(String prefix) {
+	for (i=0; i<state.zoneCount; i++) {
+		try {
+			addChildDevice(
+				'robheyes'
+                LIFXMultiZoneChild,
+                device.getDeviceNetworkId() + '_zone$i',
+                [
+                        label   : '$prefix Zone $i'
+                ]
+			)
+		}
+	}
 }
 
 @SuppressWarnings("unused")
@@ -176,6 +192,7 @@ def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     def multizoneEvent = events.find { it.name == 'multizone' }
     state.lastMultizone = multizoneEvent?.data
+	state.zoneCount = multizoneEvent?.data.zone_count
     events.collect { createEvent(it) }
 }
 
