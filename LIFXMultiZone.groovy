@@ -79,7 +79,12 @@ def setZones(String colors, duration = 0) {
 	theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
 	def colorsMap = stringToMap(colors)
 	colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
-	theZones.colors = theZones.colors + colorsMap
+	for (i=0; i<82; i++) {
+		if (colorsMap[i] != null) {
+			def color = parent.getScaledColorMap(colorsMap[i])
+			theZones.colors[i] = theZones.colors[i] + color
+		}
+	}
 	theZones['apply'] = 1
 	theZones['duration'] = duration
 	sendActions parent.deviceSetZones(device, theZones)
