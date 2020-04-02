@@ -70,6 +70,7 @@ def createChildDevices(String prefix) {
                 device.getDeviceNetworkId() + '_zone$i',
                 [
                         label   : '$prefix Zone $i'
+						zone    : i
                 ]
 			)
 		}
