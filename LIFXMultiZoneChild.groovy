@@ -53,37 +53,41 @@ def refresh() {
 
 }
 
+def getZone() {
+	return device.getDataValue("zone")
+}
+
 def on() {
-    parent.setZones('$zone: "[brightness:100]"')
+    parent.setZones(getZone() + ': "[brightness:100]"')
 }
 
 def off() {
-    parent.setZones('$zone: "[brightness:0]"')
+    parent.setZones(getZone() + ': "[brightness:0]"')
 }
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
-    parent.setZones('$zone: "[hue: $colorMap.hue, saturation: $colorMap.saturation, brightness: $colorMap.level]"')
+    parent.setZones(getZone() + ': "[hue: ' + colorMap.hue + ', saturation: ' + colorMap.saturation + ', brightness: '+ colorMap.level + ']"')
 }
 
 @SuppressWarnings("unused")
 def setHue(hue) {
-    parent.setZones('$zone: "[hue: $hue]"')
+    parent.setZones(getZone() + ': "[hue: ' + hue + ']"')
 }
 
 @SuppressWarnings("unused")
 def setSaturation(saturation) {
-    parent.setZones('$zone: "[saturation: $saturation]"')
+    parent.setZones(getZone() + ': "[saturation: ' + saturation + ']"')
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-    parent.setZones('$zone: "[kelvin: $temperature]"')
+    parent.setZones(getZone() + ': "[kelvin: ' + temperature + ']"')
 }
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    parent.setZones('$zone: "[brightness: $level]"', duration)
+    parent.setZones(getZone() + ': "[brightness: ' + level + ']"', duration)
 }
 
 def getUseActivityLog() {

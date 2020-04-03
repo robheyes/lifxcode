@@ -28,6 +28,7 @@ metadata {
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
 		command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
 		command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
+		command "deleteChildDevices"
     }
 
 
@@ -70,7 +71,7 @@ def createChildDevices(String prefix) {
                 device.getDeviceNetworkId() + "_zone$i",
                 [
                         label   : "$prefix Zone $i",
-						zone    : i
+						zone    : "$i"
                 ]
 			)
         } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
@@ -78,6 +79,14 @@ def createChildDevices(String prefix) {
         } catch (IllegalArgumentException ignored) {
             // Intentionally ignored. Expected if device already present
         }
+		
+	}
+}
+
+def deleteChildDevices() {
+	def children = getChildDevices()
+	for (child in children) {
+		deleteChildDevice(child.getDeviceNetworkId())
 	}
 }
 
