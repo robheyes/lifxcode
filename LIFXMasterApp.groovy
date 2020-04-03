@@ -1289,11 +1289,10 @@ private Map getScaledColorMap(Map colorMap) {
     def result = [:]
     def brightness = colorMap.level ?: colorMap.brightness
 
-    colorMap.hue ? result.hue = scaleUp100(colorMap.hue) as Integer : null
-    colorMap.saturation ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
-    colorMap.saturation ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
-    brightness ? result.brightness = scaleUp100(brightness) as Integer : null
-    result.kelvin = colorMap.kelvin
+    colorMap.hue instanceof Integer ? result.hue = scaleUp100(colorMap.hue) as Integer : null
+    colorMap.saturation instanceof Integer ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
+    brightness instanceof Integer ? result.brightness = scaleUp100(brightness) as Integer : null
+    colorMap.kelvin instanceof Integer ? result.kelvin = colorMap.kelvin : null
     result
 }
 
