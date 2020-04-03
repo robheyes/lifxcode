@@ -59,35 +59,52 @@ def getZone() {
 
 def on() {
     parent.setZones(getZone() + ': "[brightness:100]"')
+    device.sendEvent(name: "switch", value: "on")
+    device.sendEvent(name: "level", value: 100)
 }
 
 def off() {
     parent.setZones(getZone() + ': "[brightness:0]"')
+    device.sendEvent(name: "switch", value: "off")
+    device.sendEvent(name: "level", value: 0)
 }
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
     parent.setZones(getZone() + ': "[hue: ' + colorMap.hue + ', saturation: ' + colorMap.saturation + ', brightness: '+ colorMap.level + ']"')
+    device.sendEvent(name: "hue", value: colorMap.hue)
+    device.sendEvent(name: "saturation", value: colorMap.saturation)
+    device.sendEvent(name: "level", value: colorMap.level)
+    if (colorMap.level > 0) {
+        device.sendEvent(name: "switch", value: "on")
+    } else if (colorMap.level == 0) {
+        device.sendEvent(name: "switch", value: "off")
+    }
 }
 
 @SuppressWarnings("unused")
 def setHue(hue) {
     parent.setZones(getZone() + ': "[hue: ' + hue + ']"')
+    device.sendEvent(name: "hue", value: hue)
 }
 
 @SuppressWarnings("unused")
 def setSaturation(saturation) {
     parent.setZones(getZone() + ': "[saturation: ' + saturation + ']"')
+    device.sendEvent(name: "saturation", value: saturation)
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-    parent.setZones(getZone() + ': "[kelvin: ' + temperature + ']"')
+    parent.setZones(getZone() + ': "[saturation: 0, kelvin: ' + temperature + ']"')
+    device.sendEvent(name: "colorTemperature", value: temperature)
+	device.sendEvent(name: "saturation", value: 0)
 }
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
     parent.setZones(getZone() + ': "[brightness: ' + level + ']"', duration)
+    device.sendEvent(name: "level", value: level)
 }
 
 def getUseActivityLog() {
