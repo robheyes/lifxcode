@@ -17,7 +17,6 @@ metadata {
         capability 'Light'
         capability 'ColorControl'
         capability 'ColorTemperature'
-        capability 'Polling'
         capability 'Initialize'
         capability 'Switch'
         capability "Switch Level"
@@ -47,22 +46,11 @@ def initialize() {
     state.useActivityLog = useActivityLogFlag
     state.useActivityLogDebug = useDebugActivityLogFlag
     unschedule()
-    requestInfo()
-    runEvery1Minute poll
 }
 
 @SuppressWarnings("unused")
 def refresh() {
 
-}
-
-@SuppressWarnings("unused")
-def poll() {
-    return parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-}
-
-def requestInfo() {
-    parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
 }
 
 def on() {

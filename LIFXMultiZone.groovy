@@ -65,15 +65,19 @@ def createChildDevices(String prefix) {
 	for (i=0; i<state.zoneCount; i++) {
 		try {
 			addChildDevice(
-				'robheyes'
-                LIFXMultiZoneChild,
-                device.getDeviceNetworkId() + '_zone$i',
+				'robheyes',
+                'LIFX Multizone Child',
+                device.getDeviceNetworkId() + "_zone$i",
                 [
-                        label   : '$prefix Zone $i'
+                        label   : "$prefix Zone $i",
 						zone    : i
                 ]
 			)
-		}
+        } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
+            logWarn "${e.message} - you need to install the appropriate driver"
+        } catch (IllegalArgumentException ignored) {
+            // Intentionally ignored. Expected if device already present
+        }
 	}
 }
 
@@ -139,6 +143,8 @@ def poll() {
     parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    def mzData = (state.lastMultizone as Map)
+    state.zoneCount = mzData.zone_count
 }
 
 def requestInfo() {
@@ -193,7 +199,6 @@ def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     def multizoneEvent = events.find { it.name == 'multizone' }
     state.lastMultizone = multizoneEvent?.data
-	state.zoneCount = multizoneEvent?.data.zone_count
     events.collect { createEvent(it) }
 }
 
