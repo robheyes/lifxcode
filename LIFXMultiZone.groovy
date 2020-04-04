@@ -63,6 +63,7 @@ def refresh() {
 }
 
 def createChildDevices(String prefix) {
+	def zoneCount = (state.lastMultizone as Map).zone_count
 	for (i=0; i<state.zoneCount; i++) {
 		try {
 			addChildDevice(
@@ -152,26 +153,24 @@ def poll() {
     parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
-    def mzData = (state.lastMultizone as Map)
-    state.zoneCount = mzData.zone_count
-	updateChildDevices(mzData.colors, device.currentValue("switch"))
 }
 
 def requestInfo() {
     poll()
 }
 
-def updateChildDevices(Map colors, String power) {
+def updateChildDevices(multizoneData) {
+	def power = device.currentValue("switch")
+	def colors = (multizoneData as Map).colors
 	colors = colors.collectEntries { k, v -> [k as Integer, v] }
 	def children = getChildDevices()
 	for (child in children) {
 		def zone = child.getDataValue("zone") as Integer
-		def hsbk = parent.getScaledColorMap(colors[zone])
-		child.sendEvent(name: "hue", value: hsbk.hue)
-		child.sendEvent(name: "brightness", value: hsbk.brightness)
-		child.sendEvent(name: "saturation", value: hsbk.saturation)
-		child.sendEvent(name: "kelvin", value: hsbk.kelvin)
-		hsbk.brightness ? child.sendEvent(name: "switch", value: power) : child.sendEvent(name: "switch", value: "off")
+		child.sendEvent(name: "hue", value: parent.scaleDown100(colors[zone].hue))
+		child.sendEvent(name: "level", value: parent.scaleDown100(colors[zone].brightness))
+		child.sendEvent(name: "saturation", value: parent.scaleDown100(colors[zone].saturation))
+		child.sendEvent(name: "colorTemperature", value: colors[zone].kelvin)
+		colors[zone].brightness ? child.sendEvent(name: "switch", value: power) : child.sendEvent(name: "switch", value: "off")
 	}
 }
 
@@ -222,6 +221,7 @@ private void sendActions(Map<String, List> actions) {
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     def multizoneEvent = events.find { it.name == 'multizone' }
+	multizoneEvent?.data ? updateChildDevices(multizoneEvent.data) : null
     state.lastMultizone = multizoneEvent?.data
     events.collect { createEvent(it) }
 }
