@@ -26,6 +26,9 @@ metadata {
         command "zonesSave", [[name: "Zone name*", type: "STRING"]]
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
+        command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
+        command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
+        command "deleteChildDevices"
     }
 
 
@@ -59,6 +62,35 @@ def refresh() {
 
 }
 
+def createChildDevices(String prefix) {
+    def zoneCount = (state.lastMultizone as Map).zone_count
+    for (i=0; i<state.zoneCount; i++) {
+        try {
+            addChildDevice(
+                'robheyes',
+                'LIFX Multizone Child',
+                device.getDeviceNetworkId() + "_zone$i",
+                [
+                        label   : "$prefix Zone $i",
+                        zone    : "$i"
+                ]
+            )
+        } catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
+            logWarn "${e.message} - you need to install the appropriate driver"
+        } catch (IllegalArgumentException ignored) {
+            // Intentionally ignored. Expected if device already present
+        }
+        
+    }
+}
+
+def deleteChildDevices() {
+    def children = getChildDevices()
+    for (child in children) {
+        deleteChildDevice(child.getDeviceNetworkId())
+    }
+}
+
 @SuppressWarnings("unused")
 def zonesSave(String name) {
     if (name == '') {
@@ -71,6 +103,24 @@ def zonesSave(String name) {
     zones[name] = compressed
     state.namedZones = zones
     state.knownZones = zones.keySet().toString()
+}
+
+def setZones(String colors, duration = 0) {
+    def theZones = (state.lastMultizone as Map)
+    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+    def colorsMap = stringToMap(colors)
+    colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
+    for (i=0; i<82; i++) {
+        //use special index 999 to apply attributes to all zones - overrides any zone-specific inputs
+        def indexToApply = colorsMap[999] ? 999 : i
+        if (colorsMap[i] != null || colorsMap[999] != null) {
+            def color = parent.getScaledColorMap(colorsMap[indexToApply])
+            theZones.colors[i] = theZones.colors[i] + color
+        }
+    }
+    theZones['apply'] = 1
+    theZones['duration'] = duration
+    sendActions parent.deviceSetZones(device, theZones)
 }
 
 @SuppressWarnings("unused")
@@ -111,6 +161,21 @@ def requestInfo() {
     poll()
 }
 
+def updateChildDevices(multizoneData) {
+    def power = device.currentValue("switch")
+    def colors = (multizoneData as Map).colors
+    colors = colors.collectEntries { k, v -> [k as Integer, v] }
+    def children = getChildDevices()
+    for (child in children) {
+        def zone = child.getDataValue("zone") as Integer
+        child.sendEvent(name: "hue", value: parent.scaleDown100(colors[zone].hue))
+        child.sendEvent(name: "level", value: parent.scaleDown100(colors[zone].brightness))
+        child.sendEvent(name: "saturation", value: parent.scaleDown100(colors[zone].saturation))
+        child.sendEvent(name: "colorTemperature", value: colors[zone].kelvin)
+        colors[zone].brightness ? child.sendEvent(name: "switch", value: power) : child.sendEvent(name: "switch", value: "off")
+    }
+}
+
 def on() {
     sendActions parent.deviceOnOff('on', getUseActivityLog(), state.transitionTime ?: 0)
 }
@@ -126,23 +191,22 @@ def setColor(Map colorMap) {
 
 @SuppressWarnings("unused")
 def setHue(number) {
-    logWarn "Setting hue is not supported"
+    setZones('999:"[hue: ' + number + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setSaturation(number) {
-    logWarn "Setting saturation is not supported"
+    setZones('999:"[saturation: ' + number + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+    setZones('999:"[saturation: 0, kelvin: ' + tenperature + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    logWarn "Setting level is not supported"
-//    sendActions parent.deviceSetMultiLevel(device, level as Number, getUseActivityLog(), duration)
+    setZones('999:"[brightness: ' + level + ']"', duration)
 }
 
 @SuppressWarnings("unused")
@@ -158,6 +222,7 @@ private void sendActions(Map<String, List> actions) {
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
     def multizoneEvent = events.find { it.name == 'multizone' }
+    multizoneEvent?.data ? updateChildDevices(multizoneEvent.data) : null
     state.lastMultizone = multizoneEvent?.data
     events.collect { createEvent(it) }
 }
