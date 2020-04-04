@@ -78,7 +78,11 @@ An additional capability is the creation of child devices for each zone.  The co
 updated/set like a typical RGBW bulb, and it will update/set the zone in the parent multizone device.  If the parent
 device is updated directly, it will update its children on the next polling interval (1 min).
 
-NOTE: If you are making a global update on the parent MZ device which does not set all attributes, such as 
+NOTES: 
+* After creating the child devices, I've found you have to toggle a few things before they start updating
+the parent properly - e.g. flip the "switch" on, off, and on again.  Will see if this can be addressed in a
+future update.
+* If you are making a global update on the parent MZ device which does not set all attributes, such as 
 `setColorTemperature` - the remaining attributes (brightness being the key one in this case) will be set on
 all zones equivalent to the current zone 0 values.
 
