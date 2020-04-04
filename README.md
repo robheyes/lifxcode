@@ -67,6 +67,17 @@ it checks to see whether the acknowledgement was received. If it wasn't received
 one more time.  The reason for this is that UDP messages are not guaranteed to arrive, so it's pretty much
 a small safety net.  You can expect that this will happen at least when the device is next polled (under a minute).
 
+### Using the Multizone capabilities
+The multizone driver provides a generic `setZones` command.  This accepts an input in the following format:
+```0:"[hue: 30, brightness: 100, saturation: 100, kelvin: 3500]", 1:"[hue: 0, brightness: 100, saturation: 0, kelvin:3500"]```
+an entry can be submitted for each zone you want to update, and can contain any combination of parameters - 
+e.g. if you only want to update hue and saturation, you can specify only those values, and the brighness and kelvin
+values for that zone will remain the same.  Likewise, you can omit any zones that you do not want to update.
+
+An additional capability is the creation of child devices for each zone.  The corresponding child device can be
+updated/set like a typical RGBW bulb, and it will update/set the zone in the parent multizone device.  If the parent
+device is updated directly, it will update its children on the next polling interval (1 min)
+
 ## Troubleshooting
 ### Undiscovered devices
 If you find that some devices aren't discovered
