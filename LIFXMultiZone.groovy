@@ -111,8 +111,10 @@ def setZones(String colors, duration = 0) {
     def colorsMap = stringToMap(colors)
     colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
     for (i=0; i<82; i++) {
-        if (colorsMap[i] != null) {
-            def color = parent.getScaledColorMap(colorsMap[i])
+        //use special index 999 to apply attributes to all zones - overrides any zone-specific inputs
+        def indexToApply = colorsMap[999] ? 999 : i
+        if (colorsMap[i] != null || colorsMap[999] != null) {
+            def color = parent.getScaledColorMap(colorsMap[indexToApply])
             theZones.colors[i] = theZones.colors[i] + color
         }
     }
@@ -189,23 +191,22 @@ def setColor(Map colorMap) {
 
 @SuppressWarnings("unused")
 def setHue(number) {
-    logWarn "Setting hue is not supported"
+    setZones('999:"[hue: ' + number + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setSaturation(number) {
-    logWarn "Setting saturation is not supported"
+    setZones('999:"[saturation: ' + number + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+    setZones('999:"[kelvin: ' + tenperature + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    logWarn "Setting level is not supported"
-//    sendActions parent.deviceSetMultiLevel(device, level as Number, getUseActivityLog(), duration)
+    setZones('999:"[brightness: ' + level + ']"', duration)
 }
 
 @SuppressWarnings("unused")
