@@ -22,14 +22,14 @@ metadata {
         capability "Switch Level"
 
         attribute "label", "string"
-		attribute "zone", "number"
+        attribute "zone", "number"
         command "setState", ["MAP"]
     }
 
     preferences {
         input "useActivityLogFlag", "bool", title: "Enable activity logging", required: false
         input "useDebugActivityLogFlag", "bool", title: "Enable debug logging", required: false
-	}
+    }
 }
 
 @SuppressWarnings("unused")
@@ -54,7 +54,7 @@ def refresh() {
 }
 
 def getZone() {
-	return device.getDataValue("zone")
+    return device.getDataValue("zone")
 }
 
 def on() {
@@ -98,7 +98,7 @@ def setSaturation(saturation) {
 def setColorTemperature(temperature) {
     parent.setZones(getZone() + ': "[saturation: 0, kelvin: ' + temperature + ']"')
     device.sendEvent(name: "colorTemperature", value: temperature)
-	device.sendEvent(name: "saturation", value: 0)
+    device.sendEvent(name: "saturation", value: 0)
 }
 
 @SuppressWarnings("unused")
