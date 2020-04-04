@@ -154,10 +154,25 @@ def poll() {
     parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
     def mzData = (state.lastMultizone as Map)
     state.zoneCount = mzData.zone_count
+	updateChildDevices(mzData.colors, device.currentValue("switch"))
 }
 
 def requestInfo() {
     poll()
+}
+
+def updateChildDevices(Map colors, String power) {
+	colors = colors.collectEntries { k, v -> [k as Integer, v] }
+	def children = getChildDevices()
+	for (child in children) {
+		def zone = child.getDataValue("zone") as Integer
+		def hsbk = parent.getScaledColorMap(colors[zone])
+		child.sendEvent(name: "hue", value: hsbk.hue)
+		child.sendEvent(name: "brightness", value: hsbk.brightness)
+		child.sendEvent(name: "saturation", value: hsbk.saturation)
+		child.sendEvent(name: "kelvin", value: hsbk.kelvin)
+		hsbk.brightness ? child.sendEvent(name: "switch", value: power) : child.sendEvent(name: "switch", value: "off")
+	}
 }
 
 def on() {
