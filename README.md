@@ -76,7 +76,11 @@ values for that zone will remain the same.  Likewise, you can omit any zones tha
 
 An additional capability is the creation of child devices for each zone.  The corresponding child device can be
 updated/set like a typical RGBW bulb, and it will update/set the zone in the parent multizone device.  If the parent
-device is updated directly, it will update its children on the next polling interval (1 min)
+device is updated directly, it will update its children on the next polling interval (1 min).
+
+NOTE: If you are making a global update on the parent MZ device which does not set all attributes, such as 
+`setColorTemperature` - the remaining attributes (brightness being the key one in this case) will be set on
+all zones equivalent to the current zone 0 values.
 
 ## Troubleshooting
 ### Undiscovered devices
