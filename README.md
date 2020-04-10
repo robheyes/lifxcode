@@ -73,6 +73,8 @@ The multizone driver provides a generic `setZones` command.  This accepts an inp
 an entry can be submitted for each zone you want to update, and can contain any combination of parameters - 
 e.g. if you only want to update hue and saturation, you can specify only those values, and the brighness and kelvin
 values for that zone will remain the same.  Likewise, you can omit any zones that you do not want to update.
+As an alternate to specific HBSK values, you can specify any of the defined `namedColors` or an RGB hex value using
+```0:"[color: 'Red']", 1:"[color: '#0000FF']"```
 
 An additional capability is the creation of child devices for each zone.  The corresponding child device can be
 updated/set like a typical RGBW bulb, and it will update/set the zone in the parent multizone device.  If the parent

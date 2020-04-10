@@ -107,6 +107,10 @@ def setLevel(level, duration = 0) {
     device.sendEvent(name: "level", value: level)
 }
 
+def setState(value, duration = 0) {
+    parent.setZones(getZone() + ': "' + value + '"', duration)
+}
+
 def getUseActivityLog() {
     if (state.useActivityLog == null) {
         state.useActivityLog = true
