@@ -720,7 +720,7 @@ Map<String, List> deviceSetColorTemperature(com.hubitat.app.DeviceWrapper device
 
 Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, duration = 0) {
     def actions = makeActions()
-    actions.commands << makeCommand('LIGHT.SET_INFRARED', [irLevel: value == scaleUp100(level)])
+    actions.commands << makeCommand('LIGHT.SET_INFRARED', [irLevel: scaleUp100(level)])
     actions.events << [name: "IRLevel", value: level, displayed: displayed, data: [syncing: "false"]]
     actions
 }
@@ -1289,11 +1289,10 @@ private Map getScaledColorMap(Map colorMap) {
     def result = [:]
     def brightness = colorMap.level ?: colorMap.brightness
 
-    colorMap.hue ? result.hue = scaleUp100(colorMap.hue) as Integer : null
-    colorMap.saturation ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
-    colorMap.saturation ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
-    brightness ? result.brightness = scaleUp100(brightness) as Integer : null
-    result.kelvin = colorMap.kelvin
+    colorMap.hue instanceof Integer ? result.hue = scaleUp100(colorMap.hue) as Integer : null
+    colorMap.saturation instanceof Integer ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
+    brightness instanceof Integer ? result.brightness = scaleUp100(brightness) as Integer : null
+    colorMap.kelvin instanceof Integer ? result.kelvin = colorMap.kelvin : null
     result
 }
 
@@ -1359,9 +1358,9 @@ private void clearDeviceDefinitions() {
 }
 
 public Map getDeviceDefinitions() {
-	if (atomicState.devices == null) {
-		atomicState.devices = [:]
-	}
+    if (atomicState.devices == null) {
+        atomicState.devices = [:]
+    }
 
     atomicState.devices
 }
