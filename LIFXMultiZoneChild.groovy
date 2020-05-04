@@ -13,7 +13,7 @@
  */
 
 metadata {
-    definition(name: "LIFX Multizone Child", namespace: "robheyes", author: "David Kilgore", importUrl: 'https://raw.githubusercontent.com/dkilgore90/lifxcode/master/LIFXMultiZoneChild.groovy') {
+    definition(name: "LIFX Multizone Child", namespace: "robheyes", author: "David Kilgore", importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXMultiZoneChild.groovy') {
         capability 'Light'
         capability 'ColorControl'
         capability 'ColorTemperature'
@@ -105,6 +105,10 @@ def setColorTemperature(temperature) {
 def setLevel(level, duration = 0) {
     parent.setZones(getZone() + ': "[brightness: ' + level + ']"', duration)
     device.sendEvent(name: "level", value: level)
+}
+
+def setState(value, duration = 0) {
+    parent.setZones(getZone() + ': "' + value + '"', duration)
 }
 
 def getUseActivityLog() {

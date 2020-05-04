@@ -114,8 +114,20 @@ def setZones(String colors, duration = 0) {
         //use special index 999 to apply attributes to all zones - overrides any zone-specific inputs
         def indexToApply = colorsMap[999] ? 999 : i
         if (colorsMap[i] != null || colorsMap[999] != null) {
-            def color = parent.getScaledColorMap(colorsMap[indexToApply])
-            theZones.colors[i] = theZones.colors[i] + color
+            String namedColor = colorsMap[indexToApply].color ?: colorsMap[indexToApply].colour
+            Map realColor
+            if (namedColor) {
+                Map myColor
+                myColor = (null == namedColor) ? null : parent.lookupColor(namedColor.replace('_', ' '))
+                realColor = [
+                    hue       : parent.scaleUp(myColor.h ?: 0, 360),
+                    saturation: parent.scaleUp100(myColor.s ?: 0),
+                    brightness: parent.scaleUp100(myColor.v ?: 50)
+                ]
+            } else {
+                realColor = parent.getScaledColorMap(colorsMap[indexToApply])
+            }
+            theZones.colors[i] = theZones.colors[i] + realColor
         }
     }
     theZones['apply'] = 1
