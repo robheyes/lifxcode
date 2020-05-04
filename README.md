@@ -84,9 +84,6 @@ NOTES:
 * After creating the child devices, I've found you have to toggle a few things before they start updating
 the parent properly - e.g. flip the "switch" on, off, and on again.  Will see if this can be addressed in a
 future update.
-* If you are making a global update on the parent MZ device which does not set all attributes, such as 
-`setColorTemperature` - the remaining attributes (brightness being the key one in this case) will be set on
-all zones equivalent to the current zone 0 values.
 
 ## Troubleshooting
 ### Undiscovered devices
