@@ -685,6 +685,14 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
     actions
 }
 
+Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device, String type, Integer speed, Integer duration, String direction) {
+    def actions = makeActions()
+    def parameters = new Integer[8]
+    direction == 'reverse' ? parameters[1] = 0 : parameters[1] = 1
+    actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: type == 'move' ? 1 : 0, speed: speed * 1000, duration: duration * 10000, parameters: parameters])
+    actions
+}
+
 Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map colorMap, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
@@ -861,6 +869,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             def multizoneHtml = renderMultizone(data)
             return [
                     [name: 'multizone', value: multizoneHtml, data: data, displayed: true],
+            ]
+        case messageType['MULTIZONE.STATE_MULTIZONE_EFFECT']:
+            Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
+            return [
+                [name: 'effect', data: data, displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -2393,6 +2406,9 @@ private Map flattenedDescriptors() {
                 GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
                 STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
                 STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
+                GET_MULTIZONE_EFFECT      : [type: 507, descriptor: ''],
+                SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i,type:b,reserved1Effect:w,speed:i,duration:l,reserved2Effect:i,reserved3Effect:i,parameters:ia8'],
+                STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i,type:b,reserved1Effect:w,speed:i,duration:l,reserved2Effect:i,reserved3Effect:i,parameters:ia8'],
                 SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colors_count:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
                 STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
