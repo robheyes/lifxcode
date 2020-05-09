@@ -685,6 +685,14 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
     actions
 }
 
+Map<String, List> deviceSetMultiZoneEffect(String effectType, Integer speed, String direction) {
+    def actions = makeActions()
+    def params = new int[8]
+    params[1] = direction == 'reverse' ? 0 : 1
+    actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: effectType == 'MOVE' ? 1 : 0, speed: effectType == 'OFF' ? 0 : speed * 1000, parameters: params])
+    actions
+}
+
 Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map colorMap, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
@@ -861,6 +869,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             def multizoneHtml = renderMultizone(data)
             return [
                     [name: 'multizone', value: multizoneHtml, data: data, displayed: true],
+            ]
+        case messageType['MULTIZONE.STATE_MULTIZONE_EFFECT']:
+            Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
+            return [
+                [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -1308,7 +1321,7 @@ private Map<String, Object> getCurrentHSBK(com.hubitat.app.DeviceWrapper theDevi
     [
             hue       : scaleUp(theDevice.currentHue ?: 0, 100),
             saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
-            brightness: scaleUp(theDevice.currentLevel as Long, 100),
+            brightness: scaleUp(theDevice.currentLevel as Long ?: 0, 100),
             kelvin    : theDevice.currentcolorTemperature
     ]
 }
@@ -1915,7 +1928,13 @@ private List makePayload(String deviceAndType, Map payload) {
                     add result, value as short
                     break
                 case 3: case 4:
-                    add result, value as int
+                    if (item.isArray) {
+                        for (int i = 0; i < item.count; i++) {
+                            add result, value[i] as int
+                        }
+                    } else {
+                        add result, value as int
+                    }
                     break
                 default: // this should complain if longer than 8 bytes
                     add result, value as long
@@ -2393,6 +2412,9 @@ private Map flattenedDescriptors() {
                 GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
                 STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
                 STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
+                GET_MULTIZONE_EFFECT      : [type: 507, descriptor: ''],
+                SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
+                STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
                 SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colors_count:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
                 STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
@@ -2485,5 +2507,6 @@ Map getZones(String compressed) {
     colors.eachWithIndex { v, k -> realColors[k] = v }
     [index: 0, zone_count: numZones, colors_count: numZones, colors: realColors]
 }
+
 
 

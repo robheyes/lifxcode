@@ -21,12 +21,14 @@ metadata {
         attribute "group", "string"
         attribute "location", "string"
         attribute "multizone", "string"
+        attribute "effect", "string"
 
         command "setState", ["MAP"]
         command "zonesSave", [[name: "Zone name*", type: "STRING"]]
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
         command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
         command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
         command "deleteChildDevices"
     }
@@ -162,11 +164,16 @@ private void updateKnownZones() {
     state.knownZones = state.namedZones?.keySet().toString()
 }
 
+def setEffect(String effectType, speed = 30, String direction = 'forward') {
+    sendActions parent.deviceSetMultiZoneEffect(effectType, speed.toInteger(), direction)
+}
+
 @SuppressWarnings("unused")
 def poll() {
     parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'MULTIZONE.GET_MULTIZONE_EFFECT') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
