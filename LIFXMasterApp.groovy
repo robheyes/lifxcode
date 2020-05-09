@@ -688,7 +688,7 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
 Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device, String type, Integer speed, Integer duration, String direction) {
     def actions = makeActions()
     def parameters = new Integer[8]
-    direction == 'reverse' ? parameters[1] = 0 : parameters[1] = 1
+    parameters[1] = direction == 'reverse' ? 0 : 1
     actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: type == 'move' ? 1 : 0, speed: speed * 1000, duration: duration * 10000, parameters: parameters])
     actions
 }
