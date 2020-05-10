@@ -693,6 +693,22 @@ Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device,
     actions
 }
 
+Map<String, List> deviceSetTileEffect(com.hubitat.app.DeviceWrapper device, String effectType, Integer speed, Integer palette_count, List<Map> colors) {
+    def actions = makeActions()
+    def params = new int[8]
+    def typeInt = new int
+    switch (effectType) {
+        case 'OFF':
+            typeInt = 0
+        case 'MORPH':
+            typeInt = 2
+        case 'FLAME':
+            typeInt = 3
+    }
+    actions.commands << makeCommand('TILE.SET_TILE_EFFECT', [instanceId: 5439, type: typeInt, speed: speed, palette_count: palette_count, palette: hsbkList])
+    actions
+}
+
 Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map colorMap, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
@@ -874,6 +890,12 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
             return [
                 [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
+            ]
+        case messageType['TILE.STATE_TILE_EFFECT']:
+            Map data = parsePayload 'TILE.STATE_TILE_EFFECT', header
+            def effects = ['OFF', 'RESERVED', 'MORPH', 'FLAME']
+            return [
+                [name: 'effect', value: effectType[data.type], displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -2418,6 +2440,11 @@ private Map flattenedDescriptors() {
                 SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colors_count:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
                 STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
+        ],
+        TILE: [
+                GET_TILE_EFFECT  : [type: 718, descriptor: ''],
+                SET_TILE_EFFECT  : [type: 719, descriptor: 'reserved1Effect:b,reserved2Effect:b,instanceId:i,type:b,speed:i,duration:l,reserved3Effect:i,reserved4Effect:i,parameters:ia8,palette_count:b,palette:ha8'],
+                STATE_TILE_EFFECT: [type: 720, descriptor: 'reserved1Effect:b,instanceId:i,type:b,speed:i,duration:l,reserved2Effect:i,reserved3Effect:i,parameters:ia8,palette_count:b,palette:ha8'],
         ]
 ]
 
@@ -2507,5 +2534,6 @@ Map getZones(String compressed) {
     colors.eachWithIndex { v, k -> realColors[k] = v }
     [index: 0, zone_count: numZones, colors_count: numZones, colors: realColors]
 }
+
 
 
