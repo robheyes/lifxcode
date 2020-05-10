@@ -685,11 +685,11 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
     actions
 }
 
-Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device, String type, Integer speed, Integer duration, String direction) {
+Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device, String effectType, Integer speed, String direction) {
     def actions = makeActions()
-    def parameters = new Integer[8]
-    parameters[1] = direction == 'reverse' ? 0 : 1
-    actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: type == 'move' ? 1 : 0, speed: speed * 1000, duration: duration * 10000, parameters: parameters])
+    def params = new int[8]
+    params[1] = direction == 'reverse' ? 0 : 1
+    actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: effectType == 'MOVE' ? 1 : 0, speed: effectType == 'OFF' ? 0 : speed * 1000, parameters: params])
     actions
 }
 
@@ -873,7 +873,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['MULTIZONE.STATE_MULTIZONE_EFFECT']:
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
             return [
-                [name: 'effect', data: data, displayed: true]
+                [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -1928,7 +1928,13 @@ private List makePayload(String deviceAndType, Map payload) {
                     add result, value as short
                     break
                 case 3: case 4:
-                    add result, value as int
+                    if (item.isArray) {
+                        for (int i = 0; i < item.count; i++) {
+                            add result, value[i] as int
+                        }
+                    } else {
+                        add result, value as int
+                    }
                     break
                 default: // this should complain if longer than 8 bytes
                     add result, value as long

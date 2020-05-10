@@ -27,7 +27,7 @@ metadata {
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
         command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Duration", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
         command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
         command "deleteChildDevices"
     }
@@ -163,8 +163,8 @@ private void updateKnownZones() {
     state.knownZones = state.namedZones?.keySet().toString()
 }
 
-def setEffect(String type, speed = 1, duration = 9223372036854775, direction = "forward") {
-    sendActions parent.deviceSetMultiZoneEffect(device, type, speed, duration, direction)
+def setEffect(String effectType, speed = 30, String direction = 'forward') {
+    sendActions parent.deviceSetMultiZoneEffect(device, effectType, speed.toInteger(), direction)
 }
 
 @SuppressWarnings("unused")
@@ -242,8 +242,6 @@ def parse(String description) {
     def multizoneEvent = events.find { it.name == 'multizone' }
     multizoneEvent?.data ? updateChildDevices(multizoneEvent.data) : null
     state.lastMultizone = multizoneEvent?.data
-    def effectEvent = events.find { it.name == 'effect' }
-    state.currentEffect = effectEvent?.data
     events.collect { createEvent(it) }
 }
 
