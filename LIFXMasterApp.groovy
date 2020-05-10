@@ -705,7 +705,7 @@ Map<String, List> deviceSetTileEffect(com.hubitat.app.DeviceWrapper device, Stri
         case 'FLAME':
             typeInt = 3
     }
-    actions.commands << makeCommand('TILE.SET_TILE_EFFECT', [instanceId: 5439, type: typeInt, speed: speed, palette_count: palette_count, palette: hsbkList])
+    actions.commands << makeCommand('TILE.SET_TILE_EFFECT', [instanceId: 5439, type: typeInt, speed: speed * 1000, palette_count: palette_count, palette: hsbkList])
     actions
 }
 
