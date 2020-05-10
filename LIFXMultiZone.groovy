@@ -21,6 +21,7 @@ metadata {
         attribute "group", "string"
         attribute "location", "string"
         attribute "multizone", "string"
+        attribute "effect", "string"
 
         command "setState", ["MAP"]
         command "zonesSave", [[name: "Zone name*", type: "STRING"]]
