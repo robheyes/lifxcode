@@ -696,7 +696,7 @@ Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device,
 Map<String, List> deviceSetTileEffect(com.hubitat.app.DeviceWrapper device, String effectType, Integer speed, Integer palette_count, List<Map> colors) {
     def actions = makeActions()
     def params = new int[8]
-    def typeInt = new int
+    Integer typeInt
     switch (effectType) {
         case 'OFF':
             typeInt = 0
