@@ -78,7 +78,7 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
-def setEffect(String effectType, String colors, palette_count = 16, speed = 30) {
+def setEffect(String effectType, String colors = '[]', palette_count = 16, speed = 30) {
     logDebug("Effect inputs -- type: $effectType, speed: $speed, palette_count: $palette_count, colors: $colors")
     def colorsList = new JsonSlurper().parseText(colors)
     if (colorsList.length() >= 1) {
