@@ -24,7 +24,7 @@ metadata {
         attribute "location", "string"
         attribute "effect", "string"
         
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "STRING"], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "STRING"], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
     }
 
     preferences {
