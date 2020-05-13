@@ -30,6 +30,7 @@ metadata {
 
         // need a command to set the ir level
         command 'setInfraredLevel', [[name: 'Level', type: 'NUMBER'], [name: 'duration', type: 'NUMBER']]
+        command 'setWaveform', [[name: 'Waveform*', type: 'ENUM', constraints:['SAW', 'SINE', 'HALF_SINE', 'TRIANGLE', 'PULSE']], [name: 'Color*', type: 'STRING'], [name: 'Transient', type: 'ENUM', constraints: ['true', 'false']], [name: 'Period', type: 'NUMBER'], [name: 'Cycles', type: 'NUMBER'], [name: 'Skew Ratio', type: 'NUMBER']]
     }
 
     preferences {
@@ -161,6 +162,10 @@ def doLevelChange(direction) {
     if (!lastStep) {
         runInMillis changeLevelEvery as Integer, "doLevelChange", [data: direction]
     }
+}
+
+def setWaveform(String waveform, String color, String isTransient = 'true', period = 5, cycles = 3.40282346638528860e38, skew = 0.5) {
+    sendActions parent.deviceSetWaveform(device, isTransient.toBoolean(), stringToMap(color), period.toInteger(), cycles.toFloat(), skew.toFloat(), waveform)
 }
 
 private void sendActions(Map<String, List> actions) {

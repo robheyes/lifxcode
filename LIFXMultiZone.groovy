@@ -31,6 +31,7 @@ metadata {
         command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
         command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
         command "deleteChildDevices"
+        command 'setWaveform', [[name: 'Waveform*', type: 'ENUM', constraints:['SAW', 'SINE', 'HALF_SINE', 'TRIANGLE', 'PULSE']], [name: 'Color*', type: 'STRING'], [name: 'Transient', type: 'ENUM', constraints: ['true', 'false']], [name: 'Period', type: 'NUMBER'], [name: 'Cycles', type: 'NUMBER'], [name: 'Skew Ratio', type: 'NUMBER']]
     }
 
 
@@ -231,6 +232,10 @@ def setLevel(level, duration = 0) {
 @SuppressWarnings("unused")
 def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
+}
+
+def setWaveform(String waveform, String color, String isTransient = 'true', period = 5, cycles = 3.40282346638528860e38, skew = 0.5) {
+    sendActions parent.deviceSetWaveform(device, isTransient.toBoolean(), stringToMap(color), period.toInteger(), cycles.toFloat(), skew.toFloat(), waveform)
 }
 
 private void sendActions(Map<String, List> actions) {
