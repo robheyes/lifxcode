@@ -24,7 +24,7 @@ metadata {
         attribute "location", "string"
         attribute "effect", "string"
         
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "STRING", description: 'Json array of color/hsbk values, ex. [{"color":"red"},{"hue":56,"saturation":100,"brightness":75,"kelvin":3500}]'], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "STRING", description: 'Json array of color/hsbk maps, ex. [{"color":"red"},{"hue":56,"saturation":100,"brightness":75,"kelvin":3500}]'], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
     }
 
     preferences {
@@ -109,18 +109,18 @@ def setColor(Map colorMap) {
 }
 
 @SuppressWarnings("unused")
-def setHue(number) {
-
+def setHue(hue) {
+    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
-def setSaturation(number) {
-
+def setSaturation(saturation) {
+    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {
