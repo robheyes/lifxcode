@@ -81,7 +81,7 @@ def off() {
 def setEffect(String effectType, String colors, palette_count = 16, speed = 30) {
     logDebug("Effect inputs -- type: $effectType, speed: $speed, palette_count: $palette_count, colors: $colors")
     def colorsList = new JsonSlurper().parseText(colors)
-    if (colorsList.length() > 1) {
+    if (colorsList.length() >= 1) {
         palette_count = colorsList.length()
     }
     def hsbkList = new Map<String, Object>[colors.length()]
@@ -105,7 +105,7 @@ def setEffect(String effectType, String colors, palette_count = 16, speed = 30) 
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
-
+    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
