@@ -1288,6 +1288,7 @@ private List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor)
 
 private Map<String, List> deviceSetHSBKAndPower(com.hubitat.app.DeviceWrapper device, Number duration, Map<String, Object> hsbkMap, boolean displayed, String power = 'on') {
     def actions = makeActions()
+    logDebug("deviceSetHSBKAndPower: $hsbkMap")
     if (hsbkMap) {
         actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: (hsbkMap.duration ?: 0) * 1000])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
@@ -1328,6 +1329,7 @@ private Map getScaledColorMap(Map colorMap) {
     colorMap.saturation instanceof Integer ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
     brightness instanceof Integer ? result.brightness = scaleUp100(brightness) as Integer : null
     colorMap.kelvin instanceof Integer ? result.kelvin = colorMap.kelvin : null
+    logDebug(result)
     result
 }
 
