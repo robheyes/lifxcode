@@ -24,7 +24,7 @@ metadata {
         attribute "location", "string"
         attribute "effect", "string"
         
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "STRING", description: 'Json array of color/hsbk maps, ex. [{"color":"red"},{"hue":56,"saturation":100,"brightness":75,"kelvin":3500}]'], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors (JSON Array)", type: "STRING"], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
     }
 
     preferences {
