@@ -81,11 +81,11 @@ def off() {
 def setEffect(String effectType, String colors = '[]', palette_count = 16, speed = 30) {
     logDebug("Effect inputs -- type: $effectType, speed: $speed, palette_count: $palette_count, colors: $colors")
     def colorsList = new JsonSlurper().parseText(colors)
-    if (colorsList.length() >= 1) {
-        palette_count = colorsList.length()
+    if (colorsList.size() >= 1) {
+        palette_count = colorsList.size()
     }
-    def hsbkList = new Map<String, Object>[colors.length()]
-    for (int i = 0; i < colorsList.length(); i++) {
+    def hsbkList = new Map<String, Object>[colors.size()]
+    for (int i = 0; i < colorsList.size(); i++) {
         String namedColor = colorsList[i].color ?: colorsList[i].colour
         if (namedColor) {
             Map myColor
