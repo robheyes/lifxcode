@@ -105,21 +105,25 @@ def setEffect(String effectType, String colors = '[]', palette_count = 16, speed
 
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
+    logDebug("setColor: $colorMap")
     sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setHue(hue) {
+    logDebug("setHue: $hue")
     sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setSaturation(saturation) {
+    logDebug("setSat: $saturation")
     sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
+    logDebug("setTemp: $temperature")
     sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
