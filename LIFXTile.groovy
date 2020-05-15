@@ -84,19 +84,23 @@ def setEffect(String effectType, colors = '[]', palette_count = 16, speed = 30) 
     if (colorsList.size() >= 1) {
         palette_count = colorsList.size()
     }
-    def hsbkList = new Map<String, Object>[colors.size()]
-    for (int i = 0; i < colorsList.size(); i++) {
-        String namedColor = colorsList[i].color ?: colorsList[i].colour
-        if (namedColor) {
-            Map myColor
-            myColor = (null == namedColor) ? null : parent.lookupColor(namedColor.replace('_', ' '))
-            hsbkList[i] = [
-                hue       : parent.scaleUp(myColor.h ?: 0, 360),
-                saturation: parent.scaleUp100(myColor.s ?: 0),
-                brightness: parent.scaleUp100(myColor.v ?: 50)
-            ]
+    def hsbkList = new Map<String, Object>[palette_count]
+    for (int i = 0; i < palette_count; i++) {
+        if (colorsList[i] != null) {
+            String namedColor = colorsList[i].color ?: colorsList[i].colour
+            if (namedColor) {
+                Map myColor
+                myColor = (null == namedColor) ? null : parent.lookupColor(namedColor.replace('_', ' '))
+                hsbkList[i] = [
+                    hue       : parent.scaleUp(myColor.h ?: 0, 360),
+                    saturation: parent.scaleUp100(myColor.s ?: 0),
+                    brightness: parent.scaleUp100(myColor.v ?: 50)
+                ]
+            } else {
+                hsbkList[i] = parent.getScaledColorMap(colorsMap[i])
+            }
         } else {
-            hsbkList[i] = parent.getScaledColorMap(colorsMap[indexToApply])
+            hsbkList[i] = [hue: 0, saturation: 0, brightnes: 0]
         }
     }
     logDebug("Sending effect command -- type: $effectType, speed: $speed, palette_count: $palette_count, hsbkList: $hsbkList")
