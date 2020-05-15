@@ -24,7 +24,7 @@ metadata {
         attribute "location", "string"
         attribute "effect", "string"
         
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors (JSON Array)", type: "STRING"], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "JSON_OBJECT"], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
     }
 
     preferences {
@@ -78,7 +78,7 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
-def setEffect(String effectType, String colors = '[]', palette_count = 16, speed = 30) {
+def setEffect(String effectType, colors = '[]', palette_count = 16, speed = 30) {
     logDebug("Effect inputs -- type: $effectType, speed: $speed, palette_count: $palette_count, colors: $colors")
     def colorsList = new JsonSlurper().parseText(colors)
     if (colorsList.size() >= 1) {

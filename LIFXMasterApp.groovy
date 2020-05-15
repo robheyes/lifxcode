@@ -895,7 +895,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             Map data = parsePayload 'TILE.STATE_TILE_EFFECT', header
             def effects = ['OFF', 'RESERVED', 'MORPH', 'FLAME']
             return [
-                [name: 'effect', value: effects[data.type], displayed: true]
+                [name: 'effect', value: effects[data.type as int], displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
