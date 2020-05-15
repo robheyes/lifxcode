@@ -86,7 +86,7 @@ def setEffect(String effectType, colors = '[]', palette_count = 16, speed = 30) 
     }
     def hsbkList = new Map<String, Object>[palette_count]
     for (int i = 0; i < palette_count; i++) {
-        if (colorsList[i] != null) {
+        if (colorsList[i]) {
             String namedColor = colorsList[i].color ?: colorsList[i].colour
             if (namedColor) {
                 Map myColor
