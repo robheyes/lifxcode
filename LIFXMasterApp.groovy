@@ -2437,16 +2437,16 @@ private Map flattenedDescriptors() {
                 STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
                 STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
                 GET_MULTIZONE_EFFECT      : [type: 507, descriptor: ''],
-                SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i,type:b,reserved1Effect:w,speed:i,duration:l,reserved2Effect:i,reserved3Effect:i,parameters:ia8'],
-                STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i,type:b,reserved1Effect:w,speed:i,duration:l,reserved2Effect:i,reserved3Effect:i,parameters:ia8'],
+                SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
+                STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
                 SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colors_count:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
                 STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
         ],
         TILE: [
                 GET_TILE_EFFECT  : [type: 718, descriptor: ''],
-                SET_TILE_EFFECT  : [type: 719, descriptor: 'reserved1Effect:b,reserved2Effect:b,instanceId:i,type:b,speed:i,duration:l,reserved3Effect:i,reserved4Effect:i,parameters:ia8,palette_count:b,palette:ha8'],
-                STATE_TILE_EFFECT: [type: 720, descriptor: 'reserved1Effect:b,instanceId:i,type:b,speed:i,duration:l,reserved2Effect:i,reserved3Effect:i,parameters:ia8,palette_count:b,palette:ha8'],
+                SET_TILE_EFFECT  : [type: 719, descriptor: 'reserved1Effect:b;reserved2Effect:b;instanceId:i;type:b;speed:i;duration:l;reserved3Effect:i;reserved4Effect:i;parameters:ia8;palette_count:b;palette:ha8'],
+                STATE_TILE_EFFECT: [type: 720, descriptor: 'reserved1Effect:b;instanceId:i;type:b;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8;palette_count:b;palette:ha8'],
         ]
 ]
 
