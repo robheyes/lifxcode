@@ -1345,7 +1345,7 @@ private Map<String, Object> getCurrentHSBK(com.hubitat.app.DeviceWrapper theDevi
     [
             hue       : scaleUp(theDevice.currentHue ?: 0, 100),
             saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
-            brightness: scaleUp(theDevice.currentLevel as Long, 100),
+            brightness: scaleUp(theDevice.currentLevel as Long ?: 50, 100),
             kelvin    : theDevice.currentcolorTemperature
     ]
 }
