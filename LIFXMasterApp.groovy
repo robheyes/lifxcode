@@ -685,7 +685,7 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
     actions
 }
 
-Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device, String effectType, Integer speed, String direction) {
+Map<String, List> deviceSetMultiZoneEffect(String effectType, Integer speed, String direction) {
     def actions = makeActions()
     def params = new int[8]
     params[1] = direction == 'reverse' ? 0 : 1
@@ -693,9 +693,8 @@ Map<String, List> deviceSetMultiZoneEffect(com.hubitat.app.DeviceWrapper device,
     actions
 }
 
-Map<String, List> deviceSetTileEffect(com.hubitat.app.DeviceWrapper device, String effectType, Integer speed, Integer palette_count, List<Map> colors) {
+Map<String, List> deviceSetTileEffect(String effectType, Integer speed, Integer palette_count, List<Map> colors) {
     def actions = makeActions()
-    def params = new int[8]
     Integer typeInt
     switch (effectType) {
         case 'OFF':

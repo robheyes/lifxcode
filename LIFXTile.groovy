@@ -104,7 +104,7 @@ def setEffect(String effectType, colors = '[]', palette_count = 16, speed = 30) 
         }
     }
     logDebug("Sending effect command -- type: $effectType, speed: $speed, palette_count: $palette_count, hsbkList: $hsbkList")
-    sendActions parent.deviceSetTileEffect(device, effectType, speed.toInteger(), palette_count.toInteger(), hsbkList)
+    sendActions parent.deviceSetTileEffect(effectType, speed.toInteger(), palette_count.toInteger(), hsbkList)
 }
 
 @SuppressWarnings("unused")

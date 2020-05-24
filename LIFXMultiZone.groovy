@@ -165,7 +165,7 @@ private void updateKnownZones() {
 }
 
 def setEffect(String effectType, speed = 30, String direction = 'forward') {
-    sendActions parent.deviceSetMultiZoneEffect(device, effectType, speed.toInteger(), direction)
+    sendActions parent.deviceSetMultiZoneEffect(effectType, speed.toInteger(), direction)
 }
 
 @SuppressWarnings("unused")
