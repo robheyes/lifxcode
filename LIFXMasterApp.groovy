@@ -1567,6 +1567,7 @@ private Map deviceVersion(Map device) {
             ]
         case 27:
         case 43:
+        case 62:
             return [
                     name      : 'LIFX A19',
                     deviceName: 'LIFX Color',
@@ -1580,6 +1581,7 @@ private Map deviceVersion(Map device) {
             ]
         case 28:
         case 44:
+        case 63:
             return [
                     name      : 'LIFX BR30',
                     deviceName: 'LIFX Color',
