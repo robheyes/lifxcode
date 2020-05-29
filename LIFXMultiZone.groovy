@@ -213,7 +213,7 @@ def setSaturation(number) {
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-    setZones('999:"[saturation: 0, kelvin: ' + tenperature + ']"', state.transitionTime ?: 0)
+    setZones('999:"[saturation: 0, kelvin: ' + temperature + ']"', state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")

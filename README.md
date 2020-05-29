@@ -6,11 +6,11 @@ There are several components
 * The LIFX Master App - this is where you discover devices
 * Various LIFX device handlers
   * LIFX Color
-  * LIFXPlus Color (does not currently include support for Infrared/Night Vision) 
+  * LIFXPlus Color 
   * LIFX White
   * LIFX Day and Dusk
   * LIFX Tile - dummy driver, only supports on/off
-  * LIFX Multizone - for Beam and Strip, currently only supports on/off
+  * LIFX Multizone - for Beam and Strip
   
 ## Installation
 ### LIFX Master App
@@ -84,9 +84,6 @@ NOTES:
 * After creating the child devices, I've found you have to toggle a few things before they start updating
 the parent properly - e.g. flip the "switch" on, off, and on again.  Will see if this can be addressed in a
 future update.
-* If you are making a global update on the parent MZ device which does not set all attributes, such as 
-`setColorTemperature` - the remaining attributes (brightness being the key one in this case) will be set on
-all zones equivalent to the current zone 0 values.
 
 ## Troubleshooting
 ### Undiscovered devices
