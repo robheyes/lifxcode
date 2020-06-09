@@ -847,6 +847,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['DEVICE.STATE_HOST_INFO']:
             def data = parsePayload 'DEVICE.STATE_HOST_INFO', header
             break
+        case messageType['DEVICE.STATE_HOST_FIRMWARE']:
+            def data = parsePayload 'DEVICE.STATE_HOST_FIRMWARE', header
+            String version = "${data.version_major}.${data.version_minor}"
+            return [[name: 'firmware', data: version, displayed: false]]
+            break
         case messageType['DEVICE.STATE_INFO']:
             def data = parsePayload 'DEVICE.STATE_INFO', header
             break
@@ -2398,7 +2403,7 @@ private Map flattenedDescriptors() {
                 GET_HOST_INFO      : [type: 12, descriptor: ''],
                 STATE_HOST_INFO    : [type: 13, descriptor: 'signal:f;tx:i;rx:i,reservedHost:w'],
                 GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
-                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version:i'],
+                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version_minor:w;version_major:w'],
                 GET_WIFI_INFO      : [type: 16, descriptor: ''],
                 STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:f;tx:i;rx:i,reservedWifi:w'],
                 GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],

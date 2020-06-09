@@ -56,6 +56,7 @@ def initialize() {
     state.useActivityLog = useActivityLogFlag
     state.useActivityLogDebug = useDebugActivityLogFlag
     unschedule()
+    getDeviceFirmware()
     requestInfo()
     runEvery1Minute poll
 }
@@ -181,6 +182,10 @@ def requestInfo() {
     poll()
 }
 
+def getDeviceFirmware() {
+    parent.lifxQuery(device, 'DEVICE.GET_HOST_FIRMWARE') { List buffer -> sendPacket buffer }
+}
+
 def updateChildDevices(multizoneData) {
     def power = device.currentValue("switch")
     def colors = (multizoneData as Map).colors
@@ -245,9 +250,13 @@ private void sendActions(Map<String, List> actions) {
 
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
+    def firmwareEvent = events.find { it.name == 'firmware' }
+    firmwareEvent?.data ? state.firmware = firmwareEvent.data : null
     def multizoneEvent = events.find { it.name == 'multizone' }
-    multizoneEvent?.data ? updateChildDevices(multizoneEvent.data) : null
-    state.lastMultizone = multizoneEvent?.data
+    if (multizoneEvent?.data) {
+        updateChildDevices(multizoneEvent.data)
+        state.lastMultizone = multizoneEvent?.data
+    }
     events.collect { createEvent(it) }
 }
 
