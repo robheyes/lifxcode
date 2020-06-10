@@ -182,7 +182,7 @@ def poll() {
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
     if (extMzSupported()) {
         parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
-    else {
+    } else {
         def iterations = (state.zoneCount / 8) ?: 1
         for (int i = 0; i < iterations; i++) {
             parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: (i * 8), end_index: ((i * 8) + 7)]) {List buffer -> sendPacket buffer }
@@ -200,7 +200,9 @@ def getDeviceFirmware() {
 }
 
 def extMzSupported() {
-    return (state.firmware >= 2.77)
+    Float curr = Float.parseFloat(state.firmware)
+    Float minExtMz = 2.77
+    return (curr >= minExtMz)
 }
 
 def updateChildDevices(multizoneData) {
