@@ -679,9 +679,18 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     actions
 }
 
-Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean displayed = true) {
+Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean extMZ, Boolean displayed = true) {
     def actions = makeActions()
-    actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+    if (extMZ) {
+        actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+    } else {
+        for (int i = 0; i < zoneMap.zone_count; i++) {
+            if (zoneMap.colors[i]) {
+                actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [start_index: i, end_index: i, color: zoneMap.colors[i], duration: zoneMap.duration])
+            }
+        }
+        actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [apply: 2])
+    }
     actions
 }
 
@@ -893,6 +902,16 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             clearExpectedAckFor device, sequence
             return []
 */
+        case messageType['MULTIZONE.STATE_MULTIZONE']:
+            Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
+            def theZones = device.loadLastMultizone()
+            for (int i = data.index; i <= 8; i++) {
+                theZones.colors[i] = data.colors[(i - index)]
+            }
+            def multizoneHtml = renderMultizone(theZones)
+            return [
+                    [name: 'multizone', value: multizoneHtml, data: theZones, displayed: true]
+            ]
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
 //            String compressed = compressMultizoneData data
@@ -1019,6 +1038,10 @@ byte[] asByteArray(List buffer) {
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
     sendCommand deviceAndType, [:], true, sender
+}
+
+void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Closure<List> sender) {
+    sendCommand deviceAndType, payload, true, sender
 }
 
 @SuppressWarnings("unused")
@@ -2442,10 +2465,10 @@ private Map flattenedDescriptors() {
                 SET_INFRARED         : [type: 122, descriptor: 'irLevel:w'],
         ],
         MULTIZONE: [
-                SET_COLOR_ZONES           : [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
-                GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
-                STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
-                STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
+                SET_COLOR_ZONES           : [type: 501, descriptor: "start_index:b;end_index:b;color:h;duration:i;apply:b"],
+                GET_COLOR_ZONES           : [type: 502, descriptor: 'start_index:b;end_index:b'],
+                STATE_ZONE                : [type: 503, descriptor: "zone_count:b;index:b;color:h"],
+                STATE_MULTIZONE           : [type: 506, descriptor: "zone_count:b;index:b;colors:ha8"],
                 GET_MULTIZONE_EFFECT      : [type: 507, descriptor: ''],
                 SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
                 STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
@@ -2458,7 +2481,7 @@ private Map flattenedDescriptors() {
 String renderMultizone(HashMap hashMap) {
     def builder = new StringBuilder();
     builder << '<table cellspacing="0">'
-    def count = hashMap.colors_count as Integer
+    def count = (hashMap.colors_count ?: hashMap.zone_count) as Integer
     Map<Integer, Map> colours = hashMap.colors
     builder << '<tr>'
     for (int i = 0; i < count; i++) {
