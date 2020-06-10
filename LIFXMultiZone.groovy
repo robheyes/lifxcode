@@ -28,7 +28,7 @@ metadata {
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
         command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]], [name: "Speed", type: "NUMBER"]]
         command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
         command "deleteChildDevices"
     }
@@ -164,7 +164,7 @@ private void updateKnownZones() {
     state.knownZones = state.namedZones?.keySet().toString()
 }
 
-def setEffect(String effectType, speed = 30, String direction = 'forward') {
+def setEffect(String effectType, String direction = 'forward', speed = 30) {
     sendActions parent.deviceSetMultiZoneEffect(effectType, speed.toInteger(), direction)
 }
 
