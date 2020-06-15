@@ -201,7 +201,7 @@ def getDeviceFirmware() {
 
 def extMzSupported() {
     Float curr = Float.parseFloat(state.firmware)
-    Float minExtMz = 2.77
+    Float minExtMz = 2.77 //2.77 changed to test legacy protocol
     return (curr >= minExtMz)
 }
 
@@ -210,8 +210,10 @@ def updateChildDevices(multizoneData) {
     def colors = (multizoneData as Map).colors
     colors = colors.collectEntries { k, v -> [k as Integer, v] }
     def children = getChildDevices()
+    log.debug(multizoneData)
     for (child in children) {
         def zone = child.getDataValue("zone") as Integer
+        log.debug(zone)
         child.sendEvent(name: "hue", value: parent.scaleDown100(colors[zone].hue))
         child.sendEvent(name: "level", value: parent.scaleDown100(colors[zone].brightness))
         child.sendEvent(name: "saturation", value: parent.scaleDown100(colors[zone].saturation))

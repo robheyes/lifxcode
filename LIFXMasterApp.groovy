@@ -904,9 +904,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
 */
         case messageType['MULTIZONE.STATE_MULTIZONE']:
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
-            def theZones = device.loadLastMultizone()
+            log.debug(data)
+            def theZones = getChildDevice(device.getDeviceNetworkId()).loadLastMultizone()
             for (int i = data.index; i <= 8; i++) {
-                theZones.colors[i] = data.colors[(i - index)]
+                theZones.colors[i] = data.colors[(i - data.index)]
             }
             def multizoneHtml = renderMultizone(theZones)
             return [
@@ -2497,9 +2498,9 @@ String renderMultizone(HashMap hashMap) {
 
 String renderDatum(Map item) {
     def rgb = hsvToRgbString(
-            scaleDown100(item.hue as Long),
-            scaleDown100(item.saturation as Long),
-            scaleDown100(item.brightness as Long)
+            scaleDown100((item?.hue ?: 0) as Long),
+            scaleDown100((item?.saturation ?: 0) as Long),
+            scaleDown100((item?.brightness ?: 0) as Long)
     )
     "$rgb"
 }
