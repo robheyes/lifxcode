@@ -799,6 +799,31 @@ Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map mySta
     return [:] // do nothing
 }
 
+Map<String, List> deviceSetWaveform(com.hubitat.app.DeviceWrapper device, Boolean isTransient, Map colorMap, Integer period, Float cycles, Float skew_ratio, String waveform) {
+    def actions = makeActions()
+    Map<String, Integer> waveMap = [SAW: 0, SINE: 1, HALF_SINE: 2, TRIANGLE: 3, PULSE: 4]
+    Integer waveInt = waveMap[waveform] ?: 1 //default to SINE
+    Integer scaled_skew = 0
+    if (waveInt == 4) {
+        scaled_skew = (skew_ratio * 65535) - 32768
+    }
+    String namedColor = colorMap.color ?: colorMap.colour
+    Map realColor = getCurrentHSBK device
+    if (namedColor) {
+        Map myColor
+        myColor = (null == namedColor) ? null : lookupColor(namedColor.replace('_', ' '))
+        realColor << [
+            hue       : scaleUp(myColor.h ?: 0, 360),
+            saturation: scaleUp100(myColor.s ?: 0),
+            brightness: scaleUp100(myColor.v ?: 50)
+        ]
+    } else {
+        realColor << getScaledColorMap(colorMap)
+    }
+    actions.commands << makeCommand('LIGHT.SET_WAVEFORM', [transient: isTransient ? 1 : 0, color: realColor, period: period * 1000, cycles: cycles, skew_ratio: scaled_skew, waveform: waveInt])
+    actions
+}
+
 List<Map> parseForDevice(device, String description, Boolean displayed, Boolean updateDevice = false) {
     Map header = parseHeaderFromDescription description
     switch (header.type) {
@@ -1922,6 +1947,10 @@ private List makePayload(String deviceAndType, Map payload) {
             }
             def value = payload[item.name] ?: 0
             //TODO possibly extend this to the other types A,S & B
+            if ('F' == item.kind) {
+                add result, Float.floatToIntBits(value)
+                return
+            }
             switch (item.size as int) {
                 case 1:
                     add result, value as byte
@@ -2369,11 +2398,11 @@ private Map flattenedDescriptors() {
                 GET_SERVICE        : [type: 2, descriptor: ''],
                 STATE_SERVICE      : [type: 3, descriptor: 'service:b;port:i'],
                 GET_HOST_INFO      : [type: 12, descriptor: ''],
-                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:i;tx:i;rx:i,reservedHost:w'],
+                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:f;tx:i;rx:i,reservedHost:w'],
                 GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
                 STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_WIFI_INFO      : [type: 16, descriptor: ''],
-                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:i;tx:i;rx:i,reservedWifi:w'],
+                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:f;tx:i;rx:i,reservedWifi:w'],
                 GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
                 STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_POWER          : [type: 20, descriptor: ''],
@@ -2399,8 +2428,8 @@ private Map flattenedDescriptors() {
         LIGHT    : [
                 GET_STATE            : [type: 101, descriptor: ''],
                 SET_COLOR            : [type: 102, descriptor: "reservedColor:b;color:h;duration:i"],
-                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b"],
-                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b;setColor:h"],
+                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:f;skew_ratio:w;waveform:b"],
+                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:f;skew_ratio:w;waveform:b;setColor:h"],
                 STATE                : [type: 107, descriptor: "color:h;reserved1State:w;power:w;label:t32;reserved2state:l"],
                 GET_POWER            : [type: 116, descriptor: ''],
                 SET_POWER            : [type: 117, descriptor: 'powerLevel:w;duration:i'],
