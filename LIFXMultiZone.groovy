@@ -183,10 +183,7 @@ def poll() {
     if (extMzSupported()) {
         parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
     } else {
-        def iterations = (state.zoneCount / 8) ?: 1
-        for (int i = 0; i < iterations; i++) {
-            parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: (i * 8), end_index: ((i * 8) + 7)]) {List buffer -> sendPacket buffer }
-        }
+        parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: 0, end_index: 7]) {List buffer -> sendPacket buffer }
     }
     parent.lifxQuery(device, 'MULTIZONE.GET_MULTIZONE_EFFECT') { List buffer -> sendPacket buffer }
 }
@@ -278,6 +275,11 @@ def parse(String description) {
         updateChildDevices(multizoneEvent.data)
         state.lastMultizone = multizoneEvent.data
         state.zoneCount = multizoneEvent.data.zone_count
+        if (extMzSupported() && (multizoneEvent.data.zone_count - multizoneEvent.data.index) > 8) {
+            //query next set of 8 zones
+            def nextIndex = multizoneEvent.data.index + 8
+            parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: (nextIndex), end_index: (nextIndex + 7)]) {List buffer -> sendPacket buffer }
+        }
     }
     events.collect { createEvent(it) }
 }
