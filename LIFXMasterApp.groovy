@@ -685,7 +685,7 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
     
     if (null != power && device.currentSwitch != power) {
         def powerLevel = 'on' == power ? 65535 : 0
-        actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: duration * 1000])
+        actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: zoneMap.duration * 1000])
         actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
     }
     actions
