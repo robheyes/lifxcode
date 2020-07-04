@@ -28,7 +28,7 @@ metadata {
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
         command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]], [name: "Speed", type: "NUMBER"]]
         command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
         command "deleteChildDevices"
         command 'setWaveform', [[name: 'Waveform*', type: 'ENUM', constraints:['SAW', 'SINE', 'HALF_SINE', 'TRIANGLE', 'PULSE']], [name: 'Color*', type: 'STRING'], [name: 'Transient', type: 'ENUM', constraints: ['true', 'false']], [name: 'Period', type: 'NUMBER'], [name: 'Cycles', type: 'NUMBER'], [name: 'Skew Ratio', type: 'NUMBER']]
@@ -143,6 +143,17 @@ def setZones(String colors, duration = 0) {
         }
     }
     sendActions parent.deviceSetZones(device, newZones, extMzSupported())
+    
+    //immediately update locally cached multizone states
+    if (!extMzSupported()) {
+        for (i=0; i<count; i++) {
+            if (newZones.colors[i] == null) {
+                newZones.colors[i] = theZones.colors[i]
+            }
+        }
+    }
+    updateChildDevices(newZones)
+    state.lastMultizone = newZones
 }
 
 @SuppressWarnings("unused")
@@ -161,6 +172,10 @@ def zonesLoad(String name, duration = 0) {
     theZones['duration'] = duration * 1000
     logDebug "Sending $theZones"
     sendActions parent.deviceSetZones(device, theZones, extMzSupported())
+    
+    //immediately update locally cached multizone states
+    updateChildDevices(theZones)
+    state.lastMultizone = theZones
 }
 
 def zonesDelete(String name) {
@@ -172,7 +187,7 @@ private void updateKnownZones() {
     state.knownZones = state.namedZones?.keySet().toString()
 }
 
-def setEffect(String effectType, speed = 30, String direction = 'forward') {
+def setEffect(String effectType, String direction = 'forward', speed = 30) {
     sendActions parent.deviceSetMultiZoneEffect(effectType, speed.toInteger(), direction)
 }
 
@@ -249,7 +264,11 @@ def setColorTemperature(temperature) {
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    setZones('999:"[brightness: ' + level + ']"', duration)
+    if ((null == level || level <= 0) && 0 == duration) {
+        off()
+    } else {
+        setZones('999:"[brightness: ' + level + ']"', duration)
+    }
 }
 
 @SuppressWarnings("unused")

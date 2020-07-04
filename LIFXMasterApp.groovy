@@ -691,6 +691,12 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
         }
         actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [apply: 2])
     }
+
+    if (null != power && device.currentSwitch != power) {
+        def powerLevel = 'on' == power ? 65535 : 0
+        actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: duration * 1000])
+        actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
+    }
     actions
 }
 
@@ -1634,6 +1640,7 @@ private Map deviceVersion(Map device) {
             ]
         case 27:
         case 43:
+        case 62:
             return [
                     name      : 'LIFX A19',
                     deviceName: 'LIFX Color',
@@ -1647,6 +1654,7 @@ private Map deviceVersion(Map device) {
             ]
         case 28:
         case 44:
+        case 63:
             return [
                     name      : 'LIFX BR30',
                     deviceName: 'LIFX Color',
