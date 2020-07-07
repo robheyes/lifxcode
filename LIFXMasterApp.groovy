@@ -689,7 +689,7 @@ Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneM
                 actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [start_index: i, end_index: i, color: zoneMap.colors[i], duration: zoneMap.duration])
             }
         }
-        actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [apply: 2])
+        actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [color: [:], apply: 2])
     }
 
     if (null != power && device.currentSwitch != power) {
@@ -910,10 +910,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
 */
         case messageType['MULTIZONE.STATE_MULTIZONE']:
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
-            log.debug(data)
             def theZones = getChildDevice(device.getDeviceNetworkId()).loadLastMultizone()
-            for (int i = data.index; i <= 8; i++) {
-                theZones.colors[i] = data.colors[(i - data.index)]
+            theZones.currentIndex = data.index
+            for (int i = 0; i < 8; i++) {
+                theZones.colors[(i + data.index)] = data.colors[i]
             }
             def multizoneHtml = renderMultizone(theZones)
             return [

@@ -117,7 +117,7 @@ def zonesSave(String name) {
 def setZones(String colors, duration = 0) {
     def theZones = loadLastMultizone()
     def count = theZones.zone_count
-    def newZones = [colors: [:], index: 0, apply: 1, duration: duration, colors_count: count]
+    def newZones = [colors: [:], index: 0, apply: 1, duration: duration, colors_count: count, zone_count: count]
     def colorsMap = stringToMap(colors)
     colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
     for (i=0; i<count; i++) {
@@ -142,6 +142,7 @@ def setZones(String colors, duration = 0) {
             newZones.colors[i] = theZones.colors[i]
         }
     }
+    logDebug("Sending $newZones")
     sendActions parent.deviceSetZones(device, newZones, extMzSupported())
     
     //immediately update locally cached multizone states
@@ -222,10 +223,8 @@ def updateChildDevices(multizoneData) {
     def colors = (multizoneData as Map).colors
     colors = colors.collectEntries { k, v -> [k as Integer, v] }
     def children = getChildDevices()
-    log.debug(multizoneData)
     for (child in children) {
         def zone = child.getDataValue("zone") as Integer
-        log.debug(zone)
         child.sendEvent(name: "hue", value: parent.scaleDown100(colors[zone].hue))
         child.sendEvent(name: "level", value: parent.scaleDown100(colors[zone].brightness))
         child.sendEvent(name: "saturation", value: parent.scaleDown100(colors[zone].saturation))
@@ -294,9 +293,9 @@ def parse(String description) {
         updateChildDevices(multizoneEvent.data)
         state.lastMultizone = multizoneEvent.data
         state.zoneCount = multizoneEvent.data.zone_count
-        if (extMzSupported() && (multizoneEvent.data.zone_count - multizoneEvent.data.index) > 8) {
+        if (!extMzSupported() && (multizoneEvent.data.zone_count - multizoneEvent.data.currentIndex) > 8) {
             //query next set of 8 zones
-            def nextIndex = multizoneEvent.data.index + 8
+            def nextIndex = multizoneEvent.data.currentIndex + 8
             parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: (nextIndex), end_index: (nextIndex + 7)]) {List buffer -> sendPacket buffer }
         }
     }
