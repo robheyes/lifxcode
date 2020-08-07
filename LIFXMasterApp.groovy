@@ -1633,6 +1633,7 @@ private Map deviceVersion(Map device) {
             ]
         case 29:
         case 45:
+        case 64:
             return [
                     name      : 'LIFX+ A19',
                     deviceName: 'LIFXPlus Color',
@@ -1646,6 +1647,7 @@ private Map deviceVersion(Map device) {
             ]
         case 30:
         case 46:
+        case 65:
             return [
                     name      : 'LIFX+ BR30',
                     deviceName: 'LIFXPlus Color',
@@ -1792,6 +1794,30 @@ private Map deviceVersion(Map device) {
                             infrared         : false,
                             multizone        : false,
                             temperature_range: [min: 2500, max: 9000],
+                            chain            : false
+                    ]
+            ]
+        case 81:
+            return [
+                    name      : 'LIFX Candle Warm to White',
+                    deviceName: 'LIFX Day and Dusk',
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2200, max: 6500],
+                            chain            : false
+                    ]
+            ]
+        case 82:
+            return [
+                    name      : 'LIFX Filament',
+                    deviceName: 'LIFX White Mono',
+                    features   : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2000, max: 2000],
                             chain            : false
                     ]
             ]
