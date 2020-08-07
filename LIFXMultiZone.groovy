@@ -136,6 +136,10 @@ def setZones(String colors, duration = 0) {
     theZones['apply'] = 1
     theZones['duration'] = duration
     sendActions parent.deviceSetZones(device, theZones)
+    
+    //immediately update locally cached multizone states
+    updateChildDevices(theZones)
+    state.lastMultizone = theZones
 }
 
 @SuppressWarnings("unused")
@@ -154,6 +158,10 @@ def zonesLoad(String name, duration = 0) {
     theZones['duration'] = duration * 1000
     logDebug "Sending $theZones"
     sendActions parent.deviceSetZones(device, theZones)
+    
+    //immediately update locally cached multizone states
+    updateChildDevices(theZones)
+    state.lastMultizone = theZones
 }
 
 def zonesDelete(String name) {
@@ -226,7 +234,11 @@ def setColorTemperature(temperature) {
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    setZones('999:"[brightness: ' + level + ']"', duration)
+    if ((null == level || level <= 0) && 0 == duration) {
+        off()
+    } else {
+        setZones('999:"[brightness: ' + level + ']"', duration)
+    }
 }
 
 @SuppressWarnings("unused")
