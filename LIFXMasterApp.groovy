@@ -679,10 +679,19 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     actions
 }
 
-Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean displayed = true, String power = 'on') {
+Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean extMZ, Boolean displayed = true, String power = 'on') {
     def actions = makeActions()
-    actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
-    
+    if (extMZ) {
+        actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+    } else {
+        for (int i = 0; i < zoneMap.zone_count; i++) {
+            if (zoneMap.colors[i]) {
+                actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [start_index: i, end_index: i, color: zoneMap.colors[i], duration: zoneMap.duration])
+            }
+        }
+        actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [color: [:], apply: 2])
+    }
+
     if (null != power && device.currentSwitch != power) {
         def powerLevel = 'on' == power ? 65535 : 0
         actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: zoneMap.duration * 1000])
@@ -853,6 +862,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['DEVICE.STATE_HOST_INFO']:
             def data = parsePayload 'DEVICE.STATE_HOST_INFO', header
             break
+        case messageType['DEVICE.STATE_HOST_FIRMWARE']:
+            def data = parsePayload 'DEVICE.STATE_HOST_FIRMWARE', header
+            String version = "${data.version_major}.${data.version_minor}"
+            return [[name: 'firmware', data: version, displayed: false]]
+            break
         case messageType['DEVICE.STATE_INFO']:
             def data = parsePayload 'DEVICE.STATE_INFO', header
             break
@@ -894,6 +908,17 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             clearExpectedAckFor device, sequence
             return []
 */
+        case messageType['MULTIZONE.STATE_MULTIZONE']:
+            Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
+            def theZones = getChildDevice(device.getDeviceNetworkId()).loadLastMultizone()
+            theZones.currentIndex = data.index
+            for (int i = 0; i < 8; i++) {
+                theZones.colors[(i + data.index)] = data.colors[i]
+            }
+            def multizoneHtml = renderMultizone(theZones)
+            return [
+                    [name: 'multizone', value: multizoneHtml, data: theZones, displayed: true]
+            ]
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
 //            String compressed = compressMultizoneData data
@@ -1020,6 +1045,10 @@ byte[] asByteArray(List buffer) {
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
     sendCommand deviceAndType, [:], true, sender
+}
+
+void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Closure<List> sender) {
+    sendCommand deviceAndType, payload, true, sender
 }
 
 @SuppressWarnings("unused")
@@ -1938,10 +1967,10 @@ private List makePayload(String deviceAndType, Map payload) {
                 if (item.isArray) {
                     for (int i = 0; i < item.count; i++) {
                         Map hsbk = payload.colors[i] as Map
-                        add result, (hsbk['hue'] ?: 0) as short
-                        add result, (hsbk['saturation'] ?: 0) as short
-                        add result, (hsbk['brightness'] ?: 0) as short
-                        add result, (hsbk['kelvin'] ?: 0) as short
+                        add result, (hsbk?.hue ?: 0) as short
+                        add result, (hsbk?.saturation ?: 0) as short
+                        add result, (hsbk?.brightness ?: 0) as short
+                        add result, (hsbk?.kelvin ?: 0) as short
                     }
                 } else {
                     add result, (payload.color['hue'] ?: 0) as short
@@ -2406,7 +2435,7 @@ private Map flattenedDescriptors() {
                 GET_HOST_INFO      : [type: 12, descriptor: ''],
                 STATE_HOST_INFO    : [type: 13, descriptor: 'signal:f;tx:i;rx:i,reservedHost:w'],
                 GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
-                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version:i'],
+                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version_minor:w;version_major:w'],
                 GET_WIFI_INFO      : [type: 16, descriptor: ''],
                 STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:f;tx:i;rx:i,reservedWifi:w'],
                 GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
@@ -2445,10 +2474,10 @@ private Map flattenedDescriptors() {
                 SET_INFRARED         : [type: 122, descriptor: 'irLevel:w'],
         ],
         MULTIZONE: [
-                SET_COLOR_ZONES           : [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
-                GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
-                STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
-                STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
+                SET_COLOR_ZONES           : [type: 501, descriptor: "start_index:b;end_index:b;color:h;duration:i;apply:b"],
+                GET_COLOR_ZONES           : [type: 502, descriptor: 'start_index:b;end_index:b'],
+                STATE_ZONE                : [type: 503, descriptor: "zone_count:b;index:b;color:h"],
+                STATE_MULTIZONE           : [type: 506, descriptor: "zone_count:b;index:b;colors:ha8"],
                 GET_MULTIZONE_EFFECT      : [type: 507, descriptor: ''],
                 SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
                 STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
@@ -2461,7 +2490,7 @@ private Map flattenedDescriptors() {
 String renderMultizone(HashMap hashMap) {
     def builder = new StringBuilder();
     builder << '<table cellspacing="0">'
-    def count = hashMap.colors_count as Integer
+    def count = (hashMap.colors_count ?: hashMap.zone_count) as Integer
     Map<Integer, Map> colours = hashMap.colors
     builder << '<tr>'
     for (int i = 0; i < count; i++) {
@@ -2477,9 +2506,9 @@ String renderMultizone(HashMap hashMap) {
 
 String renderDatum(Map item) {
     def rgb = hsvToRgbString(
-            scaleDown100(item.hue as Long),
-            scaleDown100(item.saturation as Long),
-            scaleDown100(item.brightness as Long)
+            scaleDown100((item?.hue ?: 0) as Long),
+            scaleDown100((item?.saturation ?: 0) as Long),
+            scaleDown100((item?.brightness ?: 0) as Long)
     )
     "$rgb"
 }
