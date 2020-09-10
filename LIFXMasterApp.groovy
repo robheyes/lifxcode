@@ -679,9 +679,15 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     actions
 }
 
-Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean displayed = true) {
+Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean displayed = true, String power = 'on') {
     def actions = makeActions()
     actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+    
+    if (null != power && device.currentSwitch != power) {
+        def powerLevel = 'on' == power ? 65535 : 0
+        actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: zoneMap.duration * 1000])
+        actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
+    }
     actions
 }
 
