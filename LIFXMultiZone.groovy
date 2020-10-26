@@ -266,7 +266,7 @@ def setLevel(level, duration = 0) {
     if ((null == level || level <= 0) && 0 == duration) {
         off()
     } else {
-        setZones('999:"[brightness: ' + level + ']"', duration)
+        setZones('999:"[brightness: ' + level + ']"', duration * 1000)
     }
 }
 
