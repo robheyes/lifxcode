@@ -117,7 +117,7 @@ def zonesSave(String name) {
 def setZones(String colors, duration = 0) {
     def theZones = loadLastMultizone()
     def count = theZones.zone_count
-    def newZones = [colors: [:], index: 0, apply: 1, duration: duration, colors_count: count, zone_count: count]
+    def newZones = [colors: [:], index: 0, apply: 1, duration: duration * 1000, colors_count: count, zone_count: count]
     def colorsMap = stringToMap(colors)
     colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
     for (i=0; i<count; i++) {
