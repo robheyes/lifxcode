@@ -1773,6 +1773,7 @@ private Map deviceVersion(Map device) {
             ]
         case 51:
         case 61:
+        case 66:
             return [
                     name      : 'LIFX Mini White',
                     deviceName: 'LIFX White Mono',
