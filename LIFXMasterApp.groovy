@@ -878,7 +878,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
                 device.setName deviceName
                 device.setLabel deviceName
             }
-            List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness), displayed: displayed]]
+            List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness) as Integer, displayed: displayed]]
             if (device.hasCapability('Color Control')) {
                 result.add([name: "hue", value: scaleDown100(data.color.hue), displayed: displayed])
                 result.add([name: "saturation", value: scaleDown100(data.color.saturation), displayed: displayed])
@@ -1346,12 +1346,12 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
         events << [name: 'colorMode', value: 'RGB', displayed: displayed]
         hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed] : null
         hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed] : null
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness) as Integer, displayed: displayed] : null
         events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(scaleDown100(hsbkMap.hue), scaleDown100(hsbkMap.saturation), scaleDown100(hsbkMap.brightness)), displayed: displayed]
     } else if (hsbkMap.kelvin) {
         events << [name: 'colorMode', value: 'CT', displayed: displayed]
         events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness) as Integer, displayed: displayed] : null
     }
 
     events << [name: 'colorName', value: hsbkMap.name ?: 'Unknown', displayed: displayed]
@@ -1381,7 +1381,7 @@ private Map<String, Object> getCurrentHSBK(com.hubitat.app.DeviceWrapper theDevi
     [
             hue       : scaleUp(theDevice.currentHue ?: 0, 100),
             saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
-            brightness: scaleUp(theDevice.currentLevel as Long ?: 0, 100),
+            brightness: scaleUp(theDevice.currentLevel as Integer ?: 0, 100),
             kelvin    : theDevice.currentcolorTemperature
     ]
 }
@@ -1391,8 +1391,8 @@ private Float scaleDown100(value) {
     scaleDown(value, 100)
 }
 
-private Long scaleUp100(value) {
-    scaleUp(value, 100)
+private Integer scaleUp100(value) {
+    scaleUp(value, 100) as Integer
 }
 
 private Float scaleDown(value, maxValue) {
