@@ -1857,6 +1857,19 @@ private Map deviceVersion(Map device) {
                             chain            : false
                     ]
             ]
+        case 57:
+        case 68:
+            return [
+                    name      : 'LIFX Candle',
+                    deviceName: 'LIFX Color',
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 1500, max: 9000],
+                            chain            : false
+                    ]
+            ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
     }
