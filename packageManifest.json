@@ -1,9 +1,9 @@
 {
   "packageName": "LIFX Master",
   "author": "Robert Alan Heyes",
-  "version": "0.9.9.3-alpha",
+  "version": "1.0.0",
   "minimumHEVersion": "2.2.0",
-  "dateReleased": "2020-09-09",
+  "dateReleased": "2021-02-16",
   "apps": [
     {
       "id": "943ac10e-f770-499a-8921-7899ea06091d",
@@ -21,56 +21,56 @@
       "name": "LIFX Color",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXColor.groovy",
-      "required": false 
+      "required": true
     },
     {
       "id": "04b16494-f20c-4f5c-8819-21b1ac7660e4",
       "name": "LIFX Day and Dusk",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDayAndDusk.groovy",
-      "required": false 
+      "required": true
     },
     {
       "id": "66e3b9bc-6c0e-4969-a2f6-36b81d71d0dd",
       "name": "LIFX MultiZone",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXMultiZone.groovy",
-      "required": false
+      "required": true
     },
     {
       "id": "184efd1b-690c-4d40-8add-768822c3feed",
       "name": "LIFX Multizone Child",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXMultiZoneChild.groovy",
-      "required": false
+      "required": true
     },
     {
       "id": "82aa2d34-8a99-4c77-bffb-d23f357b0c99",
       "name": "LIFXPlus Color",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXPlusColor.groovy",
-      "required": false
+      "required": true
     },
     {
       "id": "2c053a3f-cf49-43d9-bdc0-40e2586fe338",
       "name": "LIFX Tile",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXTile.groovy",
-      "required": false
+      "required": true
     },
     {
       "id": "917b6f3e-aa37-4a1d-bce0-b25fbd22a0d5",
       "name": "LIFX White",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXWhite.groovy",
-      "required": false
+      "required": true
     },
     {
       "id": "6d756a3a-54e5-4440-883c-51719a0aa5ab",
       "name": "LIFX White Mono",
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXWhiteMono.groovy",
-      "required": false
+      "required": true
     }
   ]
 }
