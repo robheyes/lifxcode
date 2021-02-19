@@ -21,11 +21,12 @@ metadata {
         capability "Switch"
         capability "SwitchLevel"
         capability "Initialize"
+        capability 'ChangeLevel'
 
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
-        
+        attribute "cancelLevelChange", "string"
         
         command 'setWaveform', [[name: 'Waveform*', type: 'ENUM', constraints:['SAW', 'SINE', 'HALF_SINE', 'TRIANGLE', 'PULSE']], [name: 'Color*', type: 'STRING'], [name: 'Transient', type: 'ENUM', constraints: ['true', 'false']], [name: 'Period', type: 'NUMBER'], [name: 'Cycles', type: 'NUMBER'], [name: 'Skew Ratio', type: 'NUMBER']]
     }
