@@ -18,8 +18,9 @@ metadata {
         capability "ColorTemperature"
         capability "Polling"
         capability "Switch"
-        capability "Switch Level"
+        capability "SwitchLevel"
         capability "Initialize"
+        capability 'ChangeLevel'
 
         attribute "label", "string"
         attribute "group", "string"

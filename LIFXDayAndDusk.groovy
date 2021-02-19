@@ -13,7 +13,7 @@
  */
 
 metadata {
-    definition(name: "LIFX Day and Dusk", namespace: "robheyes", author: "Robert Alan Heyes", importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDayAndDusk.groovy') {
+    definition(name: 'LIFX Day and Dusk', namespace: 'robheyes', author: 'Robert Alan Heyes', importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDayAndDusk.groovy') {
         capability "Bulb"
         capability "ColorTemperature"
         capability "ColorMode"

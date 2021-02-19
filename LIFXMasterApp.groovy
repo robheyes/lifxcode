@@ -594,83 +594,10 @@ void removeChildren() {
     updateKnownDevices()
 }
 
-
+@SuppressWarnings("unused")
 def enableLevelChange(com.hubitat.app.DeviceWrapper device) {
     sendEvent(device, [name: "cancelLevelChange", value: 'no', displayed: false])
 }
-
-// Common device commands
-//def deviceDoLevelChange(Map params) {
-//    logDebug "Params $params"
-//    String deviceId = params.dni
-//    com.hubitat.app.DeviceWrapper device = getChildDevice(deviceId)
-//    logDebug "Device for $deviceId is $device"
-//    def direction = params.direction
-//    def changeLevelStep = params.step
-//    def changeLevelEvery = params.every
-//    def useActivityLog = params.logIt as Boolean
-////    if (0 == direction) {
-////        return
-////    }
-//    def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
-//    if (cancelling == 'yes') {
-//        runInMillis 2 * (changeLevelEvery as Integer), "enableLevelChange", [data: device]
-//        return;
-//    }
-//    def newLevel = device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float))
-//    def lastStep = false
-//    if (newLevel < 0) {
-//        newLevel = 0
-//        lastStep = true
-//    } else if (newLevel > 100) {
-//        newLevel = 100
-//        lastStep = true
-//    }
-//    sendActions device, deviceId, deviceSetLevel(device, newLevel, useActivityLog, (changeLevelEvery - 1) / 1000)
-//    if (!lastStep) {
-//        runInMillis(
-//                changeLevelEvery as Integer,
-//                "deviceDoLevelChange",
-//                [
-//                        data: [
-//                                direction: direction,
-//                                dni      : deviceId,
-//                                step     : changeLevelStep,
-//                                every    : changeLevelEvery,
-//                                logIt    : useActivityLog
-//                        ]
-//                ]
-//        )
-//    }
-//}
-//
-//private void sendActions(com.hubitat.app.DeviceWrapper device, String ipAddress, Map<String, List> actions) {
-//    actions.commands?.each { item -> lifxCommand(device, item.cmd, item.payload) { List buffer -> sendPacket ipAddress, buffer, true } }
-//    actions.events?.each { sendEvent it }
-//}
-//
-//def parser(value) {
-//    logDebug("Value is $value")
-//}
-//
-//private void sendPacket(String ipAddress, List buffer, boolean noResponseExpected = false) {
-//    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString asByteArray(buffer)
-//    logDebug("Sending $stringBytes to $ipAddress")
-//    sendHubCommand(
-//            new hubitat.device.HubAction(
-//                    stringBytes,
-//                    hubitat.device.Protocol.LAN,
-//                    ipAddress,
-//                    [
-//                            callback: 'parser',
-//                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-//                            destinationAddress: ipAddress + ":56700",
-//                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
-//                            ignoreResponse    : noResponseExpected
-//                    ]
-//            )
-//    )
-//}
 
 Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     def actions = makeActions()
@@ -748,7 +675,6 @@ Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number 
     actions
 }
 
-//@TODO change duration to be a float to allow for fractional durations
 Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, Number duration = 0.0) {
     if ((null == level || level <= 0) && 0 == duration) {
         return deviceOnOff('off', displayed)
@@ -1591,6 +1517,7 @@ private Map deviceVersion(Map device) {
                     ]
             ]
         case 11:
+        case 19:
             return [
                     name      : 'White 800 (High Voltage)',
                     deviceName: 'LIFX White',
@@ -1641,6 +1568,9 @@ private Map deviceVersion(Map device) {
         case 27:
         case 43:
         case 62:
+        case 91:
+        case 92:
+        case 97:
             return [
                     name      : 'LIFX A19',
                     deviceName: 'LIFX Color',
@@ -1655,6 +1585,8 @@ private Map deviceVersion(Map device) {
         case 28:
         case 44:
         case 63:
+        case 94:
+        case 98:
             return [
                     name      : 'LIFX BR30',
                     deviceName: 'LIFX Color',
@@ -1669,6 +1601,8 @@ private Map deviceVersion(Map device) {
         case 29:
         case 45:
         case 64:
+        case 109:
+        case 111:
             return [
                     name      : 'LIFX+ A19',
                     deviceName: 'LIFXPlus Color',
@@ -1683,6 +1617,7 @@ private Map deviceVersion(Map device) {
         case 30:
         case 46:
         case 65:
+        case 110:
             return [
                     name      : 'LIFX+ BR30',
                     deviceName: 'LIFXPlus Color',
@@ -1721,6 +1656,7 @@ private Map deviceVersion(Map device) {
             ]
         case 36:
         case 37:
+        case 40:
             return [
                     name      : 'LIFX Downlight',
                     deviceName: 'LIFX Color',
@@ -1745,10 +1681,22 @@ private Map deviceVersion(Map device) {
                             min_ext_mz_firmware: 1532997580
                     ]
             ]
-
-        case 49:
+        case 39:
             return [
-                    name      : 'LIFX Mini',
+                    name: 'LIFX Downlight white to warm',
+                    deviceName: 'LIFX Day and Dusk',
+                    features: [
+                            color: false,
+                            chain: false,
+                            infrared: false,
+                            multizone: false,
+                            temperature_range: [min: 1500, max: 9000]
+                    ]
+            ]
+        case 49:
+        case 59:
+            return [
+                    name      : 'LIFX Mini Color',
                     deviceName: 'LIFX Color',
                     features  : [
                             color            : true,
@@ -1774,6 +1722,8 @@ private Map deviceVersion(Map device) {
         case 51:
         case 61:
         case 66:
+        case 87:
+        case 88:
             return [
                     name      : 'LIFX Mini White',
                     deviceName: 'LIFX White Mono',
@@ -1805,7 +1755,7 @@ private Map deviceVersion(Map device) {
                             color            : true,
                             infrared         : false,
                             multizone        : false,
-                            temperature_range: [min: 2500, max: 9000],
+                            temperature_range: [min: 1500, max: 9000],
                             chain            : true
                     ]
             ]
@@ -1821,19 +1771,8 @@ private Map deviceVersion(Map device) {
                             chain            : false,
                     ]
             ]
-        case 59:
-            return [
-                    name      : 'LIFX Mini Color',
-                    deviceName: 'LIFX Color',
-                    features  : [
-                            color            : true,
-                            infrared         : false,
-                            multizone        : false,
-                            temperature_range: [min: 2500, max: 9000],
-                            chain            : false
-                    ]
-            ]
         case 81:
+        case 96:
             return [
                     name      : 'LIFX Candle Warm to White',
                     deviceName: 'LIFX Day and Dusk',
@@ -1846,8 +1785,22 @@ private Map deviceVersion(Map device) {
                     ]
             ]
         case 82:
+        case 100:
             return [
-                    name      : 'LIFX Filament',
+                    name      : 'LIFX Filament Clear',
+                    deviceName: 'LIFX White Mono',
+                    features   : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2100, max: 2100],
+                            chain            : false
+                    ]
+            ]
+        case 85:
+        case 101:
+            return [
+                    name      : 'LIFX Filament Amber',
                     deviceName: 'LIFX White Mono',
                     features   : [
                             color            : false,
@@ -1870,6 +1823,18 @@ private Map deviceVersion(Map device) {
                             chain            : false
                     ]
             ]
+//        case 96:
+//            return [
+//                    name      : 'LIFX Candle White',
+//                    deviceName: 'LIFX White Mono',
+//                    features  : [
+//                            color            : false,
+//                            infrared         : false,
+//                            multizone        : false,
+//                            temperature_range: [min: 2700, max: 2700],
+//                            chain            : false
+//                    ]
+//            ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
     }
