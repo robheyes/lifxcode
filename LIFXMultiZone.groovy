@@ -97,7 +97,9 @@ def deleteChildDevices() {
 
 def loadLastMultizone() {
     def theZones = (state.lastMultizone as Map)
-    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+    if (theZones) {
+        theZones.colors = theZones?.colors?.collectEntries { k, v -> [k as Integer, v] }
+    }
     theZones ?: [colors: [:]]
 }
 
