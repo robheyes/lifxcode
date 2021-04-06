@@ -838,6 +838,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
             def theZones = getChildDevice(device.getDeviceNetworkId()).loadLastMultizone()
             theZones.currentIndex = data.index
+            theZones.zone_count = data.zone_count
             for (int i = 0; i < 8; i++) {
                 theZones.colors[(i + data.index)] = data.colors[i]
             }

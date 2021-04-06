@@ -1,9 +1,9 @@
 {
   "packageName": "LIFX Master",
   "author": "Robert Alan Heyes",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimumHEVersion": "2.2.0",
-  "dateReleased": "2021-02-16",
+  "dateReleased": "2021-03-24",
   "apps": [
     {
       "id": "943ac10e-f770-499a-8921-7899ea06091d",
