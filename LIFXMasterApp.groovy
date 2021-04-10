@@ -80,14 +80,13 @@ def discoveryPage() {
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
-                            (
-                                    ('DONE' == atomicState.scanPass) ?
-                                            'Scanning complete' :
-                                            "Scanning your network for devices from subnets [${describeSubnets()}]" +
-                                                    "<div class='meter'>" +
-                                                    "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
-                                                    "</div>"
-                            )
+                            ('DONE' == atomicState.scanPass) ?
+                                    'Scanning complete' :
+                                    "Scanning your network for devices from subnets [${describeSubnets()}]" +
+                                            "<div class='meter'>" +
+                                            "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
+                                            "</div>"
+
 
             )
             paragraph(
@@ -289,11 +288,11 @@ private String discoveryTextKnownDevices() {
     }
 
     def deviceList = describeDevices() // don't inline this
-    ("I have found <strong>${atomicState.numDevices}</strong> useable LIFX device"
-            + ((1 == atomicState.numDevices) ? '' : 's')
-            + ' so far:'
-            + deviceList)
 
+    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX device"
+    +((1 == atomicState.numDevices) ? '' : 's')
+    +' so far:'
+    +deviceList
 }
 
 private String describeDevices() {
@@ -308,11 +307,10 @@ private String describeDevices() {
             builder << '<ul class="device">'
             devices.each {
                 ip, device ->
-                    builder << (
-                            device.error ?
-                                    "<li class='device-error'>${device.label} (${device.error})</li>"
-                                    : "<li class='device'>${getDeviceNameLink(device)}</li>"
-                    )
+                    builder << device.error ?
+                            "<li class='device-error'>${device.label} (${device.error})</li>"
+                            : "<li class='device'>${getDeviceNameLink(device)}</li>"
+
             }
 
             builder << '</ul>'
@@ -754,9 +752,9 @@ Map<String, List> deviceSetWaveform(com.hubitat.app.DeviceWrapper device, Boolea
         Map myColor
         myColor = (null == namedColor) ? null : lookupColor(namedColor.replace('_', ' '))
         realColor << [
-            hue       : scaleUp(myColor.h ?: 0, 360),
-            saturation: scaleUp100(myColor.s ?: 0),
-            brightness: scaleUp100(myColor.v ?: 50)
+                hue       : scaleUp(myColor.h ?: 0, 360),
+                saturation: scaleUp100(myColor.s ?: 0),
+                brightness: scaleUp100(myColor.v ?: 50)
         ]
     } else {
         realColor << getScaledColorMap(colorMap)
@@ -804,10 +802,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
                 device.setName deviceName
                 device.setLabel deviceName
             }
-            List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness) as Integer, displayed: displayed]]
+            List<Map> result = [[name: "level", value: intScaleDown100(data.color.brightness), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
-                result.add([name: "hue", value: scaleDown100(data.color.hue), displayed: displayed])
-                result.add([name: "saturation", value: scaleDown100(data.color.saturation), displayed: displayed])
+                result.add([name: "hue", value: intScaleDown100(data.color.hue), displayed: displayed])
+                result.add([name: "saturation", value: intScaleDown100(data.color.saturation), displayed: displayed])
             }
             if (device.hasCapability('Color Temperature')) {
                 result.add([name: "colorTemperature", value: data.color.kelvin as Integer, displayed: displayed])
@@ -818,7 +816,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             return result
         case messageType['LIGHT.STATE_INFRARED']:
             def data = parsePayload 'LIGHT.STATE_INFRARED', header
-            return [[name: 'IRLevel', value: scaleDown100(data.irLevel), displayed: displayed]]
+            return [[name: 'IRLevel', value: intScaleDown100(data.irLevel), displayed: displayed]]
         case messageType['DEVICE.STATE_POWER']:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
             return [[name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],]
@@ -856,7 +854,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['MULTIZONE.STATE_MULTIZONE_EFFECT']:
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
             return [
-                [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
+                    [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -1271,14 +1269,14 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
     List<Map> events = []
     if (hsbkMap.hue || hsbkMap.saturation) {
         events << [name: 'colorMode', value: 'RGB', displayed: displayed]
-        hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed] : null
-        hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed] : null
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness) as Integer, displayed: displayed] : null
-        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(scaleDown100(hsbkMap.hue), scaleDown100(hsbkMap.saturation), scaleDown100(hsbkMap.brightness)), displayed: displayed]
+        hsbkMap.hue ? events << [name: 'hue', value: intScaleDown100(hsbkMap.hue), displayed: displayed] : null
+        hsbkMap.saturation ? events << [name: 'saturation', value: intScaleDown100(hsbkMap.saturation), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: intScaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(intScaleDown100(hsbkMap.hue), intScaleDown100(hsbkMap.saturation), intScaleDown100(hsbkMap.brightness)), displayed: displayed]
     } else if (hsbkMap.kelvin) {
         events << [name: 'colorMode', value: 'CT', displayed: displayed]
         events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness) as Integer, displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: intScaleDown100(hsbkMap.brightness), displayed: displayed] : null
     }
 
     events << [name: 'colorName', value: hsbkMap.name ?: 'Unknown', displayed: displayed]
@@ -1325,6 +1323,10 @@ private Integer scaleUp100(value) {
 private Float scaleDown(value, maxValue) {
     Float result = ((value * maxValue) / 65535)
     result.round(2)
+}
+
+private Integer intScaleDown100(value) {
+    return scaleDown100(value) as Integer
 }
 
 private Long scaleUp(value, maxValue) {
@@ -1684,13 +1686,13 @@ private Map deviceVersion(Map device) {
             ]
         case 39:
             return [
-                    name: 'LIFX Downlight white to warm',
+                    name      : 'LIFX Downlight white to warm',
                     deviceName: 'LIFX Day and Dusk',
-                    features: [
-                            color: false,
-                            chain: false,
-                            infrared: false,
-                            multizone: false,
+                    features  : [
+                            color            : false,
+                            chain            : false,
+                            infrared         : false,
+                            multizone        : false,
                             temperature_range: [min: 1500, max: 9000]
                     ]
             ]
@@ -1790,7 +1792,7 @@ private Map deviceVersion(Map device) {
             return [
                     name      : 'LIFX Filament Clear',
                     deviceName: 'LIFX White Mono',
-                    features   : [
+                    features  : [
                             color            : false,
                             infrared         : false,
                             multizone        : false,
@@ -1803,7 +1805,7 @@ private Map deviceVersion(Map device) {
             return [
                     name      : 'LIFX Filament Amber',
                     deviceName: 'LIFX White Mono',
-                    features   : [
+                    features  : [
                             color            : false,
                             infrared         : false,
                             multizone        : false,
