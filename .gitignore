@@ -35,3 +35,4 @@ gradle-app.setting
 
 # output files
 out
+/changelog.txt
