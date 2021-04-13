@@ -70,11 +70,7 @@ def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
             paragraph "<strong>RECOMMENDATION</strong>: The device network id (DNI) for a LIFX device is based on its IP address. It is, therefore, advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
-            paragraph '<strong>ADVICE</strong>: I would suggest that it\'s a good idea to create groups for all your ' +
-                    'devices, and not just LIFX ones. This will make your rules and other automations dependent only ' +
-                    'on the groups and not the actual hardware, making it easier to replace devices at a later date ' +
-                    'with minimal disruption.<br>If you do this, then you may want to set the device prefix on the ' +
-                    'settings page to provide a way of clearly distinguishing between the group name and the device name.'
+            paragraph '''<strong>ADVICE</strong>: I would suggest that it's a good idea to create groups for all your devices, and not just LIFX ones. This will make your rules and other automations dependent only on the groups and not the actual hardware, making it easier to replace devices at a later date with minimal disruption.<br>If you do this, then you may want to set the device prefix on the settings page to provide a way of clearly distinguishing between the group name and the device name.'''
             input 'discoverBtn', 'button', title: 'Discover devices'
             paragraph 'If you have added a new device, or not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             paragraph(
@@ -82,10 +78,10 @@ def discoveryPage() {
                             '' :
                             ('DONE' == atomicState.scanPass) ?
                                     'Scanning complete' :
-                                    "Scanning your network for devices from subnets [${describeSubnets()}]" +
-                                            "<div class='meter'>" +
-                                            "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
-                                            "</div>"
+                                    """Scanning your network for devices from subnets [${describeSubnets()}]
+                                        <div class='meter'><span style='width:${getProgressPercentage()}>
+                                            <strong>${getProgressPercentage()}</strong></span>
+                                    </div>"""
 
 
             )
@@ -289,10 +285,7 @@ private String discoveryTextKnownDevices() {
 
     def deviceList = describeDevices() // don't inline this
 
-    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX device"
-    +((1 == atomicState.numDevices) ? '' : 's')
-    +' so far:'
-    +deviceList
+    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX device $devicesSuffix so far: $deviceList"
 }
 
 private String describeDevices() {
@@ -307,9 +300,9 @@ private String describeDevices() {
             builder << '<ul class="device">'
             devices.each {
                 ip, device ->
-                    builder << device.error ?
+                    builder << (device.error ?
                             "<li class='device-error'>${device.label} (${device.error})</li>"
-                            : "<li class='device'>${getDeviceNameLink(device)}</li>"
+                            : "<li class='device'>${getDeviceNameLink(device)}</li>")
 
             }
 
