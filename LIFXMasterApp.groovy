@@ -626,14 +626,6 @@ Map<String, List> deviceSetMultiZoneEffect(String effectType, Integer speed, Str
     actions
 }
 
-Map<String, List> deviceSetMultiZoneEffect(String effectType, Integer speed, String direction) {
-    def actions = makeActions()
-    def params = new int[8]
-    params[1] = direction == 'reverse' ? 0 : 1
-    actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: effectType == 'MOVE' ? 1 : 0, speed: effectType == 'OFF' ? 0 : speed * 1000, parameters: params])
-    actions
-}
-
 Map<String, List> deviceSetTileEffect(String effectType, Integer speed, Integer palette_count, List<Map> colors) {
     def actions = makeActions()
     Integer typeInt
