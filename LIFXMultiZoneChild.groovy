@@ -19,7 +19,7 @@ metadata {
         capability 'ColorTemperature'
         capability 'Initialize'
         capability 'Switch'
-        capability "Switch Level"
+        capability "SwitchLevel"
 
         attribute "label", "string"
         attribute "zone", "number"

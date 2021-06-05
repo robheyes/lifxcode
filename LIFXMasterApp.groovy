@@ -70,24 +70,19 @@ def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
             paragraph "<strong>RECOMMENDATION</strong>: The device network id (DNI) for a LIFX device is based on its IP address. It is, therefore, advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
-            paragraph '<strong>ADVICE</strong>: I would suggest that it\'s a good idea to create groups for all your ' +
-                    'devices, and not just LIFX ones. This will make your rules and other automations dependent only ' +
-                    'on the groups and not the actual hardware, making it easier to replace devices at a later date ' +
-                    'with minimal disruption.<br>If you do this, then you may want to set the device prefix on the ' +
-                    'settings page to provide a way of clearly distinguishing between the group name and the device name.'
+            paragraph '''<strong>ADVICE</strong>: I would suggest that it's a good idea to create groups for all your devices, and not just LIFX ones. This will make your rules and other automations dependent only on the groups and not the actual hardware, making it easier to replace devices at a later date with minimal disruption.<br>If you do this, then you may want to set the device prefix on the settings page to provide a way of clearly distinguishing between the group name and the device name.'''
             input 'discoverBtn', 'button', title: 'Discover devices'
             paragraph 'If you have added a new device, or not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
-                            (
-                                    ('DONE' == atomicState.scanPass) ?
-                                            'Scanning complete' :
-                                            "Scanning your network for devices from subnets [${describeSubnets()}]" +
-                                                    "<div class='meter'>" +
-                                                    "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
-                                                    "</div>"
-                            )
+                            ('DONE' == atomicState.scanPass) ?
+                                    'Scanning complete' :
+                                    """Scanning your network for devices from subnets [${describeSubnets()}]
+                                        <div class='meter'><span style='width:${getProgressPercentage()}>
+                                            <strong>${getProgressPercentage()}</strong></span>
+                                    </div>"""
+
 
             )
             paragraph(
@@ -289,11 +284,8 @@ private String discoveryTextKnownDevices() {
     }
 
     def deviceList = describeDevices() // don't inline this
-    ("I have found <strong>${atomicState.numDevices}</strong> useable LIFX device"
-            + ((1 == atomicState.numDevices) ? '' : 's')
-            + ' so far:'
-            + deviceList)
 
+    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX device $devicesSuffix so far: $deviceList"
 }
 
 private String describeDevices() {
@@ -308,11 +300,10 @@ private String describeDevices() {
             builder << '<ul class="device">'
             devices.each {
                 ip, device ->
-                    builder << (
-                            device.error ?
-                                    "<li class='device-error'>${device.label} (${device.error})</li>"
-                                    : "<li class='device'>${getDeviceNameLink(device)}</li>"
-                    )
+                    builder << (device.error ?
+                            "<li class='device-error'>${device.label} (${device.error})</li>"
+                            : "<li class='device'>${getDeviceNameLink(device)}</li>")
+
             }
 
             builder << '</ul>'
@@ -594,83 +585,10 @@ void removeChildren() {
     updateKnownDevices()
 }
 
-
+@SuppressWarnings("unused")
 def enableLevelChange(com.hubitat.app.DeviceWrapper device) {
     sendEvent(device, [name: "cancelLevelChange", value: 'no', displayed: false])
 }
-
-// Common device commands
-//def deviceDoLevelChange(Map params) {
-//    logDebug "Params $params"
-//    String deviceId = params.dni
-//    com.hubitat.app.DeviceWrapper device = getChildDevice(deviceId)
-//    logDebug "Device for $deviceId is $device"
-//    def direction = params.direction
-//    def changeLevelStep = params.step
-//    def changeLevelEvery = params.every
-//    def useActivityLog = params.logIt as Boolean
-////    if (0 == direction) {
-////        return
-////    }
-//    def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
-//    if (cancelling == 'yes') {
-//        runInMillis 2 * (changeLevelEvery as Integer), "enableLevelChange", [data: device]
-//        return;
-//    }
-//    def newLevel = device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float))
-//    def lastStep = false
-//    if (newLevel < 0) {
-//        newLevel = 0
-//        lastStep = true
-//    } else if (newLevel > 100) {
-//        newLevel = 100
-//        lastStep = true
-//    }
-//    sendActions device, deviceId, deviceSetLevel(device, newLevel, useActivityLog, (changeLevelEvery - 1) / 1000)
-//    if (!lastStep) {
-//        runInMillis(
-//                changeLevelEvery as Integer,
-//                "deviceDoLevelChange",
-//                [
-//                        data: [
-//                                direction: direction,
-//                                dni      : deviceId,
-//                                step     : changeLevelStep,
-//                                every    : changeLevelEvery,
-//                                logIt    : useActivityLog
-//                        ]
-//                ]
-//        )
-//    }
-//}
-//
-//private void sendActions(com.hubitat.app.DeviceWrapper device, String ipAddress, Map<String, List> actions) {
-//    actions.commands?.each { item -> lifxCommand(device, item.cmd, item.payload) { List buffer -> sendPacket ipAddress, buffer, true } }
-//    actions.events?.each { sendEvent it }
-//}
-//
-//def parser(value) {
-//    logDebug("Value is $value")
-//}
-//
-//private void sendPacket(String ipAddress, List buffer, boolean noResponseExpected = false) {
-//    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString asByteArray(buffer)
-//    logDebug("Sending $stringBytes to $ipAddress")
-//    sendHubCommand(
-//            new hubitat.device.HubAction(
-//                    stringBytes,
-//                    hubitat.device.Protocol.LAN,
-//                    ipAddress,
-//                    [
-//                            callback: 'parser',
-//                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-//                            destinationAddress: ipAddress + ":56700",
-//                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
-//                            ignoreResponse    : noResponseExpected
-//                    ]
-//            )
-//    )
-//}
 
 Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     def actions = makeActions()
@@ -679,9 +597,32 @@ Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     actions
 }
 
-Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean displayed = true) {
+Map<String, List> deviceSetZones(com.hubitat.app.DeviceWrapper device, Map zoneMap, Boolean extMZ, Boolean displayed = true, String power = 'on') {
     def actions = makeActions()
-    actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+    if (extMZ) {
+        actions.commands << makeCommand('MULTIZONE.SET_EXTENDED_COLOR_ZONES', zoneMap)
+    } else {
+        for (int i = 0; i < zoneMap.zone_count; i++) {
+            if (zoneMap.colors[i]) {
+                actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [start_index: i, end_index: i, color: zoneMap.colors[i], duration: zoneMap.duration])
+            }
+        }
+        actions.commands << makeCommand('MULTIZONE.SET_COLOR_ZONES', [color: [:], apply: 2])
+    }
+
+    if (null != power && device.currentSwitch != power) {
+        def powerLevel = 'on' == power ? 65535 : 0
+        actions.commands << makeCommand('LIGHT.SET_POWER', [powerLevel: powerLevel, duration: zoneMap.duration * 1000])
+        actions.events << [name: "switch", value: power, displayed: displayed, data: [syncing: "false"]]
+    }
+    actions
+}
+
+Map<String, List> deviceSetMultiZoneEffect(String effectType, Integer speed, String direction) {
+    def actions = makeActions()
+    def params = new int[8]
+    params[1] = direction == 'reverse' ? 0 : 1
+    actions.commands << makeCommand('MULTIZONE.SET_MULTIZONE_EFFECT', [instanceId: 5439, type: effectType == 'MOVE' ? 1 : 0, speed: effectType == 'OFF' ? 0 : speed * 1000, parameters: params])
     actions
 }
 
@@ -748,7 +689,6 @@ Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number 
     actions
 }
 
-//@TODO change duration to be a float to allow for fractional durations
 Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, Number duration = 0.0) {
     if ((null == level || level <= 0) && 0 == duration) {
         return deviceOnOff('off', displayed)
@@ -814,6 +754,31 @@ Map<String, List> deviceSetState(com.hubitat.app.DeviceWrapper device, Map mySta
     return [:] // do nothing
 }
 
+Map<String, List> deviceSetWaveform(com.hubitat.app.DeviceWrapper device, Boolean isTransient, Map colorMap, Integer period, Float cycles, Float skew_ratio, String waveform) {
+    def actions = makeActions()
+    Map<String, Integer> waveMap = [SAW: 0, SINE: 1, HALF_SINE: 2, TRIANGLE: 3, PULSE: 4]
+    Integer waveInt = waveMap[waveform] ?: 1 //default to SINE
+    Integer scaled_skew = 0
+    if (waveInt == 4) {
+        scaled_skew = (skew_ratio * 65535) - 32768
+    }
+    String namedColor = colorMap.color ?: colorMap.colour
+    Map realColor = getCurrentHSBK device
+    if (namedColor) {
+        Map myColor
+        myColor = (null == namedColor) ? null : lookupColor(namedColor.replace('_', ' '))
+        realColor << [
+                hue       : scaleUp(myColor.h ?: 0, 360),
+                saturation: scaleUp100(myColor.s ?: 0),
+                brightness: scaleUp100(myColor.v ?: 50)
+        ]
+    } else {
+        realColor << getScaledColorMap(colorMap)
+    }
+    actions.commands << makeCommand('LIGHT.SET_WAVEFORM', [transient: isTransient ? 1 : 0, color: realColor, period: period * 1000, cycles: cycles, skew_ratio: scaled_skew, waveform: waveInt])
+    actions
+}
+
 List<Map> parseForDevice(device, String description, Boolean displayed, Boolean updateDevice = false) {
     Map header = parseHeaderFromDescription description
     switch (header.type) {
@@ -837,6 +802,11 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['DEVICE.STATE_HOST_INFO']:
             def data = parsePayload 'DEVICE.STATE_HOST_INFO', header
             break
+        case messageType['DEVICE.STATE_HOST_FIRMWARE']:
+            def data = parsePayload 'DEVICE.STATE_HOST_FIRMWARE', header
+            String version = "${data.version_major}.${data.version_minor}"
+            return [[name: 'firmware', data: version, displayed: false]]
+            break
         case messageType['DEVICE.STATE_INFO']:
             def data = parsePayload 'DEVICE.STATE_INFO', header
             break
@@ -848,10 +818,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
                 device.setName deviceName
                 device.setLabel deviceName
             }
-            List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness), displayed: displayed]]
+            List<Map> result = [[name: "level", value: intScaleDown100(data.color.brightness), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
-                result.add([name: "hue", value: scaleDown100(data.color.hue), displayed: displayed])
-                result.add([name: "saturation", value: scaleDown100(data.color.saturation), displayed: displayed])
+                result.add([name: "hue", value: intScaleDown100(data.color.hue), displayed: displayed])
+                result.add([name: "saturation", value: intScaleDown100(data.color.saturation), displayed: displayed])
             }
             if (device.hasCapability('Color Temperature')) {
                 result.add([name: "colorTemperature", value: data.color.kelvin as Integer, displayed: displayed])
@@ -862,7 +832,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             return result
         case messageType['LIGHT.STATE_INFRARED']:
             def data = parsePayload 'LIGHT.STATE_INFRARED', header
-            return [[name: 'IRLevel', value: scaleDown100(data.irLevel), displayed: displayed]]
+            return [[name: 'IRLevel', value: intScaleDown100(data.irLevel), displayed: displayed]]
         case messageType['DEVICE.STATE_POWER']:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
             return [[name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],]
@@ -878,6 +848,18 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             clearExpectedAckFor device, sequence
             return []
 */
+        case messageType['MULTIZONE.STATE_MULTIZONE']:
+            Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
+            def theZones = getChildDevice(device.getDeviceNetworkId()).loadLastMultizone()
+            theZones.currentIndex = data.index
+            theZones.zone_count = data.zone_count
+            for (int i = 0; i < 8; i++) {
+                theZones.colors[(i + data.index)] = data.colors[i]
+            }
+            def multizoneHtml = renderMultizone(theZones)
+            return [
+                    [name: 'multizone', value: multizoneHtml, data: theZones, displayed: true]
+            ]
         case messageType['MULTIZONE.STATE_EXTENDED_COLOR_ZONES']:
             Map data = parsePayload 'MULTIZONE.STATE_EXTENDED_COLOR_ZONES', header
 //            String compressed = compressMultizoneData data
@@ -888,13 +870,13 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['MULTIZONE.STATE_MULTIZONE_EFFECT']:
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
             return [
-                [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
+                    [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
             ]
         case messageType['TILE.STATE_TILE_EFFECT']:
             Map data = parsePayload 'TILE.STATE_TILE_EFFECT', header
             def effects = ['OFF', 'RESERVED', 'MORPH', 'FLAME']
             return [
-                [name: 'effect', value: effects[data.type as int], displayed: true]
+                    [name: 'effect', value: effects[data.type as int], displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -1010,6 +992,10 @@ byte[] asByteArray(List buffer) {
 @SuppressWarnings("unused")
 void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Closure<List> sender) {
     sendCommand deviceAndType, [:], true, sender
+}
+
+void lifxQuery(com.hubitat.app.DeviceWrapper device, String deviceAndType, Map payload, Closure<List> sender) {
+    sendCommand deviceAndType, payload, true, sender
 }
 
 @SuppressWarnings("unused")
@@ -1306,14 +1292,14 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
     List<Map> events = []
     if (hsbkMap.hue || hsbkMap.saturation) {
         events << [name: 'colorMode', value: 'RGB', displayed: displayed]
-        hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed] : null
-        hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed] : null
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
-        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(scaleDown100(hsbkMap.hue), scaleDown100(hsbkMap.saturation), scaleDown100(hsbkMap.brightness)), displayed: displayed]
+        hsbkMap.hue ? events << [name: 'hue', value: intScaleDown100(hsbkMap.hue), displayed: displayed] : null
+        hsbkMap.saturation ? events << [name: 'saturation', value: intScaleDown100(hsbkMap.saturation), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: intScaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(intScaleDown100(hsbkMap.hue), intScaleDown100(hsbkMap.saturation), intScaleDown100(hsbkMap.brightness)), displayed: displayed]
     } else if (hsbkMap.kelvin) {
         events << [name: 'colorMode', value: 'CT', displayed: displayed]
         events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: intScaleDown100(hsbkMap.brightness), displayed: displayed] : null
     }
 
     events << [name: 'colorName', value: hsbkMap.name ?: 'Unknown', displayed: displayed]
@@ -1344,7 +1330,7 @@ private Map<String, Object> getCurrentHSBK(com.hubitat.app.DeviceWrapper theDevi
     [
             hue       : scaleUp(theDevice.currentHue ?: 0, 100),
             saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
-            brightness: scaleUp(theDevice.currentLevel as Long ?: 50, 100),
+            brightness: scaleUp(theDevice.currentLevel as Integer ?: 0, 100),
             kelvin    : theDevice.currentcolorTemperature
     ]
 }
@@ -1354,13 +1340,17 @@ private Float scaleDown100(value) {
     scaleDown(value, 100)
 }
 
-private Long scaleUp100(value) {
-    scaleUp(value, 100)
+private Integer scaleUp100(value) {
+    scaleUp(value, 100) as Integer
 }
 
 private Float scaleDown(value, maxValue) {
     Float result = ((value * maxValue) / 65535)
     result.round(2)
+}
+
+private Integer intScaleDown100(value) {
+    return scaleDown100(value) as Integer
 }
 
 private Long scaleUp(value, maxValue) {
@@ -1554,6 +1544,7 @@ private Map deviceVersion(Map device) {
                     ]
             ]
         case 11:
+        case 19:
             return [
                     name      : 'White 800 (High Voltage)',
                     deviceName: 'LIFX White',
@@ -1603,6 +1594,10 @@ private Map deviceVersion(Map device) {
             ]
         case 27:
         case 43:
+        case 62:
+        case 91:
+        case 92:
+        case 97:
             return [
                     name      : 'LIFX A19',
                     deviceName: 'LIFX Color',
@@ -1616,6 +1611,9 @@ private Map deviceVersion(Map device) {
             ]
         case 28:
         case 44:
+        case 63:
+        case 94:
+        case 98:
             return [
                     name      : 'LIFX BR30',
                     deviceName: 'LIFX Color',
@@ -1629,6 +1627,9 @@ private Map deviceVersion(Map device) {
             ]
         case 29:
         case 45:
+        case 64:
+        case 109:
+        case 111:
             return [
                     name      : 'LIFX+ A19',
                     deviceName: 'LIFXPlus Color',
@@ -1642,6 +1643,8 @@ private Map deviceVersion(Map device) {
             ]
         case 30:
         case 46:
+        case 65:
+        case 110:
             return [
                     name      : 'LIFX+ BR30',
                     deviceName: 'LIFXPlus Color',
@@ -1680,6 +1683,7 @@ private Map deviceVersion(Map device) {
             ]
         case 36:
         case 37:
+        case 40:
             return [
                     name      : 'LIFX Downlight',
                     deviceName: 'LIFX Color',
@@ -1704,10 +1708,22 @@ private Map deviceVersion(Map device) {
                             min_ext_mz_firmware: 1532997580
                     ]
             ]
-
-        case 49:
+        case 39:
             return [
-                    name      : 'LIFX Mini',
+                    name      : 'LIFX Downlight white to warm',
+                    deviceName: 'LIFX Day and Dusk',
+                    features  : [
+                            color            : false,
+                            chain            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 1500, max: 9000]
+                    ]
+            ]
+        case 49:
+        case 59:
+            return [
+                    name      : 'LIFX Mini Color',
                     deviceName: 'LIFX Color',
                     features  : [
                             color            : true,
@@ -1732,6 +1748,9 @@ private Map deviceVersion(Map device) {
             ]
         case 51:
         case 61:
+        case 66:
+        case 87:
+        case 88:
             return [
                     name      : 'LIFX Mini White',
                     deviceName: 'LIFX White Mono',
@@ -1763,7 +1782,7 @@ private Map deviceVersion(Map device) {
                             color            : true,
                             infrared         : false,
                             multizone        : false,
-                            temperature_range: [min: 2500, max: 9000],
+                            temperature_range: [min: 1500, max: 9000],
                             chain            : true
                     ]
             ]
@@ -1779,18 +1798,70 @@ private Map deviceVersion(Map device) {
                             chain            : false,
                     ]
             ]
-        case 59:
+        case 81:
+        case 96:
             return [
-                    name      : 'LIFX Mini Color',
+                    name      : 'LIFX Candle Warm to White',
+                    deviceName: 'LIFX Day and Dusk',
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2200, max: 6500],
+                            chain            : false
+                    ]
+            ]
+        case 82:
+        case 100:
+            return [
+                    name      : 'LIFX Filament Clear',
+                    deviceName: 'LIFX White Mono',
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2100, max: 2100],
+                            chain            : false
+                    ]
+            ]
+        case 85:
+        case 101:
+            return [
+                    name      : 'LIFX Filament Amber',
+                    deviceName: 'LIFX White Mono',
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2000, max: 2000],
+                            chain            : false
+                    ]
+            ]
+        case 57:
+        case 68:
+            return [
+                    name      : 'LIFX Candle',
                     deviceName: 'LIFX Color',
                     features  : [
                             color            : true,
                             infrared         : false,
                             multizone        : false,
-                            temperature_range: [min: 2500, max: 9000],
+                            temperature_range: [min: 1500, max: 9000],
                             chain            : false
                     ]
             ]
+//        case 96:
+//            return [
+//                    name      : 'LIFX Candle White',
+//                    deviceName: 'LIFX White Mono',
+//                    features  : [
+//                            color            : false,
+//                            infrared         : false,
+//                            multizone        : false,
+//                            temperature_range: [min: 2700, max: 2700],
+//                            chain            : false
+//                    ]
+//            ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
     }
@@ -1928,10 +1999,10 @@ private List makePayload(String deviceAndType, Map payload) {
                 if (item.isArray) {
                     for (int i = 0; i < item.count; i++) {
                         Map hsbk = payload.colors[i] as Map
-                        add result, (hsbk['hue'] ?: 0) as short
-                        add result, (hsbk['saturation'] ?: 0) as short
-                        add result, (hsbk['brightness'] ?: 0) as short
-                        add result, (hsbk['kelvin'] ?: 0) as short
+                        add result, (hsbk?.hue ?: 0) as short
+                        add result, (hsbk?.saturation ?: 0) as short
+                        add result, (hsbk?.brightness ?: 0) as short
+                        add result, (hsbk?.kelvin ?: 0) as short
                     }
                 } else {
                     add result, (payload.color['hue'] ?: 0) as short
@@ -1943,6 +2014,10 @@ private List makePayload(String deviceAndType, Map payload) {
             }
             def value = payload[item.name] ?: 0
             //TODO possibly extend this to the other types A,S & B
+            if ('F' == item.kind) {
+                add result, Float.floatToIntBits(value)
+                return
+            }
             switch (item.size as int) {
                 case 1:
                     add result, value as byte
@@ -2390,11 +2465,11 @@ private Map flattenedDescriptors() {
                 GET_SERVICE        : [type: 2, descriptor: ''],
                 STATE_SERVICE      : [type: 3, descriptor: 'service:b;port:i'],
                 GET_HOST_INFO      : [type: 12, descriptor: ''],
-                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:i;tx:i;rx:i,reservedHost:w'],
+                STATE_HOST_INFO    : [type: 13, descriptor: 'signal:f;tx:i;rx:i,reservedHost:w'],
                 GET_HOST_FIRMWARE  : [type: 14, descriptor: ''],
-                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version:i'],
+                STATE_HOST_FIRMWARE: [type: 15, descriptor: 'build:l;reservedFirmware:l;version_minor:w;version_major:w'],
                 GET_WIFI_INFO      : [type: 16, descriptor: ''],
-                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:i;tx:i;rx:i,reservedWifi:w'],
+                STATE_WIFI_INFO    : [type: 17, descriptor: 'signal:f;tx:i;rx:i,reservedWifi:w'],
                 GET_WIFI_FIRMWARE  : [type: 18, descriptor: ''],
                 STATE_WIFI_FIRMWARE: [type: 19, descriptor: 'build:l;reservedFirmware:l;version:i'],
                 GET_POWER          : [type: 20, descriptor: ''],
@@ -2420,8 +2495,8 @@ private Map flattenedDescriptors() {
         LIGHT    : [
                 GET_STATE            : [type: 101, descriptor: ''],
                 SET_COLOR            : [type: 102, descriptor: "reservedColor:b;color:h;duration:i"],
-                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b"],
-                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:i;skew_ratio:w;waveform:b;setColor:h"],
+                SET_WAVEFORM         : [type: 103, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:f;skew_ratio:w;waveform:b"],
+                SET_WAVEFORM_OPTIONAL: [type: 119, descriptor: "reservedWaveform:b;transient:b;color:h;period:i;cycles:f;skew_ratio:w;waveform:b;setColor:h"],
                 STATE                : [type: 107, descriptor: "color:h;reserved1State:w;power:w;label:t32;reserved2state:l"],
                 GET_POWER            : [type: 116, descriptor: ''],
                 SET_POWER            : [type: 117, descriptor: 'powerLevel:w;duration:i'],
@@ -2431,10 +2506,10 @@ private Map flattenedDescriptors() {
                 SET_INFRARED         : [type: 122, descriptor: 'irLevel:w'],
         ],
         MULTIZONE: [
-                SET_COLOR_ZONES           : [type: 501, descriptor: "startIndex:b;endIndex:b;color:h;duration:i;apply:b"],
-                GET_COLOR_ZONES           : [type: 502, descriptor: 'startIndex:b;endIndex:b'],
-                STATE_ZONE                : [type: 503, descriptor: "count:b;index:b;color:h"],
-                STATE_MULTIZONE           : [type: 506, descriptor: "count:b;index:b;colors:ha8"],
+                SET_COLOR_ZONES           : [type: 501, descriptor: "start_index:b;end_index:b;color:h;duration:i;apply:b"],
+                GET_COLOR_ZONES           : [type: 502, descriptor: 'start_index:b;end_index:b'],
+                STATE_ZONE                : [type: 503, descriptor: "zone_count:b;index:b;color:h"],
+                STATE_MULTIZONE           : [type: 506, descriptor: "zone_count:b;index:b;colors:ha8"],
                 GET_MULTIZONE_EFFECT      : [type: 507, descriptor: ''],
                 SET_MULTIZONE_EFFECT      : [type: 508, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
                 STATE_MULTIZONE_EFFECT    : [type: 509, descriptor: 'instanceId:i;type:b;reserved1Effect:w;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8'],
@@ -2452,7 +2527,7 @@ private Map flattenedDescriptors() {
 String renderMultizone(HashMap hashMap) {
     def builder = new StringBuilder();
     builder << '<table cellspacing="0">'
-    def count = hashMap.colors_count as Integer
+    def count = (hashMap.colors_count ?: hashMap.zone_count) as Integer
     Map<Integer, Map> colours = hashMap.colors
     builder << '<tr>'
     for (int i = 0; i < count; i++) {
@@ -2468,9 +2543,9 @@ String renderMultizone(HashMap hashMap) {
 
 String renderDatum(Map item) {
     def rgb = hsvToRgbString(
-            scaleDown100(item.hue as Long),
-            scaleDown100(item.saturation as Long),
-            scaleDown100(item.brightness as Long)
+            scaleDown100((item?.hue ?: 0) as Long),
+            scaleDown100((item?.saturation ?: 0) as Long),
+            scaleDown100((item?.brightness ?: 0) as Long)
     )
     "$rgb"
 }

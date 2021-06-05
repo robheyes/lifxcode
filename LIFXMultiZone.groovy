@@ -15,7 +15,7 @@ metadata {
         capability 'Polling'
         capability 'Initialize'
         capability 'Switch'
-        capability "Switch Level"
+        capability "SwitchLevel"
 
         attribute "label", "string"
         attribute "group", "string"
@@ -28,9 +28,10 @@ metadata {
         command "zonesDelete", [[name: "Zone name*", type: "STRING"]]
         command "zonesLoad", [[name: "Zone name*", type: "STRING",], [name: "Duration", type: "NUMBER"]]
         command "setZones", [[name: "Zone HBSK Map*", type: "STRING"], [name: "Duration", type: "NUMBER"]]
-        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Speed", type: "NUMBER"], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]]]
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["MOVE", "OFF"]], [name: "Direction", type: "ENUM", constraints: ["forward", "reverse"]], [name: "Speed", type: "NUMBER"]]
         command "createChildDevices", [[name: "Label prefix*", type: "STRING"]]
         command "deleteChildDevices"
+        command 'setWaveform', [[name: 'Waveform*', type: 'ENUM', constraints:['SAW', 'SINE', 'HALF_SINE', 'TRIANGLE', 'PULSE']], [name: 'Color*', type: 'STRING'], [name: 'Transient', type: 'ENUM', constraints: ['true', 'false']], [name: 'Period', type: 'NUMBER'], [name: 'Cycles', type: 'NUMBER'], [name: 'Skew Ratio', type: 'NUMBER']]
     }
 
 
@@ -55,6 +56,7 @@ def initialize() {
     state.useActivityLog = useActivityLogFlag
     state.useActivityLogDebug = useDebugActivityLogFlag
     unschedule()
+    getDeviceFirmware()
     requestInfo()
     runEvery1Minute poll
 }
@@ -65,8 +67,8 @@ def refresh() {
 }
 
 def createChildDevices(String prefix) {
-    def zoneCount = (state.lastMultizone as Map).zone_count
-    for (i=0; i<state.zoneCount; i++) {
+    def zoneCount = state.zoneCount
+    for (i=0; i<zoneCount; i++) {
         try {
             addChildDevice(
                 'robheyes',
@@ -93,14 +95,21 @@ def deleteChildDevices() {
     }
 }
 
+def loadLastMultizone() {
+    def theZones = (state.lastMultizone as Map)
+    if (theZones) {
+        theZones.colors = theZones?.colors?.collectEntries { k, v -> [k as Integer, v] }
+    }
+    theZones ?: [colors: [:]]
+}
+
 @SuppressWarnings("unused")
 def zonesSave(String name) {
     if (name == '') {
         return
     }
     def zones = state.namedZones ?: [:]
-    def theZones = (state.lastMultizone as Map)
-    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+    def theZones = loadLastMultizone()
     def compressed = compressMultizoneData theZones
     zones[name] = compressed
     state.namedZones = zones
@@ -108,11 +117,12 @@ def zonesSave(String name) {
 }
 
 def setZones(String colors, duration = 0) {
-    def theZones = (state.lastMultizone as Map)
-    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+    def theZones = loadLastMultizone()
+    def count = theZones.zone_count
+    def newZones = [colors: [:], index: 0, apply: 1, duration: duration * 1000, colors_count: count, zone_count: count]
     def colorsMap = stringToMap(colors)
     colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
-    for (i=0; i<82; i++) {
+    for (i=0; i<count; i++) {
         //use special index 999 to apply attributes to all zones - overrides any zone-specific inputs
         def indexToApply = colorsMap[999] ? 999 : i
         if (colorsMap[i] != null || colorsMap[999] != null) {
@@ -129,12 +139,24 @@ def setZones(String colors, duration = 0) {
             } else {
                 realColor = parent.getScaledColorMap(colorsMap[indexToApply])
             }
-            theZones.colors[i] = theZones.colors[i] + realColor
+            newZones.colors[i] = theZones.colors[i] + realColor
+        } else if (extMzSupported()) {
+            newZones.colors[i] = theZones.colors[i]
         }
     }
-    theZones['apply'] = 1
-    theZones['duration'] = duration
-    sendActions parent.deviceSetZones(device, theZones)
+    logDebug("Sending $newZones")
+    sendActions parent.deviceSetZones(device, newZones, extMzSupported())
+    
+    //immediately update locally cached multizone states
+    if (!extMzSupported()) {
+        for (i=0; i<count; i++) {
+            if (newZones.colors[i] == null) {
+                newZones.colors[i] = theZones.colors[i]
+            }
+        }
+    }
+    updateChildDevices(newZones)
+    state.lastMultizone = newZones
 }
 
 @SuppressWarnings("unused")
@@ -152,7 +174,11 @@ def zonesLoad(String name, duration = 0) {
     theZones['apply'] = 1
     theZones['duration'] = duration * 1000
     logDebug "Sending $theZones"
-    sendActions parent.deviceSetZones(device, theZones)
+    sendActions parent.deviceSetZones(device, theZones, extMzSupported())
+    
+    //immediately update locally cached multizone states
+    updateChildDevices(theZones)
+    state.lastMultizone = theZones
 }
 
 def zonesDelete(String name) {
@@ -164,7 +190,7 @@ private void updateKnownZones() {
     state.knownZones = state.namedZones?.keySet().toString()
 }
 
-def setEffect(String effectType, speed = 30, String direction = 'forward') {
+def setEffect(String effectType, String direction = 'forward', speed = 30) {
     sendActions parent.deviceSetMultiZoneEffect(effectType, speed.toInteger(), direction)
 }
 
@@ -172,12 +198,26 @@ def setEffect(String effectType, speed = 30, String direction = 'forward') {
 def poll() {
     parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
-    parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    if (extMzSupported()) {
+        parent.lifxQuery(device, 'MULTIZONE.GET_EXTENDED_COLOR_ZONES') { List buffer -> sendPacket buffer }
+    } else {
+        parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: 0, end_index: 7]) {List buffer -> sendPacket buffer }
+    }
     parent.lifxQuery(device, 'MULTIZONE.GET_MULTIZONE_EFFECT') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
     poll()
+}
+
+def getDeviceFirmware() {
+    parent.lifxQuery(device, 'DEVICE.GET_HOST_FIRMWARE') { List buffer -> sendPacket buffer }
+}
+
+def extMzSupported() {
+    Float curr = Float.parseFloat(state.firmware ?: 2.77)
+    Float minExtMz = 2.77 //2.77 changed to test legacy protocol
+    return (curr >= minExtMz)
 }
 
 def updateChildDevices(multizoneData) {
@@ -225,12 +265,20 @@ def setColorTemperature(temperature) {
 
 @SuppressWarnings("unused")
 def setLevel(level, duration = 0) {
-    setZones('999:"[brightness: ' + level + ']"', duration)
+    if ((null == level || level <= 0) && 0 == duration) {
+        off()
+    } else {
+        setZones('999:"[brightness: ' + level + ']"', duration)
+    }
 }
 
 @SuppressWarnings("unused")
 def setState(value) {
     sendActions parent.deviceSetState(device, stringToMap(value), getUseActivityLog(), state.transitionTime ?: 0)
+}
+
+def setWaveform(String waveform, String color, String isTransient = 'true', period = 5, cycles = 3.40282346638528860e38, skew = 0.5) {
+    sendActions parent.deviceSetWaveform(device, isTransient.toBoolean(), stringToMap(color), period.toInteger(), cycles.toFloat(), skew.toFloat(), waveform)
 }
 
 private void sendActions(Map<String, List> actions) {
@@ -240,9 +288,19 @@ private void sendActions(Map<String, List> actions) {
 
 def parse(String description) {
     List<Map> events = parent.parseForDevice(device, description, getUseActivityLog())
+    def firmwareEvent = events.find { it.name == 'firmware' }
+    firmwareEvent?.data ? state.firmware = firmwareEvent.data : null
     def multizoneEvent = events.find { it.name == 'multizone' }
-    multizoneEvent?.data ? updateChildDevices(multizoneEvent.data) : null
-    state.lastMultizone = multizoneEvent?.data
+    if (multizoneEvent?.data) {
+        updateChildDevices(multizoneEvent.data)
+        state.lastMultizone = multizoneEvent.data
+        state.zoneCount = multizoneEvent.data.zone_count
+        if (!extMzSupported() && (multizoneEvent.data.zone_count - multizoneEvent.data.currentIndex) > 8) {
+            //query next set of 8 zones
+            def nextIndex = multizoneEvent.data.currentIndex + 8
+            parent.lifxQuery(device, 'MULTIZONE.GET_COLOR_ZONES', [start_index: (nextIndex), end_index: (nextIndex + 7)]) {List buffer -> sendPacket buffer }
+        }
+    }
     events.collect { createEvent(it) }
 }
 
