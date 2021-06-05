@@ -12,7 +12,28 @@ There are several components
   * LIFX Tile - dummy driver, only supports on/off
   * LIFX Multizone - for Beam and Strip
   
-## Installation
+# Installation
+## Using Hubitat Package Manager
+This is now the preferred installation method since it provides an easy path to install updates and beta releases.
+
+See https://github.com/dcmeglio/hubitat-packagemanager if you don't already have Hubitat Package Manager installed.
+
+### New installation using HPM
+* Open the HPM app and choose __Install__
+* Pick `Browse by Tags`
+* Select `Lights & Switches`
+* Scroll down to `LIFX Master app and drivers` and select it
+* Press the __Next__ button
+
+HPM should then do some magic and install everything for you.
+You'll probably still need to follow the `Create the app` step below.
+### HPM installation when you have previously manually installed
+Simply use the __Match Up__ option in HPM. I'd recommend that you leave the `Assume that packages are up-to-date` switch 
+turned off. 
+
+Then do an __Update__ to ensure that you have the latest version.
+
+## Manual installation 
 ### LIFX Master App
 On the Apps Code page, press the **New App** button
 
@@ -26,12 +47,12 @@ Repeat this process for each of the device handlers you want to install. It's pr
 to add all of them even if you don't have a corresponding device at the moment, I've found that buying
 LIFX devices is a bit addictive.
 
-### Create the app
+## Create the app
 On the Apps page press the **Add User App** button then click on **LIFX Master** in the list of available apps.
 
 ####IMPORTANT: don't forget to press the __Done__ button to make sure the the **LIFX Master** app sticks around.
 
-### Device discovery
+## Device discovery
 First of all, make sure that all your LIFX devices are powered on, obviously discovery won't find any device that doesn't 
 have power.
 
@@ -43,6 +64,12 @@ You may notice the **LIFX Discovery** device in your list of devices, but this s
 ### Updating
 #### Always make a backup.
 
+#### Hubitat Package Manager update
+* Open the HPM app
+* Select the `Update` option
+* If there's an available update then you should see the new version in the list of updated packages.
+
+#### Manual update
 When the drivers/app have been updated I'll post a message on the Hubitat forum.  
 
 To update a device or the app just open the corresponding code, 

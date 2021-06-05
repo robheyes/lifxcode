@@ -13,7 +13,7 @@
  */
 
 metadata {
-    definition(name: "LIFX Day and Dusk", namespace: "robheyes", author: "Robert Alan Heyes", importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDayAndDusk.groovy') {
+    definition(name: 'LIFX Day and Dusk', namespace: 'robheyes', author: 'Robert Alan Heyes', importUrl: 'https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXDayAndDusk.groovy') {
         capability "Bulb"
         capability "ColorTemperature"
         capability "ColorMode"
@@ -21,11 +21,12 @@ metadata {
         capability "Switch"
         capability "SwitchLevel"
         capability "Initialize"
+        capability 'ChangeLevel'
 
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
-        
+        attribute "cancelLevelChange", "string"
         
         command 'setWaveform', [[name: 'Waveform*', type: 'ENUM', constraints:['SAW', 'SINE', 'HALF_SINE', 'TRIANGLE', 'PULSE']], [name: 'Color*', type: 'STRING'], [name: 'Transient', type: 'ENUM', constraints: ['true', 'false']], [name: 'Period', type: 'NUMBER'], [name: 'Cycles', type: 'NUMBER'], [name: 'Skew Ratio', type: 'NUMBER']]
     }

@@ -15,7 +15,7 @@ metadata {
         capability 'Polling'
         capability 'Initialize'
         capability 'Switch'
-        capability "Switch Level"
+        capability "SwitchLevel"
 
         attribute "label", "string"
         attribute "group", "string"
@@ -97,7 +97,9 @@ def deleteChildDevices() {
 
 def loadLastMultizone() {
     def theZones = (state.lastMultizone as Map)
-    theZones.colors = theZones.colors.collectEntries { k, v -> [k as Integer, v] }
+    if (theZones) {
+        theZones.colors = theZones?.colors?.collectEntries { k, v -> [k as Integer, v] }
+    }
     theZones ?: [colors: [:]]
 }
 
@@ -117,7 +119,7 @@ def zonesSave(String name) {
 def setZones(String colors, duration = 0) {
     def theZones = loadLastMultizone()
     def count = theZones.zone_count
-    def newZones = [colors: [:], index: 0, apply: 1, duration: duration, colors_count: count, zone_count: count]
+    def newZones = [colors: [:], index: 0, apply: 1, duration: duration * 1000, colors_count: count, zone_count: count]
     def colorsMap = stringToMap(colors)
     colorsMap = colorsMap.collectEntries {k, v -> [k as Integer, stringToMap(v)] }
     for (i=0; i<count; i++) {

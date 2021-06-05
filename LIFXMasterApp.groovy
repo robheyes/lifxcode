@@ -70,24 +70,19 @@ def discoveryPage() {
     dynamicPage(name: 'discoveryPage', title: 'Discovery', refreshInterval: refreshInterval()) {
         section {
             paragraph "<strong>RECOMMENDATION</strong>: The device network id (DNI) for a LIFX device is based on its IP address. It is, therefore, advisable to configure your router's DHCP settings to use fixed IP addresses for all LIFX devices"
-            paragraph '<strong>ADVICE</strong>: I would suggest that it\'s a good idea to create groups for all your ' +
-                    'devices, and not just LIFX ones. This will make your rules and other automations dependent only ' +
-                    'on the groups and not the actual hardware, making it easier to replace devices at a later date ' +
-                    'with minimal disruption.<br>If you do this, then you may want to set the device prefix on the ' +
-                    'settings page to provide a way of clearly distinguishing between the group name and the device name.'
+            paragraph '''<strong>ADVICE</strong>: I would suggest that it's a good idea to create groups for all your devices, and not just LIFX ones. This will make your rules and other automations dependent only on the groups and not the actual hardware, making it easier to replace devices at a later date with minimal disruption.<br>If you do this, then you may want to set the device prefix on the settings page to provide a way of clearly distinguishing between the group name and the device name.'''
             input 'discoverBtn', 'button', title: 'Discover devices'
             paragraph 'If you have added a new device, or not all of your devices are discovered the first time around, try the <strong>Discover only new devices</strong> button below'
             paragraph(
                     null == atomicState.scanPass ?
                             '' :
-                            (
-                                    ('DONE' == atomicState.scanPass) ?
-                                            'Scanning complete' :
-                                            "Scanning your network for devices from subnets [${describeSubnets()}]" +
-                                                    "<div class='meter'>" +
-                                                    "<span style='width:${getProgressPercentage()}'><strong>${getProgressPercentage()}</strong></span>" +
-                                                    "</div>"
-                            )
+                            ('DONE' == atomicState.scanPass) ?
+                                    'Scanning complete' :
+                                    """Scanning your network for devices from subnets [${describeSubnets()}]
+                                        <div class='meter'><span style='width:${getProgressPercentage()}>
+                                            <strong>${getProgressPercentage()}</strong></span>
+                                    </div>"""
+
 
             )
             paragraph(
@@ -289,11 +284,8 @@ private String discoveryTextKnownDevices() {
     }
 
     def deviceList = describeDevices() // don't inline this
-    ("I have found <strong>${atomicState.numDevices}</strong> useable LIFX device"
-            + ((1 == atomicState.numDevices) ? '' : 's')
-            + ' so far:'
-            + deviceList)
 
+    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX device $devicesSuffix so far: $deviceList"
 }
 
 private String describeDevices() {
@@ -308,11 +300,10 @@ private String describeDevices() {
             builder << '<ul class="device">'
             devices.each {
                 ip, device ->
-                    builder << (
-                            device.error ?
-                                    "<li class='device-error'>${device.label} (${device.error})</li>"
-                                    : "<li class='device'>${getDeviceNameLink(device)}</li>"
-                    )
+                    builder << (device.error ?
+                            "<li class='device-error'>${device.label} (${device.error})</li>"
+                            : "<li class='device'>${getDeviceNameLink(device)}</li>")
+
             }
 
             builder << '</ul>'
@@ -594,83 +585,10 @@ void removeChildren() {
     updateKnownDevices()
 }
 
-
+@SuppressWarnings("unused")
 def enableLevelChange(com.hubitat.app.DeviceWrapper device) {
     sendEvent(device, [name: "cancelLevelChange", value: 'no', displayed: false])
 }
-
-// Common device commands
-//def deviceDoLevelChange(Map params) {
-//    logDebug "Params $params"
-//    String deviceId = params.dni
-//    com.hubitat.app.DeviceWrapper device = getChildDevice(deviceId)
-//    logDebug "Device for $deviceId is $device"
-//    def direction = params.direction
-//    def changeLevelStep = params.step
-//    def changeLevelEvery = params.every
-//    def useActivityLog = params.logIt as Boolean
-////    if (0 == direction) {
-////        return
-////    }
-//    def cancelling = device.currentValue('cancelLevelChange') ?: 'no'
-//    if (cancelling == 'yes') {
-//        runInMillis 2 * (changeLevelEvery as Integer), "enableLevelChange", [data: device]
-//        return;
-//    }
-//    def newLevel = device.currentValue('level') + ((direction as Float) * (changeLevelStep as Float))
-//    def lastStep = false
-//    if (newLevel < 0) {
-//        newLevel = 0
-//        lastStep = true
-//    } else if (newLevel > 100) {
-//        newLevel = 100
-//        lastStep = true
-//    }
-//    sendActions device, deviceId, deviceSetLevel(device, newLevel, useActivityLog, (changeLevelEvery - 1) / 1000)
-//    if (!lastStep) {
-//        runInMillis(
-//                changeLevelEvery as Integer,
-//                "deviceDoLevelChange",
-//                [
-//                        data: [
-//                                direction: direction,
-//                                dni      : deviceId,
-//                                step     : changeLevelStep,
-//                                every    : changeLevelEvery,
-//                                logIt    : useActivityLog
-//                        ]
-//                ]
-//        )
-//    }
-//}
-//
-//private void sendActions(com.hubitat.app.DeviceWrapper device, String ipAddress, Map<String, List> actions) {
-//    actions.commands?.each { item -> lifxCommand(device, item.cmd, item.payload) { List buffer -> sendPacket ipAddress, buffer, true } }
-//    actions.events?.each { sendEvent it }
-//}
-//
-//def parser(value) {
-//    logDebug("Value is $value")
-//}
-//
-//private void sendPacket(String ipAddress, List buffer, boolean noResponseExpected = false) {
-//    String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString asByteArray(buffer)
-//    logDebug("Sending $stringBytes to $ipAddress")
-//    sendHubCommand(
-//            new hubitat.device.HubAction(
-//                    stringBytes,
-//                    hubitat.device.Protocol.LAN,
-//                    ipAddress,
-//                    [
-//                            callback: 'parser',
-//                            type              : hubitat.device.HubAction.Type.LAN_TYPE_UDPCLIENT,
-//                            destinationAddress: ipAddress + ":56700",
-//                            encoding          : hubitat.device.HubAction.Encoding.HEX_STRING,
-//                            ignoreResponse    : noResponseExpected
-//                    ]
-//            )
-//    )
-//}
 
 Map<String, List> deviceOnOff(String value, Boolean displayed, duration = 0) {
     def actions = makeActions()
@@ -748,7 +666,6 @@ Map<String, List> deviceSetIRLevel(com.hubitat.app.DeviceWrapper device, Number 
     actions
 }
 
-//@TODO change duration to be a float to allow for fractional durations
 Map<String, List> deviceSetLevel(com.hubitat.app.DeviceWrapper device, Number level, Boolean displayed, Number duration = 0.0) {
     if ((null == level || level <= 0) && 0 == duration) {
         return deviceOnOff('off', displayed)
@@ -828,9 +745,9 @@ Map<String, List> deviceSetWaveform(com.hubitat.app.DeviceWrapper device, Boolea
         Map myColor
         myColor = (null == namedColor) ? null : lookupColor(namedColor.replace('_', ' '))
         realColor << [
-            hue       : scaleUp(myColor.h ?: 0, 360),
-            saturation: scaleUp100(myColor.s ?: 0),
-            brightness: scaleUp100(myColor.v ?: 50)
+                hue       : scaleUp(myColor.h ?: 0, 360),
+                saturation: scaleUp100(myColor.s ?: 0),
+                brightness: scaleUp100(myColor.v ?: 50)
         ]
     } else {
         realColor << getScaledColorMap(colorMap)
@@ -878,10 +795,10 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
                 device.setName deviceName
                 device.setLabel deviceName
             }
-            List<Map> result = [[name: "level", value: scaleDown100(data.color.brightness), displayed: displayed]]
+            List<Map> result = [[name: "level", value: intScaleDown100(data.color.brightness), displayed: displayed]]
             if (device.hasCapability('Color Control')) {
-                result.add([name: "hue", value: scaleDown100(data.color.hue), displayed: displayed])
-                result.add([name: "saturation", value: scaleDown100(data.color.saturation), displayed: displayed])
+                result.add([name: "hue", value: intScaleDown100(data.color.hue), displayed: displayed])
+                result.add([name: "saturation", value: intScaleDown100(data.color.saturation), displayed: displayed])
             }
             if (device.hasCapability('Color Temperature')) {
                 result.add([name: "colorTemperature", value: data.color.kelvin as Integer, displayed: displayed])
@@ -892,7 +809,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             return result
         case messageType['LIGHT.STATE_INFRARED']:
             def data = parsePayload 'LIGHT.STATE_INFRARED', header
-            return [[name: 'IRLevel', value: scaleDown100(data.irLevel), displayed: displayed]]
+            return [[name: 'IRLevel', value: intScaleDown100(data.irLevel), displayed: displayed]]
         case messageType['DEVICE.STATE_POWER']:
             Map data = parsePayload 'DEVICE.STATE_POWER', header
             return [[name: "switch", value: (data.powerLevel as Integer == 0 ? "off" : "on"), displayed: displayed, data: [syncing: "false"]],]
@@ -912,6 +829,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE', header
             def theZones = getChildDevice(device.getDeviceNetworkId()).loadLastMultizone()
             theZones.currentIndex = data.index
+            theZones.zone_count = data.zone_count
             for (int i = 0; i < 8; i++) {
                 theZones.colors[(i + data.index)] = data.colors[i]
             }
@@ -929,7 +847,7 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
         case messageType['MULTIZONE.STATE_MULTIZONE_EFFECT']:
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
             return [
-                [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
+                    [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -1344,14 +1262,14 @@ private List makeColorMapEvents(Map hsbkMap, Boolean displayed) {
     List<Map> events = []
     if (hsbkMap.hue || hsbkMap.saturation) {
         events << [name: 'colorMode', value: 'RGB', displayed: displayed]
-        hsbkMap.hue ? events << [name: 'hue', value: scaleDown100(hsbkMap.hue), displayed: displayed] : null
-        hsbkMap.saturation ? events << [name: 'saturation', value: scaleDown100(hsbkMap.saturation), displayed: displayed] : null
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
-        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(scaleDown100(hsbkMap.hue), scaleDown100(hsbkMap.saturation), scaleDown100(hsbkMap.brightness)), displayed: displayed]
+        hsbkMap.hue ? events << [name: 'hue', value: intScaleDown100(hsbkMap.hue), displayed: displayed] : null
+        hsbkMap.saturation ? events << [name: 'saturation', value: intScaleDown100(hsbkMap.saturation), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: intScaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        events << [name: 'RGB', value: hsbkMap.RGB ?: hsvToRgbString(intScaleDown100(hsbkMap.hue), intScaleDown100(hsbkMap.saturation), intScaleDown100(hsbkMap.brightness)), displayed: displayed]
     } else if (hsbkMap.kelvin) {
         events << [name: 'colorMode', value: 'CT', displayed: displayed]
         events << [name: 'colorTemperature', value: hsbkMap.kelvin as Integer, displayed: displayed]
-        hsbkMap.brightness ? events << [name: 'level', value: scaleDown100(hsbkMap.brightness), displayed: displayed] : null
+        hsbkMap.brightness ? events << [name: 'level', value: intScaleDown100(hsbkMap.brightness), displayed: displayed] : null
     }
 
     events << [name: 'colorName', value: hsbkMap.name ?: 'Unknown', displayed: displayed]
@@ -1381,7 +1299,7 @@ private Map<String, Object> getCurrentHSBK(com.hubitat.app.DeviceWrapper theDevi
     [
             hue       : scaleUp(theDevice.currentHue ?: 0, 100),
             saturation: scaleUp(theDevice.currentSaturation ?: 0, 100),
-            brightness: scaleUp(theDevice.currentLevel as Long ?: 0, 100),
+            brightness: scaleUp(theDevice.currentLevel as Integer ?: 0, 100),
             kelvin    : theDevice.currentcolorTemperature
     ]
 }
@@ -1391,13 +1309,17 @@ private Float scaleDown100(value) {
     scaleDown(value, 100)
 }
 
-private Long scaleUp100(value) {
-    scaleUp(value, 100)
+private Integer scaleUp100(value) {
+    scaleUp(value, 100) as Integer
 }
 
 private Float scaleDown(value, maxValue) {
     Float result = ((value * maxValue) / 65535)
     result.round(2)
+}
+
+private Integer intScaleDown100(value) {
+    return scaleDown100(value) as Integer
 }
 
 private Long scaleUp(value, maxValue) {
@@ -1591,6 +1513,7 @@ private Map deviceVersion(Map device) {
                     ]
             ]
         case 11:
+        case 19:
             return [
                     name      : 'White 800 (High Voltage)',
                     deviceName: 'LIFX White',
@@ -1641,6 +1564,9 @@ private Map deviceVersion(Map device) {
         case 27:
         case 43:
         case 62:
+        case 91:
+        case 92:
+        case 97:
             return [
                     name      : 'LIFX A19',
                     deviceName: 'LIFX Color',
@@ -1655,6 +1581,8 @@ private Map deviceVersion(Map device) {
         case 28:
         case 44:
         case 63:
+        case 94:
+        case 98:
             return [
                     name      : 'LIFX BR30',
                     deviceName: 'LIFX Color',
@@ -1669,6 +1597,8 @@ private Map deviceVersion(Map device) {
         case 29:
         case 45:
         case 64:
+        case 109:
+        case 111:
             return [
                     name      : 'LIFX+ A19',
                     deviceName: 'LIFXPlus Color',
@@ -1683,6 +1613,7 @@ private Map deviceVersion(Map device) {
         case 30:
         case 46:
         case 65:
+        case 110:
             return [
                     name      : 'LIFX+ BR30',
                     deviceName: 'LIFXPlus Color',
@@ -1721,6 +1652,7 @@ private Map deviceVersion(Map device) {
             ]
         case 36:
         case 37:
+        case 40:
             return [
                     name      : 'LIFX Downlight',
                     deviceName: 'LIFX Color',
@@ -1745,10 +1677,22 @@ private Map deviceVersion(Map device) {
                             min_ext_mz_firmware: 1532997580
                     ]
             ]
-
-        case 49:
+        case 39:
             return [
-                    name      : 'LIFX Mini',
+                    name      : 'LIFX Downlight white to warm',
+                    deviceName: 'LIFX Day and Dusk',
+                    features  : [
+                            color            : false,
+                            chain            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 1500, max: 9000]
+                    ]
+            ]
+        case 49:
+        case 59:
+            return [
+                    name      : 'LIFX Mini Color',
                     deviceName: 'LIFX Color',
                     features  : [
                             color            : true,
@@ -1773,6 +1717,9 @@ private Map deviceVersion(Map device) {
             ]
         case 51:
         case 61:
+        case 66:
+        case 87:
+        case 88:
             return [
                     name      : 'LIFX Mini White',
                     deviceName: 'LIFX White Mono',
@@ -1804,7 +1751,7 @@ private Map deviceVersion(Map device) {
                             color            : true,
                             infrared         : false,
                             multizone        : false,
-                            temperature_range: [min: 2500, max: 9000],
+                            temperature_range: [min: 1500, max: 9000],
                             chain            : true
                     ]
             ]
@@ -1820,19 +1767,8 @@ private Map deviceVersion(Map device) {
                             chain            : false,
                     ]
             ]
-        case 59:
-            return [
-                    name      : 'LIFX Mini Color',
-                    deviceName: 'LIFX Color',
-                    features  : [
-                            color            : true,
-                            infrared         : false,
-                            multizone        : false,
-                            temperature_range: [min: 2500, max: 9000],
-                            chain            : false
-                    ]
-            ]
         case 81:
+        case 96:
             return [
                     name      : 'LIFX Candle Warm to White',
                     deviceName: 'LIFX Day and Dusk',
@@ -1845,10 +1781,24 @@ private Map deviceVersion(Map device) {
                     ]
             ]
         case 82:
+        case 100:
             return [
-                    name      : 'LIFX Filament',
+                    name      : 'LIFX Filament Clear',
                     deviceName: 'LIFX White Mono',
-                    features   : [
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2100, max: 2100],
+                            chain            : false
+                    ]
+            ]
+        case 85:
+        case 101:
+            return [
+                    name      : 'LIFX Filament Amber',
+                    deviceName: 'LIFX White Mono',
+                    features  : [
                             color            : false,
                             infrared         : false,
                             multizone        : false,
@@ -1856,6 +1806,31 @@ private Map deviceVersion(Map device) {
                             chain            : false
                     ]
             ]
+        case 57:
+        case 68:
+            return [
+                    name      : 'LIFX Candle',
+                    deviceName: 'LIFX Color',
+                    features  : [
+                            color            : true,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 1500, max: 9000],
+                            chain            : false
+                    ]
+            ]
+//        case 96:
+//            return [
+//                    name      : 'LIFX Candle White',
+//                    deviceName: 'LIFX White Mono',
+//                    features  : [
+//                            color            : false,
+//                            infrared         : false,
+//                            multizone        : false,
+//                            temperature_range: [min: 2700, max: 2700],
+//                            chain            : false
+//                    ]
+//            ]
         default:
             return [name: "Unknown LIFX device with product id ${device.product}"]
     }

@@ -22,6 +22,7 @@ metadata {
         capability "Initialize"
         capability "ColorControl"
         capability "ColorMode"
+        capability 'ChangeLevel'
 
         attribute "label", "string"
         attribute "group", "string"
