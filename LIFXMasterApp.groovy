@@ -626,6 +626,21 @@ Map<String, List> deviceSetMultiZoneEffect(String effectType, Integer speed, Str
     actions
 }
 
+Map<String, List> deviceSetTileEffect(String effectType, Integer speed, Integer palette_count, List<Map> colors) {
+    def actions = makeActions()
+    Integer typeInt
+    switch (effectType) {
+        case 'OFF':
+            typeInt = 0
+        case 'MORPH':
+            typeInt = 2
+        case 'FLAME':
+            typeInt = 3
+    }
+    actions.commands << makeCommand('TILE.SET_TILE_EFFECT', [instanceId: 5439, type: typeInt, speed: speed * 1000, palette_count: palette_count, palette: hsbkList])
+    actions
+}
+
 Map<String, List> deviceSetColor(com.hubitat.app.DeviceWrapper device, Map colorMap, Boolean displayed, duration = 0) {
     def hsbkMap = getCurrentHSBK device
     hsbkMap << getScaledColorMap(colorMap)
@@ -848,6 +863,12 @@ List<Map> parseForDevice(device, String description, Boolean displayed, Boolean 
             Map data = parsePayload 'MULTIZONE.STATE_MULTIZONE_EFFECT', header
             return [
                     [name: 'effect', value: data.type == 1 ? 'MOVE' : 'OFF', displayed: true]
+            ]
+        case messageType['TILE.STATE_TILE_EFFECT']:
+            Map data = parsePayload 'TILE.STATE_TILE_EFFECT', header
+            def effects = ['OFF', 'RESERVED', 'MORPH', 'FLAME']
+            return [
+                    [name: 'effect', value: effects[data.type as int], displayed: true]
             ]
         default:
             logWarn "Unhandled response for ${header.type}"
@@ -1244,6 +1265,7 @@ private List<Map> makeColorMaps(Map<String, Map> namedColors, String descriptor)
 
 private Map<String, List> deviceSetHSBKAndPower(com.hubitat.app.DeviceWrapper device, Number duration, Map<String, Object> hsbkMap, boolean displayed, String power = 'on') {
     def actions = makeActions()
+    logDebug("deviceSetHSBKAndPower: $hsbkMap")
     if (hsbkMap) {
         actions.commands << makeCommand('LIGHT.SET_COLOR', [color: hsbkMap, duration: (hsbkMap.duration ?: 0) * 1000])
         actions.events = actions.events + makeColorMapEvents(hsbkMap, displayed)
@@ -1284,6 +1306,7 @@ private Map getScaledColorMap(Map colorMap) {
     colorMap.saturation instanceof Integer ? result.saturation = scaleUp100(colorMap.saturation) as Integer : null
     brightness instanceof Integer ? result.brightness = scaleUp100(brightness) as Integer : null
     colorMap.kelvin instanceof Integer ? result.kelvin = colorMap.kelvin : null
+    logDebug(result)
     result
 }
 
@@ -2485,6 +2508,11 @@ private Map flattenedDescriptors() {
                 SET_EXTENDED_COLOR_ZONES  : [type: 510, descriptor: 'duration:i;apply:b;index:w;colors_count:b;colors:ha82'],
                 GET_EXTENDED_COLOR_ZONES  : [type: 511, descriptor: ''],
                 STATE_EXTENDED_COLOR_ZONES: [type: 512, descriptor: 'zone_count:w;index:w;colors_count:b;colors:ha82'],
+        ],
+        TILE: [
+                GET_TILE_EFFECT  : [type: 718, descriptor: ''],
+                SET_TILE_EFFECT  : [type: 719, descriptor: 'reserved1Effect:b;reserved2Effect:b;instanceId:i;type:b;speed:i;duration:l;reserved3Effect:i;reserved4Effect:i;parameters:ia8;palette_count:b;palette:ha8'],
+                STATE_TILE_EFFECT: [type: 720, descriptor: 'reserved1Effect:b;instanceId:i;type:b;speed:i;duration:l;reserved2Effect:i;reserved3Effect:i;parameters:ia8;palette_count:b;palette:ha8'],
         ]
 ]
 

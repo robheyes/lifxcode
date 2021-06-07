@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 /**
  *
  * Copyright 2018, 2019 Robert Heyes. All Rights Reserved
@@ -20,6 +22,9 @@ metadata {
         attribute "label", "string"
         attribute "group", "string"
         attribute "location", "string"
+        attribute "effect", "string"
+        
+        command "setEffect", [[name: "Effect type*", type: "ENUM", constraints: ["FLAME", "MORPH", "OFF"]], [name: "Colors", type: "JSON_OBJECT"], [name: "Palette Count", type: "NUMBER"], [name: "Speed", type: "NUMBER"]]
     }
 
     preferences {
@@ -57,6 +62,7 @@ def refresh() {
 def poll() {
     parent.lifxQuery(device, 'DEVICE.GET_POWER') { List buffer -> sendPacket buffer }
     parent.lifxQuery(device, 'LIGHT.GET_STATE') { List buffer -> sendPacket buffer }
+    parent.lifxQuery(device, 'TILE.GET_TILE_EFFECT') { List buffer -> sendPacket buffer }
 }
 
 def requestInfo() {
@@ -72,24 +78,57 @@ def off() {
     sendActions parent.deviceOnOff('off', getUseActivityLog(), state.transitionTime ?: 0)
 }
 
+def setEffect(String effectType, colors = '[]', palette_count = 16, speed = 30) {
+    logDebug("Effect inputs -- type: $effectType, speed: $speed, palette_count: $palette_count, colors: $colors")
+    def colorsList = new JsonSlurper().parseText(colors)
+    if (colorsList.size() >= 1) {
+        palette_count = colorsList.size()
+    }
+    def hsbkList = new Map<String, Object>[palette_count]
+    for (int i = 0; i < palette_count; i++) {
+        if (colorsList[i]) {
+            String namedColor = colorsList[i].color ?: colorsList[i].colour
+            if (namedColor) {
+                Map myColor
+                myColor = (null == namedColor) ? null : parent.lookupColor(namedColor.replace('_', ' '))
+                hsbkList[i] = [
+                    hue       : parent.scaleUp(myColor.h ?: 0, 360),
+                    saturation: parent.scaleUp100(myColor.s ?: 0),
+                    brightness: parent.scaleUp100(myColor.v ?: 50)
+                ]
+            } else {
+                hsbkList[i] = parent.getScaledColorMap(colorsMap[i])
+            }
+        } else {
+            hsbkList[i] = [hue: 0, saturation: 0, brightnes: 0]
+        }
+    }
+    logDebug("Sending effect command -- type: $effectType, speed: $speed, palette_count: $palette_count, hsbkList: $hsbkList")
+    sendActions parent.deviceSetTileEffect(effectType, speed.toInteger(), palette_count.toInteger(), hsbkList)
+}
+
 @SuppressWarnings("unused")
 def setColor(Map colorMap) {
-
+    logDebug("setColor: $colorMap")
+    sendActions parent.deviceSetColor(device, colorMap, getUseActivityLogDebug(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
-def setHue(number) {
-
+def setHue(hue) {
+    logDebug("setHue: $hue")
+    sendActions parent.deviceSetHue(device, hue, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
-def setSaturation(number) {
-
+def setSaturation(saturation) {
+    logDebug("setSat: $saturation")
+    sendActions parent.deviceSetSaturation(device, saturation, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 @SuppressWarnings("unused")
 def setColorTemperature(temperature) {
-
+    logDebug("setTemp: $temperature")
+    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
 }
 
 private void sendActions(Map<String, List> actions) {
@@ -107,6 +146,7 @@ private String myIp() {
 }
 
 private void sendPacket(List buffer, boolean noResponseExpected = false) {
+    logDebug(buffer)
     String stringBytes = hubitat.helper.HexUtils.byteArrayToHexString parent.asByteArray(buffer)
     sendHubCommand(
             new hubitat.device.HubAction(
