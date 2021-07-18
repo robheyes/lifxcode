@@ -284,8 +284,8 @@ private String discoveryTextKnownDevices() {
     }
 
     def deviceList = describeDevices() // don't inline this
-
-    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX device $devicesSuffix so far: $deviceList"
+//    log.debug(deviceList)
+    "I have found <strong>${atomicState.numDevices}</strong> useable LIFX devices so far: ${deviceList}"
 }
 
 private String describeDevices() {
@@ -1589,6 +1589,7 @@ private Map deviceVersion(Map device) {
         case 62:
         case 91:
         case 92:
+        case 93:
         case 97:
             return [
                     name      : 'LIFX A19',
@@ -1855,7 +1856,17 @@ private Map deviceVersion(Map device) {
 //                    ]
 //            ]
         default:
-            return [name: "Unknown LIFX device with product id ${device.product}"]
+            return [
+                    name: "Unknown LIFX device with product id ${device.product} treating it as LIFX White Mono for now",
+                    deviceName: 'LIFX Unknown',
+                    features  : [
+                            color            : false,
+                            infrared         : false,
+                            multizone        : false,
+                            temperature_range: [min: 2700, max: 2700],
+                            chain            : false
+                    ]
+            ]
     }
 }
 
