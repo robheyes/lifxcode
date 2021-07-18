@@ -85,8 +85,8 @@ def off() {
 }
 
 @SuppressWarnings("unused")
-def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+def setColorTemperature(temperature, level = null, transitionTime = null) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, level, getUseActivityLog(), transitionTime ?: (state.transitionTime ?: 0))
 }
 
 @SuppressWarnings("unused")

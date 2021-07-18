@@ -126,9 +126,8 @@ def setSaturation(saturation) {
 }
 
 @SuppressWarnings("unused")
-def setColorTemperature(temperature) {
-    logDebug("setTemp: $temperature")
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+def setColorTemperature(temperature, level = null, transitionTime = null) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, level, getUseActivityLog(), transitionTime ?: (state.transitionTime ?: 0))
 }
 
 private void sendActions(Map<String, List> actions) {
