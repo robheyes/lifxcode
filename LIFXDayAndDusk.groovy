@@ -92,8 +92,8 @@ def setLevel(level, duration = 0) {
 
 
 @SuppressWarnings("unused")
-def setColorTemperature(temperature) {
-    sendActions parent.deviceSetColorTemperature(device, temperature, getUseActivityLog(), state.transitionTime ?: 0)
+def setColorTemperature(temperature, level = null, transitionTime = null) {
+    sendActions parent.deviceSetColorTemperature(device, temperature, level, getUseActivityLog(), transitionTime ?: (state.transitionTime ?: 0))
 }
 
 def setWaveform(String waveform, String color, String isTransient = 'true', period = 5, cycles = 3.40282346638528860e38, skew = 0.5) {

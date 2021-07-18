@@ -1,9 +1,9 @@
 {
   "packageName": "LIFX Master",
   "author": "Robert Alan Heyes",
-  "version": "1.0.5",
-  "minimumHEVersion": "2.2.5",
-  "dateReleased": "2021-04-10",
+  "version": "1.0.6",
+  "minimumHEVersion": "2.2.8",
+  "dateReleased": "2021-07-18",
   "apps": [
     {
       "id": "943ac10e-f770-499a-8921-7899ea06091d",
@@ -71,6 +71,13 @@
       "namespace": "robheyes",
       "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXWhiteMono.groovy",
       "required": false
+    },
+    {
+      "id": "a7ba55c1-d8ff-4fe7-a1a3-7100386ebfde",
+      "name": "LIFX Unknown",
+      "namespace": "robheyes",
+      "location": "https://raw.githubusercontent.com/robheyes/lifxcode/master/LIFXUnknown.groovy",
+      "required": true
     }
   ]
 }
