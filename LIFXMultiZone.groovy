@@ -215,7 +215,7 @@ def getDeviceFirmware() {
 }
 
 def extMzSupported() {
-    Float curr = Float.parseFloat(state.firmware ?: 2.77)
+    Float curr = new Float(state.firmware ?: 2.77)
     Float minExtMz = 2.77 //2.77 changed to test legacy protocol
     return (curr >= minExtMz)
 }
